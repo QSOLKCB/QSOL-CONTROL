@@ -1,0 +1,37 @@
+{
+  "protocol": "qsol-control-model-state/1",
+  "state_id": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "captured_at": "2026-08-18T07:27:00+09:30",
+  "model": {
+    "provider": "local",
+    "runtime": "ollama",
+    "runtime_version": "example",
+    "model_id": "example-model",
+    "revision": null,
+    "weight_hash": null,
+    "tokenizer_identity": null,
+    "quantization": "Q4_K_M",
+    "metadata_provenance": "observed"
+  },
+  "execution": {
+    "council_seat": "WHITE",
+    "mode": "analytical",
+    "stochastic": true,
+    "seed": null,
+    "context_limit": 8192,
+    "sampling": {
+      "temperature": 0.2
+    },
+    "tool_permissions": []
+  },
+  "system": {
+    "control_run_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "nexus_identity": "nexus/example",
+    "oracle_refs": ["oracle:event:example"],
+    "substrate_identity": "substrate/example",
+    "hardware_runtime_metadata": {
+      "accelerator_class": "example-only"
+    }
+  },
+  "hidden_chain_of_thought_captured": false
+}

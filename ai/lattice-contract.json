@@ -1,0 +1,57 @@
+{
+  "type": "qsol-control-lattice-contract",
+  "protocol": "qsol-3x3x3-sierpinski-derived-memory/1",
+  "version": 1,
+  "purpose": "deterministic logical addressing for interaction, evidence, response, model-state, lineage, and recovery records",
+  "authority": "storage-only",
+  "top_level_cell_count": 27,
+  "literal_geometric_claim": false,
+  "axes": {
+    "x": {
+      "name": "information_role",
+      "values": {
+        "0": "question",
+        "1": "response",
+        "2": "evidence"
+      }
+    },
+    "y": {
+      "name": "epistemic_role",
+      "values": {
+        "0": "observed",
+        "1": "derived",
+        "2": "unresolved"
+      }
+    },
+    "z": {
+      "name": "temporal_role",
+      "values": {
+        "0": "current",
+        "1": "historical",
+        "2": "recovery"
+      }
+    }
+  },
+  "address_shape": "L[x,y,z][/L[x,y,z]...]",
+  "recursive_addressing": {
+    "allowed": true,
+    "must_be_profile_versioned": true,
+    "must_be_deterministic_from_recorded_metadata": true,
+    "runtime_depth_limit_required": true
+  },
+  "identity_rules": [
+    "lattice_address_does_not_replace_content_hash",
+    "lattice_address_does_not_replace_provenance",
+    "lattice_address_does_not_confer_authority",
+    "geometry_does_not_confer_truth",
+    "record_lineage_is_explicit"
+  ],
+  "examples": [
+    {"record": "new_question", "address": "L[0,1,0]"},
+    {"record": "council_response", "address": "L[1,1,0]"},
+    {"record": "oracle_primary_observation_ref", "address": "L[2,0,0]"},
+    {"record": "unresolved_evidence_gap", "address": "L[2,2,0]"},
+    {"record": "historical_response", "address": "L[1,1,1]"},
+    {"record": "recovery_evidence_bundle", "address": "L[2,0,2]"}
+  ]
+}

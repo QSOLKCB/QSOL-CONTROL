@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/control-query.schema.json",
+  "title": "QSOL-CONTROL Query",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["operation", "question", "mode"],
+  "properties": {
+    "operation": {"const": "control.ask"},
+    "question": {"type": "string", "minLength": 1, "maxLength": 32768},
+    "mode": {"enum": ["evidence_only", "council"]},
+    "include": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 16,
+      "items": {
+        "enum": [
+          "oracle_evidence",
+          "sources",
+          "votes",
+          "minority_reports",
+          "model_states",
+          "receipts",
+          "lattice_refs"
+        ]
+      }
+    },
+    "requester": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["human", "ai", "system"]},
+        "id": {"type": ["string", "null"], "maxLength": 256}
+      }
+    }
+  }
+}

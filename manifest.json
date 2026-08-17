@@ -1,0 +1,94 @@
+{
+  "type": "qsol-control-manifest",
+  "protocol": "QSOL-CONTROL/0.1",
+  "schema_version": "1.0.0",
+  "snapshot_date": "2026-08-18",
+  "role": "human-and-ai-control-plane",
+  "verb": "OPERATES",
+  "semantic_authority": "none",
+  "evidence_authority": "none",
+  "reasoning_authority": "none",
+  "license": "LICENSE",
+  "machine_entrypoint": "README4AI.md",
+  "constitution": "ai/constitution.json",
+  "lattice_contract": "ai/lattice-contract.json",
+  "architecture": "ARCHITECTURE.md",
+  "roadmap": "ROADMAP.md",
+  "security": "SECURITY.md",
+  "json_schema": {
+    "draft": "https://json-schema.org/draft/2020-12/schema",
+    "compatibility_policy": "semantic-versioning",
+    "major": "breaking schema or authority-contract changes",
+    "minor": "backward-compatible optional fields or capabilities",
+    "patch": "clarifications and fixes that do not change accepted contract meaning"
+  },
+  "validation": {
+    "python_minimum": "3.11",
+    "command": "python3 tools/validate_control.py",
+    "test_command": "python3 -W default -m unittest discover -s tests -v",
+    "workflow": ".github/workflows/validate.yml"
+  },
+  "interfaces": {
+    "human": "webui-planned",
+    "ai": "structured-api-planned"
+  },
+  "roles": {
+    "QSOL-SUBSTRATE": "KNOWS",
+    "QSOL-ARK": "SURVIVES",
+    "QSOL-INT": "COMPOSES",
+    "QSOL-ORACLE": "WITNESSES",
+    "QSOL-NEXUS": "REASONS",
+    "QSOL-CONTROL": "OPERATES",
+    "LATTICE_MEMORY": "REMEMBERS"
+  },
+  "query_modes": ["evidence_only", "council"],
+  "lattice": {
+    "profile": "qsol-3x3x3-sierpinski-derived-memory/1",
+    "top_level_cells": 27,
+    "authority": "storage-only",
+    "recursive": true
+  },
+  "schemas": {
+    "query": "schema/control-query.schema.json",
+    "interaction": "schema/interaction-record.schema.json",
+    "model_state": "schema/model-state.schema.json"
+  },
+  "schema_examples": {
+    "query": {
+      "valid": "examples/schema/control-query.valid.json",
+      "invalid": "examples/schema/control-query.invalid.json"
+    },
+    "interaction": {
+      "valid": "examples/schema/interaction-record.valid.json",
+      "invalid": "examples/schema/interaction-record.invalid.json"
+    },
+    "model_state": {
+      "valid": "examples/schema/model-state.valid.json",
+      "invalid": "examples/schema/model-state.invalid.json"
+    }
+  },
+  "documentation": [
+    "README.md",
+    "README4AI.md",
+    "AGENTS.md",
+    "ARCHITECTURE.md",
+    "ROADMAP.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md",
+    "docs/WEBUI.md",
+    "docs/AI-API.md",
+    "docs/LATTICE-MEMORY.md",
+    "docs/MODEL-STATE.md",
+    "docs/NEXUS-ORACLE.md"
+  ],
+  "status": {
+    "phase": 0,
+    "architecture_contracts": "implemented",
+    "validation_ci": "implemented",
+    "runtime": "not-yet-implemented",
+    "webui": "not-yet-implemented",
+    "ai_api": "not-yet-implemented",
+    "persistent_lattice_engine": "not-yet-implemented"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "protocol": "qsol-control-interaction/1",
+  "run_id": "not-a-content-hash",
+  "question_sha256": "xyz",
+  "mode": "council",
+  "requester_kind": "human",
+  "created_at": "not-a-date",
+  "evidence_state": "certain-because-six-models-agreed",
+  "record_refs": [],
+  "model_state_refs": [],
+  "replayability": "R9"
+}

@@ -1,0 +1,51 @@
+{
+  "type": "qsol-control-constitution",
+  "protocol": "QSOL-CONTROL/0.1",
+  "version": 1,
+  "operator_role": "orchestration-only",
+  "invariants": [
+    "CONTROL_DISPLAY != AUTHORITY",
+    "CONTROL_OPERATION != TRUTH",
+    "VOTE != EVIDENCE",
+    "CONSENSUS != TRUTH",
+    "CONFIDENCE != PROBABILITY",
+    "STORED != TRUE",
+    "PERSISTED != CANONICAL",
+    "MODEL_STATE != EVIDENCE",
+    "AI_RESPONSE != FACT",
+    "MEMORY != AUTHORITY",
+    "MODEL_STATE != MODEL_MIND",
+    "VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
+    "RUNTIME_METADATA != CONSCIOUSNESS",
+    "GEOMETRY != TRUTH",
+    "CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY",
+    "CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES",
+    "CONTROL_MUST_NOT_PROMOTE_CONSENSUS_TO_EVIDENCE",
+    "HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY"
+  ],
+  "authority_owners": {
+    "public_epistemic_state": "QSOL-SUBSTRATE",
+    "recovery": "QSOL-ARK",
+    "composition": "QSOL-INT",
+    "witness_history": "QSOL-ORACLE",
+    "council_reasoning_and_governance": "QSOL-NEXUS",
+    "orchestration_and_operator_ui": "QSOL-CONTROL",
+    "interaction_storage_mechanics": "QSOL-CONTROL-LATTICE"
+  },
+  "forbidden_authority_escalations": [
+    "derive_truth_from_vote_count",
+    "derive_evidence_from_model_confidence",
+    "derive_canonical_status_from_storage",
+    "rewrite_oracle_event_history",
+    "modify_nexus_ballots_or_vote_weights",
+    "grant_ai_callers_hidden_epistemic_privilege",
+    "treat_lattice_coordinates_as_cognitive_or_physical_truth",
+    "capture_or_claim_hidden_chain_of_thought"
+  ],
+  "unknown_policy": {
+    "missing_information": "preserve_unknown",
+    "model_metadata": "do_not_guess",
+    "evidence_gap": "surface_gap_and_optional_search_targets",
+    "suggested_searches_are_evidence": false
+  }
+}

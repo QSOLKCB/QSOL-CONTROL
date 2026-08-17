@@ -1,0 +1,5 @@
+{
+  "operation": "control.ask",
+  "question": "",
+  "mode": "oracle-knows-everything"
+}
