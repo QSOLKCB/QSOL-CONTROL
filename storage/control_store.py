@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Dependency-free persistent storage substrate for QSOL-CONTROL.
 
-Canonical file bytes and collection snapshots are durable state. Search indexes are
-explicitly derived, rebuildable state and never acquire evidence or truth authority.
+Canonical File bytes and Collection snapshots are durable state. Search indexes are
+explicitly derived/rebuildable state and never acquire evidence or truth authority.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from typing import Any, Iterable
 SHA256_REF_RE = re.compile(r"^sha256:([0-9a-f]{64})$")
 TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
 PRIVACY_CLASSES = {"PUBLIC", "INTERNAL", "RESTRICTED"}
+PRIVACY_RANK = {"PUBLIC": 0, "INTERNAL": 1, "RESTRICTED": 2}
 RETENTION_CLASSES = {"TRANSIENT", "SESSION", "ARCHIVE"}
 
 
@@ -29,7 +30,6 @@ class StorageError(ValueError):
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    """Return canonical UTF-8 JSON bytes used for content identity."""
     return json.dumps(
         value,
         sort_keys=True,
@@ -159,6 +159,15 @@ class ControlStore:
         if retention_class not in RETENTION_CLASSES:
             raise StorageError("unknown retention class")
 
+    @staticmethod
+    def _validate_member_privacy(collection: dict[str, Any], file_record: dict[str, Any]) -> None:
+        collection_class = collection["privacy_class"]
+        file_class = file_record["privacy_class"]
+        if PRIVACY_RANK[file_class] > PRIVACY_RANK[collection_class]:
+            raise StorageError(
+                f"collection privacy {collection_class} cannot contain more-restricted file {file_class}"
+            )
+
     def put_file(
         self,
         content: bytes | str,
@@ -171,7 +180,6 @@ class ControlStore:
         source: dict[str, Any] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Persist bytes once and create an immutable metadata record referencing them."""
         if not isinstance(filename, str) or not filename or len(filename) > 512:
             raise StorageError("filename must be 1..512 characters")
         if not isinstance(media_type, str) or not media_type or len(media_type) > 256:
@@ -203,12 +211,12 @@ class ControlStore:
         }
         file_id = self._identity(identity_payload)
         record = {"file_id": file_id, **identity_payload}
-        record_path = self._file_record_path(file_id)
+        path = self._file_record_path(file_id)
         encoded = canonical_json_bytes(record)
-        if record_path.exists() and record_path.read_bytes() != encoded:
+        if path.exists() and path.read_bytes() != encoded:
             raise StorageError("file record identity collision detected")
-        if not record_path.exists():
-            _atomic_write(record_path, encoded)
+        if not path.exists():
+            _atomic_write(path, encoded)
         return record
 
     def get_file_record(self, file_id: str) -> dict[str, Any]:
@@ -216,8 +224,8 @@ class ControlStore:
         if not path.is_file():
             raise StorageError(f"unknown file_id: {file_id}")
         record = _read_json(path)
-        identity_payload = {key: value for key, value in record.items() if key != "file_id"}
-        if self._identity(identity_payload) != file_id:
+        payload = {key: value for key, value in record.items() if key != "file_id"}
+        if self._identity(payload) != file_id:
             raise StorageError("file record content identity mismatch")
         return record
 
@@ -240,12 +248,11 @@ class ControlStore:
         retention_class: str = "ARCHIVE",
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create a persistent Collection with an immutable empty revision 0 snapshot."""
         if not isinstance(name, str) or not name or len(name) > 256:
             raise StorageError("collection name must be 1..256 characters")
         self._validate_classes(privacy_class, retention_class)
         timestamp = _validate_timestamp(created_at or _utc_now())
-        descriptor_payload = {
+        payload = {
             "protocol": "qsol-control-collection/1",
             "name": name,
             "created_at": timestamp,
@@ -253,17 +260,16 @@ class ControlStore:
             "retention_class": retention_class,
             "metadata": metadata or {},
         }
-        collection_id = self._identity(descriptor_payload)
-        descriptor = {"collection_id": collection_id, **descriptor_payload}
-        collection_dir = self._collection_dir(collection_id)
-        descriptor_path = collection_dir / "collection.json"
-        if descriptor_path.exists():
-            existing = _read_json(descriptor_path)
-            if existing != descriptor:
+        collection_id = self._identity(payload)
+        descriptor = {"collection_id": collection_id, **payload}
+        directory = self._collection_dir(collection_id)
+        path = directory / "collection.json"
+        if path.exists():
+            if _read_json(path) != descriptor:
                 raise StorageError("collection identity collision detected")
             return {**descriptor, "head_snapshot_id": self._read_head(collection_id)}
 
-        _atomic_write(descriptor_path, canonical_json_bytes(descriptor))
+        _atomic_write(path, canonical_json_bytes(descriptor))
         snapshot = self._write_snapshot(
             collection_id,
             revision=0,
@@ -279,8 +285,8 @@ class ControlStore:
         if not path.is_file():
             raise StorageError(f"unknown collection_id: {collection_id}")
         descriptor = _read_json(path)
-        identity_payload = {key: value for key, value in descriptor.items() if key != "collection_id"}
-        if self._identity(identity_payload) != collection_id:
+        payload = {key: value for key, value in descriptor.items() if key != "collection_id"}
+        if self._identity(payload) != collection_id:
             raise StorageError("collection descriptor identity mismatch")
         return {**descriptor, "head_snapshot_id": self._read_head(collection_id)}
 
@@ -298,8 +304,7 @@ class ControlStore:
         _atomic_write(self._head_path(collection_id), canonical_json_bytes({"snapshot_id": snapshot_id}))
 
     def _snapshot_path(self, collection_id: str, snapshot_id: str) -> Path:
-        digest = _digest_from_ref(snapshot_id)
-        return self._collection_dir(collection_id) / "snapshots" / f"{digest}.json"
+        return self._collection_dir(collection_id) / "snapshots" / f"{_digest_from_ref(snapshot_id)}.json"
 
     def _write_snapshot(
         self,
@@ -337,8 +342,8 @@ class ControlStore:
         if not path.is_file():
             raise StorageError("collection snapshot does not exist")
         record = _read_json(path)
-        identity_payload = {key: value for key, value in record.items() if key != "snapshot_id"}
-        if self._identity(identity_payload) != selected:
+        payload = {key: value for key, value in record.items() if key != "snapshot_id"}
+        if self._identity(payload) != selected:
             raise StorageError("collection snapshot identity mismatch")
         if record.get("collection_id") != collection_id:
             raise StorageError("snapshot belongs to a different collection")
@@ -352,20 +357,21 @@ class ControlStore:
         remove: Iterable[str] = (),
         created_at: str | None = None,
     ) -> dict[str, Any]:
-        """Create a new immutable collection membership snapshot and atomically move HEAD."""
+        collection = self.get_collection(collection_id)
         current = self.get_collection_snapshot(collection_id)
         members = set(current["members"])
         additions = set(add)
         removals = set(remove)
         if additions & removals:
             raise StorageError("the same file cannot be added and removed in one update")
-        for file_id in additions:
-            self.get_file_record(file_id)
         missing_removals = removals - members
         if missing_removals:
             raise StorageError(f"cannot remove non-member files: {sorted(missing_removals)}")
         members |= additions
         members -= removals
+        for file_id in sorted(members):
+            record = self.get_file_record(file_id)
+            self._validate_member_privacy(collection, record)
         ordered = sorted(members)
         if ordered == current["members"]:
             return current
@@ -394,10 +400,9 @@ class ControlStore:
         if path.exists():
             existing = _read_json(path)
             if existing != record:
-                # Built-at timestamps are not part of index identity; preserve first durable build.
-                comparable_existing = {k: v for k, v in existing.items() if k != "built_at"}
-                comparable_record = {k: v for k, v in record.items() if k != "built_at"}
-                if comparable_existing != comparable_record:
+                old = {key: value for key, value in existing.items() if key != "built_at"}
+                new = {key: value for key, value in record.items() if key != "built_at"}
+                if old != new:
                     raise StorageError("search-index identity collision detected")
                 record = existing
         else:
@@ -410,9 +415,7 @@ class ControlStore:
 
     def _read_index_head(self, collection_id: str, kind: str) -> dict[str, Any] | None:
         path = self._index_head_path(collection_id, kind)
-        if not path.is_file():
-            return None
-        return _read_json(path)
+        return _read_json(path) if path.is_file() else None
 
     def get_index(self, index_id: str) -> dict[str, Any]:
         path = self._index_path(index_id)
@@ -423,12 +426,10 @@ class ControlStore:
     def build_lexical_index(
         self, collection_id: str, *, built_at: str | None = None
     ) -> dict[str, Any]:
-        """Build a deterministic offline retrieval baseline for the current snapshot."""
         snapshot = self.get_collection_snapshot(collection_id)
         documents: dict[str, dict[str, int]] = {}
         skipped: list[str] = []
         for file_id in snapshot["members"]:
-            record = self.get_file_record(file_id)
             try:
                 text = self.read_file(file_id).decode("utf-8")
             except UnicodeDecodeError:
@@ -447,9 +448,8 @@ class ControlStore:
             "rebuildable": True,
             "authority": "none",
         }
-        index_id = self._identity(basis)
         record = {
-            "index_id": index_id,
+            "index_id": self._identity(basis),
             **basis,
             "built_at": _validate_timestamp(built_at or _utc_now()),
         }
@@ -460,7 +460,7 @@ class ControlStore:
     ) -> list[dict[str, Any]]:
         if not isinstance(query, str) or not query.strip():
             raise StorageError("search query must be non-empty")
-        if not isinstance(limit, int) or not (1 <= limit <= 100):
+        if not isinstance(limit, int) or not 1 <= limit <= 100:
             raise StorageError("search limit must be 1..100")
         snapshot = self.get_collection_snapshot(collection_id)
         head = self._read_index_head(collection_id, "deterministic-lexical-baseline")
@@ -469,11 +469,11 @@ class ControlStore:
         else:
             index = self.get_index(head["index_id"])
         query_terms = _token_counts(query)
-        scored: list[tuple[float, str]] = []
-        for file_id, terms in index["documents"].items():
-            score = _sparse_cosine(query_terms, terms)
-            if score > 0.0:
-                scored.append((score, file_id))
+        scored = [
+            (_sparse_cosine(query_terms, terms), file_id)
+            for file_id, terms in index["documents"].items()
+        ]
+        scored = [item for item in scored if item[0] > 0.0]
         scored.sort(key=lambda item: (-item[0], item[1]))
         return [
             {
@@ -495,11 +495,6 @@ class ControlStore:
         embedding: dict[str, Any],
         built_at: str | None = None,
     ) -> dict[str, Any]:
-        """Persist externally produced embedding vectors for semantic retrieval.
-
-        CONTROL does not generate embeddings here. The caller must identify the embedding
-        provider/model/revision so future systems can rebuild or reinterpret the index.
-        """
         snapshot = self.get_collection_snapshot(collection_id)
         members = set(snapshot["members"])
         if set(vectors) != members:
@@ -517,7 +512,7 @@ class ControlStore:
         normalized_vectors: dict[str, list[float]] = {}
         for file_id in sorted(vectors):
             vector = vectors[file_id]
-            if len(vector) != dimensions:
+            if not isinstance(vector, list) or len(vector) != dimensions:
                 raise StorageError("semantic vector dimension mismatch")
             normalized = [float(value) for value in vector]
             if any(not math.isfinite(value) for value in normalized):
@@ -535,9 +530,8 @@ class ControlStore:
             "rebuildable": True,
             "authority": "none",
         }
-        index_id = self._identity(basis)
         record = {
-            "index_id": index_id,
+            "index_id": self._identity(basis),
             **basis,
             "built_at": _validate_timestamp(built_at or _utc_now()),
         }
@@ -550,7 +544,7 @@ class ControlStore:
         *,
         limit: int = 10,
     ) -> list[dict[str, Any]]:
-        if not isinstance(limit, int) or not (1 <= limit <= 100):
+        if not isinstance(limit, int) or not 1 <= limit <= 100:
             raise StorageError("search limit must be 1..100")
         snapshot = self.get_collection_snapshot(collection_id)
         head = self._read_index_head(collection_id, "semantic-vector")
@@ -582,7 +576,6 @@ class ControlStore:
         ]
 
     def fingerprint(self) -> dict[str, Any]:
-        """Return a deterministic inventory fingerprint for durable canonical state."""
         file_ids = sorted(f"sha256:{path.stem}" for path in self.file_records.glob("*.json"))
         collection_rows = []
         for directory in sorted(path for path in self.collections.iterdir() if path.is_dir()):
@@ -603,21 +596,18 @@ class ControlStore:
         return {**inventory, "fingerprint": self._identity(inventory)}
 
     def verify(self) -> dict[str, Any]:
-        """Verify canonical file objects, collection snapshot chains, and current memberships."""
         verified_files = 0
         for path in sorted(self.file_records.glob("*.json")):
-            file_id = f"sha256:{path.stem}"
-            self.read_file(file_id)
+            self.read_file(f"sha256:{path.stem}")
             verified_files += 1
 
         verified_collections = 0
         verified_snapshots = 0
         for directory in sorted(path for path in self.collections.iterdir() if path.is_dir()):
             collection_id = f"sha256:{directory.name}"
-            self.get_collection(collection_id)
-            head = self.get_collection_snapshot(collection_id)
-            cursor = head
-            expected_revision = head["revision"]
+            collection = self.get_collection(collection_id)
+            cursor = self.get_collection_snapshot(collection_id)
+            expected_revision = cursor["revision"]
             seen: set[str] = set()
             while True:
                 snapshot_id = cursor["snapshot_id"]
@@ -627,7 +617,8 @@ class ControlStore:
                 if cursor["revision"] != expected_revision:
                     raise StorageError("collection snapshot revision chain is discontinuous")
                 for file_id in cursor["members"]:
-                    self.get_file_record(file_id)
+                    record = self.get_file_record(file_id)
+                    self._validate_member_privacy(collection, record)
                 verified_snapshots += 1
                 previous = cursor["previous_snapshot_id"]
                 if previous is None:
