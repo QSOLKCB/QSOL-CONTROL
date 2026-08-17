@@ -29,8 +29,17 @@ def store_from(args: argparse.Namespace) -> ControlStore:
     return ControlStore(args.root)
 
 
+def actor_from(args: argparse.Namespace) -> str:
+    actor = getattr(args, "actor", None) or "local-operator"
+    if not actor.strip():
+        raise StorageError("audit actor must be non-empty")
+    return actor
+
+
 def command_put_file(args: argparse.Namespace) -> int:
     path = Path(args.path)
+    if path.is_symlink():
+        raise StorageError("put-file refuses symlink inputs; resolve and inspect the source explicitly")
     record = store_from(args).put_file(
         path.read_bytes(),
         filename=args.filename or path.name,
@@ -57,14 +66,39 @@ def command_create_collection(args: argparse.Namespace) -> int:
 
 
 def command_update_collection(args: argparse.Namespace) -> int:
-    emit(
-        store_from(args).update_collection(
-            args.collection,
-            add=args.add,
-            remove=args.remove,
-            created_at=args.created_at,
+    store = store_from(args)
+    if args.dry_run:
+        emit(
+            store.preview_collection_update(
+                args.collection,
+                add=args.add,
+                remove=args.remove,
+            )
         )
+        return 0
+
+    before = store.get_collection_snapshot(args.collection)
+    snapshot = store.update_collection(
+        args.collection,
+        add=args.add,
+        remove=args.remove,
+        created_at=args.created_at,
+        expected_head_snapshot_id=args.expect_head,
     )
+    if snapshot["snapshot_id"] != before["snapshot_id"]:
+        store.record_audit_event(
+            "collection-update",
+            actor=actor_from(args),
+            details={
+                "collection_id": args.collection,
+                "previous_snapshot_id": before["snapshot_id"],
+                "new_snapshot_id": snapshot["snapshot_id"],
+                "revision": snapshot["revision"],
+                "added_file_ids": sorted(args.add),
+                "removed_file_ids": sorted(args.remove),
+            },
+        )
+    emit(snapshot)
     return 0
 
 
@@ -84,8 +118,12 @@ def command_search(args: argparse.Namespace) -> int:
 
 
 def command_register_semantic(args: argparse.Namespace) -> int:
-    vectors = json.loads(Path(args.vectors).read_text(encoding="utf-8"))
-    embedding = json.loads(Path(args.embedding).read_text(encoding="utf-8"))
+    vectors_path = Path(args.vectors)
+    embedding_path = Path(args.embedding)
+    if vectors_path.is_symlink() or embedding_path.is_symlink():
+        raise StorageError("semantic index registration refuses symlink descriptor inputs")
+    vectors = json.loads(vectors_path.read_text(encoding="utf-8"))
+    embedding = json.loads(embedding_path.read_text(encoding="utf-8"))
     emit(
         store_from(args).register_semantic_index(
             args.collection,
@@ -106,10 +144,19 @@ def command_search_semantic(args: argparse.Namespace) -> int:
 def command_dna_export(args: argparse.Namespace) -> int:
     store = store_from(args)
     record = store.get_file_record(args.file_id)
-    if record["privacy_class"] == "RESTRICTED" and not args.allow_restricted:
+    restricted = record["privacy_class"] == "RESTRICTED"
+
+    if restricted and not args.allow_restricted:
         raise StorageError(
             "RESTRICTED File DNA export requires explicit --allow-restricted; encoding is reversible"
         )
+    if restricted and not args.acknowledge_reversible_sensitive_export:
+        raise StorageError(
+            "RESTRICTED File DNA export also requires --acknowledge-reversible-sensitive-export"
+        )
+    if restricted and not args.actor:
+        raise StorageError("RESTRICTED File DNA export requires explicit --actor for audit attribution")
+
     payload = store.read_file(args.file_id)
     traversal = (
         LEXICOGRAPHIC_TRAVERSAL
@@ -117,20 +164,63 @@ def command_dna_export(args: argparse.Namespace) -> int:
         else PHI_GATED_TRAVERSAL
     )
     projection = encode_projection(payload, traversal_id=traversal)
+
+    if args.dry_run:
+        emit(
+            {
+                "protocol": "qsol-control-dna-export-preview/1",
+                "dry_run": True,
+                "file_id": args.file_id,
+                "privacy_class": record["privacy_class"],
+                "traversal_id": traversal,
+                "projection_id": projection["projection_id"],
+                "content_sha256": projection["content_sha256"],
+                "byte_length": projection["byte_length"],
+                "restricted_authorized": restricted and args.allow_restricted,
+                "would_write": args.output,
+            }
+        )
+        return 0
+
     if args.output:
-        Path(args.output).write_text(
+        output = Path(args.output)
+        if output.is_symlink():
+            raise StorageError("dna-export refuses to overwrite a symlink output")
+        output.write_text(
             json.dumps(projection, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
     else:
         emit(projection)
+
+    store.record_audit_event(
+        "dna-export",
+        actor=actor_from(args),
+        details={
+            "file_id": args.file_id,
+            "privacy_class": record["privacy_class"],
+            "restricted_authorized": restricted and args.allow_restricted,
+            "reversible_sensitive_export_acknowledged": bool(
+                args.acknowledge_reversible_sensitive_export
+            ),
+            "traversal_id": traversal,
+            "projection_id": projection["projection_id"],
+            "content_sha256": projection["content_sha256"],
+            "output": str(args.output) if args.output else "stdout",
+        },
+    )
     return 0
 
 
 def command_dna_decode(args: argparse.Namespace) -> int:
-    projection = json.loads(Path(args.projection).read_text(encoding="utf-8"))
+    projection_path = Path(args.projection)
+    if projection_path.is_symlink():
+        raise StorageError("dna-decode refuses symlink projection inputs")
+    projection = json.loads(projection_path.read_text(encoding="utf-8"))
     payload = decode_projection(projection)
     output = Path(args.output)
+    if output.is_symlink():
+        raise StorageError("dna-decode refuses to overwrite a symlink output")
     output.write_bytes(payload)
     emit(
         {
@@ -150,7 +240,19 @@ def command_verify(args: argparse.Namespace) -> int:
 
 
 def command_fingerprint(args: argparse.Namespace) -> int:
-    emit(store_from(args).fingerprint())
+    store = store_from(args)
+    result = store.fingerprint()
+    store.record_audit_event(
+        "fingerprint",
+        actor=actor_from(args),
+        details={"fingerprint": result["fingerprint"]},
+    )
+    emit(result)
+    return 0
+
+
+def command_audit(args: argparse.Namespace) -> int:
+    emit(store_from(args).list_audit_events())
     return 0
 
 
@@ -180,6 +282,12 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--add", action="append", default=[])
     update.add_argument("--remove", action="append", default=[])
     update.add_argument("--created-at")
+    update.add_argument(
+        "--expect-head",
+        help="compare-and-swap guard: refuse if current HEAD is not this snapshot id",
+    )
+    update.add_argument("--dry-run", action="store_true", help="validate and preview without writing")
+    update.add_argument("--actor", help="audit actor for a committed update")
     update.set_defaults(func=command_update_collection)
 
     list_files = sub.add_parser("list-files", help="list current Collection members")
@@ -210,7 +318,10 @@ def build_parser() -> argparse.ArgumentParser:
     semantic_search.add_argument("--limit", type=int, default=10)
     semantic_search.set_defaults(func=command_search_semantic)
 
-    dna_export = sub.add_parser("dna-export", help="export one File as a reversible DNA/lattice projection")
+    dna_export = sub.add_parser(
+        "dna-export",
+        help="export one File as a reversible DNA/lattice projection",
+    )
     dna_export.add_argument("file_id")
     dna_export.add_argument(
         "--traversal",
@@ -221,7 +332,21 @@ def build_parser() -> argparse.ArgumentParser:
     dna_export.add_argument(
         "--allow-restricted",
         action="store_true",
-        help="explicitly permit reversible export of a RESTRICTED File",
+        help="first acknowledgement: permit reversible export of a RESTRICTED File",
+    )
+    dna_export.add_argument(
+        "--acknowledge-reversible-sensitive-export",
+        action="store_true",
+        help="second acknowledgement that DNA encoding is reversible and may disclose content",
+    )
+    dna_export.add_argument(
+        "--actor",
+        help="audit actor; required for RESTRICTED export",
+    )
+    dna_export.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="validate and show projection identity without writing or auditing",
     )
     dna_export.set_defaults(func=command_dna_export)
 
@@ -234,7 +359,11 @@ def build_parser() -> argparse.ArgumentParser:
     verify.set_defaults(func=command_verify)
 
     fingerprint = sub.add_parser("fingerprint", help="fingerprint canonical persistent state")
+    fingerprint.add_argument("--actor", help="audit actor; defaults to local-operator")
     fingerprint.set_defaults(func=command_fingerprint)
+
+    audit = sub.add_parser("audit", help="list local CONTROL audit events")
+    audit.set_defaults(func=command_audit)
 
     return parser
 
@@ -244,7 +373,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return args.func(args)
-    except StorageError as exc:
+    except (StorageError, OSError, json.JSONDecodeError, ValueError) as exc:
         parser.error(str(exc))
         return 2
 
