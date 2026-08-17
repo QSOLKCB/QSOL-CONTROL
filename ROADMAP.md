@@ -9,7 +9,7 @@
 - [x] Define AI model-state preservation boundary.
 - [x] Add human and machine bootstrap documentation.
 - [x] Add initial schemas and constitutional contracts.
-- [ ] Add dependency-free repository validator and CI contract checks.
+- [x] Add dependency-free repository validator and CI contract checks.
 
 ## Phase 1 — Deterministic storage substrate
 
