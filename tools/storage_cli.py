@@ -5,9 +5,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from storage.control_store import ControlStore
+from storage.dna_lattice import (
+    LEXICOGRAPHIC_TRAVERSAL,
+    PHI_GATED_TRAVERSAL,
+    decode_projection,
+    encode_projection,
+)
 
 
 def emit(value) -> None:
@@ -92,6 +103,42 @@ def command_search_semantic(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_dna_export(args: argparse.Namespace) -> int:
+    store = store_from(args)
+    payload = store.read_file(args.file_id)
+    traversal = (
+        LEXICOGRAPHIC_TRAVERSAL
+        if args.traversal == "lexicographic"
+        else PHI_GATED_TRAVERSAL
+    )
+    projection = encode_projection(payload, traversal_id=traversal)
+    if args.output:
+        Path(args.output).write_text(
+            json.dumps(projection, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    else:
+        emit(projection)
+    return 0
+
+
+def command_dna_decode(args: argparse.Namespace) -> int:
+    projection = json.loads(Path(args.projection).read_text(encoding="utf-8"))
+    payload = decode_projection(projection)
+    output = Path(args.output)
+    output.write_bytes(payload)
+    emit(
+        {
+            "status": "verified",
+            "projection_id": projection["projection_id"],
+            "output": str(output),
+            "bytes": len(payload),
+            "content_sha256": projection["content_sha256"],
+        }
+    )
+    return 0
+
+
 def command_verify(args: argparse.Namespace) -> int:
     emit(store_from(args).verify())
     return 0
@@ -157,6 +204,21 @@ def build_parser() -> argparse.ArgumentParser:
     semantic_search.add_argument("vector", help="JSON vector, e.g. '[0.1, 0.9]'")
     semantic_search.add_argument("--limit", type=int, default=10)
     semantic_search.set_defaults(func=command_search_semantic)
+
+    dna_export = sub.add_parser("dna-export", help="export one File as a reversible DNA/lattice projection")
+    dna_export.add_argument("file_id")
+    dna_export.add_argument(
+        "--traversal",
+        choices=["lexicographic", "phi-gated"],
+        default="phi-gated",
+    )
+    dna_export.add_argument("--output", help="write projection JSON instead of stdout")
+    dna_export.set_defaults(func=command_dna_export)
+
+    dna_decode = sub.add_parser("dna-decode", help="verify and decode a DNA/lattice projection")
+    dna_decode.add_argument("projection")
+    dna_decode.add_argument("--output", required=True)
+    dna_decode.set_defaults(func=command_dna_decode)
 
     verify = sub.add_parser("verify", help="verify canonical storage and collection lineage")
     verify.set_defaults(func=command_verify)
