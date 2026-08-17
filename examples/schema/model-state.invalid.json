@@ -1,0 +1,15 @@
+{
+  "protocol": "qsol-control-model-state/1",
+  "state_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "captured_at": "2026-08-18T07:27:00+09:30",
+  "model": {
+    "provider": "cloud",
+    "runtime": "example",
+    "model_id": "example-model"
+  },
+  "execution": {},
+  "system": {
+    "control_run_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  },
+  "hidden_chain_of_thought_captured": true
+}
