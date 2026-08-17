@@ -24,6 +24,13 @@ class ControlContractTests(unittest.TestCase):
             "https://json-schema.org/draft/2020-12/schema",
         )
 
+    def test_python_minimum_accepts_major_minor(self):
+        self.assertEqual(validator.parse_python_minimum("3.11"), (3, 11))
+
+    def test_python_minimum_rejects_patch_component(self):
+        with self.assertRaisesRegex(ValueError, "MAJOR.MINOR"):
+            validator.parse_python_minimum("3.11.1")
+
     def test_human_and_ai_callers_have_equal_epistemic_authority(self):
         constitution = validator.load_json(ROOT / "ai" / "constitution.json")
         self.assertIn(
