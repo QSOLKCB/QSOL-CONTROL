@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/search-index.schema.json",
+  "title": "QSOL-CONTROL Derived Search Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "index_id",
+    "protocol",
+    "kind",
+    "engine",
+    "collection_id",
+    "snapshot_id",
+    "built_at",
+    "derived",
+    "rebuildable",
+    "authority"
+  ],
+  "properties": {
+    "index_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-search-index/1"},
+    "kind": {"enum": ["deterministic-lexical-baseline", "semantic-vector"]},
+    "engine": {"type": "string", "minLength": 1},
+    "collection_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "snapshot_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "built_at": {"type": "string", "format": "date-time"},
+    "derived": {"const": true},
+    "rebuildable": {"const": true},
+    "authority": {"const": "none"},
+    "documents": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {"type": "integer", "minimum": 1}
+      }
+    },
+    "skipped_file_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    },
+    "embedding": {
+      "type": "object",
+      "required": ["provider", "model_id", "revision", "dimensions"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "model_id": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "minLength": 1},
+        "dimensions": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": true
+    },
+    "vectors": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {"type": "number"}
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "deterministic-lexical-baseline"}}},
+      "then": {"required": ["documents", "skipped_file_ids"]}
+    },
+    {
+      "if": {"properties": {"kind": {"const": "semantic-vector"}}},
+      "then": {"required": ["embedding", "vectors"]}
+    }
+  ]
+}
