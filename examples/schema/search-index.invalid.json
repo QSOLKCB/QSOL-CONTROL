@@ -6,6 +6,8 @@
   "collection_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
   "snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
   "built_at": "2026-08-18T07:46:00+09:30",
+  "privacy_class": "INTERNAL",
+  "collation": "qsol.utf8-byte-lexicographic/1",
   "derived": true,
   "rebuildable": true,
   "authority": "truth",
@@ -15,7 +17,9 @@
     "revision": "1",
     "dimensions": 2
   },
+  "embedding_sha256": "7a44ed4b4eb5481945e730b56f30386955d72fc27b132a734b32240fe919a86b",
   "vectors": {
     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [1.0, 0.0]
-  }
+  },
+  "vectors_sha256": "f84c9e6fccaecaf3c7cb9a5902bd380a1b631dcdfdfd3807e43bd2c25b78dbf4"
 }
