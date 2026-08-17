@@ -1,0 +1,16 @@
+{
+  "operation": "control.ask",
+  "question": "What does the current evidence permit us to say about hypothesis X?",
+  "mode": "council",
+  "include": [
+    "oracle_evidence",
+    "votes",
+    "minority_reports",
+    "model_states",
+    "receipts"
+  ],
+  "requester": {
+    "kind": "human",
+    "id": "example-operator"
+  }
+}
