@@ -14,7 +14,15 @@
   "architecture": "ARCHITECTURE.md",
   "roadmap": "ROADMAP.md",
   "security": "SECURITY.md",
+  "json_schema": {
+    "draft": "https://json-schema.org/draft/2020-12/schema",
+    "compatibility_policy": "semantic-versioning",
+    "major": "breaking schema or authority-contract changes",
+    "minor": "backward-compatible optional fields or capabilities",
+    "patch": "clarifications and fixes that do not change accepted contract meaning"
+  },
   "validation": {
+    "python_minimum": "3.11",
     "command": "python3 tools/validate_control.py",
     "test_command": "python3 -W default -m unittest discover -s tests -v",
     "workflow": ".github/workflows/validate.yml"
@@ -43,6 +51,20 @@
     "query": "schema/control-query.schema.json",
     "interaction": "schema/interaction-record.schema.json",
     "model_state": "schema/model-state.schema.json"
+  },
+  "schema_examples": {
+    "query": {
+      "valid": "examples/schema/control-query.valid.json",
+      "invalid": "examples/schema/control-query.invalid.json"
+    },
+    "interaction": {
+      "valid": "examples/schema/interaction-record.valid.json",
+      "invalid": "examples/schema/interaction-record.invalid.json"
+    },
+    "model_state": {
+      "valid": "examples/schema/model-state.valid.json",
+      "invalid": "examples/schema/model-state.invalid.json"
+    }
   },
   "documentation": [
     "README.md",
