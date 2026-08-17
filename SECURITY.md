@@ -33,6 +33,84 @@ Credentials must never intentionally enter:
 
 Future runtime work should prefer references to external secret sources rather than copying secret values into CONTROL state.
 
+## Data classification
+
+Before persistence or export, CONTROL data should be classified into one of these operational classes:
+
+```text
+PUBLIC      safe for deliberate public export
+INTERNAL    operator-owned local state; not public by default
+RESTRICTED  sensitive metadata requiring explicit access and export approval
+FORBIDDEN   credentials, hidden chain-of-thought, or other material CONTROL must not retain
+```
+
+`FORBIDDEN` material must be rejected or redacted before persistence. A hash of forbidden plaintext is not a safe substitute for removing the plaintext when the hash itself could disclose a sensitive identifier or permit guessing attacks.
+
+## Redaction policy
+
+Redaction happens **before** durable storage, content hashing, lattice placement, export, screenshots, or ordinary logs whenever the sensitive value is not required for reproducibility.
+
+At minimum, redact or omit:
+
+- API keys, bearer tokens, cookies, OAuth refresh/access tokens and session identifiers;
+- authorization headers and secret environment variables;
+- account/billing identifiers not required for the research record;
+- email addresses, usernames, hostnames, filesystem paths, IP addresses or device identifiers when they are incidental rather than reproducibility-critical;
+- command-line arguments containing credentials;
+- provider request IDs that are account-linkable unless explicitly required and reviewed;
+- unreviewed free-form metadata copied from provider responses.
+
+Prefer coarse reproducibility metadata such as `accelerator_class = RTX-50-series` over unnecessary machine serial numbers or host fingerprints.
+
+Redaction must be explicit and inspectable. Do not silently replace sensitive material with invented values that could later be mistaken for source data.
+
+## Access-control policy
+
+Phase 0 defines contracts only; it does not claim a deployed access-control system. A future runtime must fail closed and should default to a **single local operator on loopback**.
+
+Any remote or multi-user deployment must define and test:
+
+- authentication;
+- authorization by operation and record class;
+- least-privilege access to `INTERNAL` and `RESTRICTED` records;
+- separation between read/query operations and authority-sensitive writes;
+- audit records for export, deletion, retention-class changes and privileged operations;
+- session expiry and credential rotation.
+
+AI callers do not become administrators merely because they are machine clients.
+
+## Retention policy
+
+CONTROL exists partly to preserve research history, but **retention must be intentional rather than accidental**.
+
+Future runtime records should carry or inherit a retention decision equivalent to:
+
+```text
+TRANSIENT  process only; do not persist after the operation
+SESSION    retain for the bounded operator session/workspace
+ARCHIVE    intentionally preserve for longitudinal research/recovery
+```
+
+Recommended defaults:
+
+- credentials and `FORBIDDEN` material: never persist;
+- incidental transport/debug data: `TRANSIENT`;
+- unreviewed operator queries or model-state metadata: no stronger than `SESSION` by default;
+- curated research records: `ARCHIVE` only after classification/redaction succeeds;
+- public ARK/export bundles: contain only material explicitly cleared for that export surface.
+
+Changing a record from `TRANSIENT` or `SESSION` to `ARCHIVE` is a publication/retention decision, not a side effect of successful execution.
+
+Deletion or expiry policy must not rewrite ORACLE history or pretend an absent CONTROL copy means the underlying witnessed event never existed.
+
+## Model-state privacy
+
+Model-state capture must be minimized to reproducibility/recovery metadata. Do not record credentials, private provider account details, hidden prompts not intended for preservation, or hidden chain-of-thought.
+
+Model-state fields should prefer allowlisted structured metadata over arbitrary provider-response blobs. Hardware/user environment details should be scoped to what materially supports reproducibility and should be reviewable before export.
+
+Fields may contain sensitive identifiers even when they look technical. In particular, review provider request IDs, workspace IDs, model endpoints, local paths, usernames, IP addresses, machine names and tool configuration before persistence.
+
 ## Browser/WebUI boundary
 
 When the WebUI is implemented, the default operator deployment should prefer local/loopback binding unless a later threat model explicitly supports remote operation.
@@ -89,21 +167,22 @@ The lattice datastore must validate:
 - duplicate identity behavior;
 - atomic write behavior;
 - import provenance;
-- recursive-address depth limits.
+- recursive-address depth limits;
+- classification/redaction status before archival persistence.
 
 Recursive lattice addressing must not permit unbounded recursion or resource exhaustion.
-
-## Model-state privacy
-
-Model-state capture should be minimized to reproducibility/recovery metadata. Do not record credentials, private provider account details, hidden prompts not intended for preservation, or hidden chain-of-thought.
-
-Hardware/user environment details should be scoped to what materially supports reproducibility and should be reviewable before export.
 
 ## Replay boundary
 
 A replay label is a technical claim and must be earned.
 
 Live stochastic inference must not be labelled exact replay merely because the same model name and prompt were used again.
+
+## Secret scanning and fixture discipline
+
+Examples and tests must use obviously synthetic placeholders, never copied production credentials or private provider payloads. CI should remain safe to run on forks and public runners.
+
+Before release or public export, scan tracked content and generated bundles for common credential patterns and review any detected high-entropy or account-linked values.
 
 ## Security invariants
 
@@ -116,6 +195,8 @@ UI_ACTION != AUTHORITY_ESCALATION
 AI_CALLER != ADMIN_BY_DEFAULT
 REPLAY_LABEL_REQUIRES_EVIDENCE
 HIDDEN_CHAIN_OF_THOUGHT = OUT_OF_SCOPE
+FORBIDDEN_DATA != ARCHIVAL_MATERIAL
+ARCHIVE_REQUIRES_CLASSIFICATION_AND_REDACTION
 ```
 
 ## Reporting
