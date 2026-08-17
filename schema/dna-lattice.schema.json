@@ -12,6 +12,7 @@
     "bit_mapping",
     "lattice_profile",
     "traversal_id",
+    "traversal_parameters",
     "traversal_rule",
     "byte_length",
     "base_length",
@@ -30,12 +31,13 @@
     "protocol": {"const": "qsol-control-dna-lattice/1"},
     "codec": {"const": "qsol.dna-2bit-codon64/1"},
     "alphabet": {"const": ["A", "C", "G", "T"]},
-    "bit_mapping": {
-      "const": {"A": "00", "C": "01", "G": "10", "T": "11"}
-    },
+    "bit_mapping": {"const": {"A": "00", "C": "01", "G": "10", "T": "11"}},
     "lattice_profile": {"const": "qsol-3x3x3-sierpinski-derived-memory/1"},
     "traversal_id": {
       "enum": ["qsol.lexicographic-27/1", "qsol.phi-stride-27/1"]
+    },
+    "traversal_parameters": {
+      "type": "object"
     },
     "traversal_rule": {
       "const": "round_robin_codon_assignment_across_versioned_27_cell_path"
@@ -49,13 +51,8 @@
       "type": "object",
       "minProperties": 27,
       "maxProperties": 27,
-      "propertyNames": {
-        "pattern": "^L\\[[0-2],[0-2],[0-2]\\]$"
-      },
-      "additionalProperties": {
-        "type": "string",
-        "pattern": "^(?:[ACGT]{3})*$"
-      }
+      "propertyNames": {"pattern": "^L\\[[0-2],[0-2],[0-2]\\]$"},
+      "additionalProperties": {"type": "string", "pattern": "^(?:[ACGT]{3})*$"}
     },
     "codon_histogram": {
       "type": "object",
@@ -66,5 +63,36 @@
     "rebuildable": {"const": true},
     "authority": {"const": "none"},
     "storage_claim": {"const": "reversible_recovery_projection_not_compression_claim"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"traversal_id": {"const": "qsol.lexicographic-27/1"}}},
+      "then": {
+        "properties": {
+          "traversal_parameters": {
+            "const": {
+              "mode": "lexicographic",
+              "modulus": 27,
+              "rule": "cell_index(n)=n"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"traversal_id": {"const": "qsol.phi-stride-27/1"}}},
+      "then": {
+        "properties": {
+          "traversal_parameters": {
+            "const": {
+              "mode": "fixed-modular-stride",
+              "stride": 17,
+              "modulus": 27,
+              "rule": "cell_index(n)=(17*n) mod 27"
+            }
+          }
+        }
+      }
+    }
+  ]
 }
