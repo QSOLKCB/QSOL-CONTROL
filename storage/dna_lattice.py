@@ -20,7 +20,8 @@ DNA_RE = re.compile(r"^[ACGT]*$")
 LATTICE_PROFILE = "qsol-3x3x3-sierpinski-derived-memory/1"
 LEXICOGRAPHIC_TRAVERSAL = "qsol.lexicographic-27/1"
 PHI_GATED_TRAVERSAL = "qsol.phi-stride-27/1"
-PHI_STRIDE = 17  # round(27 / phi); fixed protocol constant, gcd(17, 27) == 1
+PHI_STRIDE = 17  # fixed protocol constant; gcd(17, 27) == 1
+TRAVERSAL_MODULUS = 27
 
 
 class DnaLatticeError(ValueError):
@@ -42,7 +43,7 @@ def sha256_hex(data: bytes) -> str:
 
 
 def lexicographic_cells() -> tuple[str, ...]:
-    """Return all 27 lattice cells in canonical lexicographic coordinate order."""
+    """Return all 27 lattice cells in canonical coordinate order."""
     return tuple(
         f"L[{x},{y},{z}]"
         for x in range(3)
@@ -58,8 +59,11 @@ def phi_gated_cells() -> tuple[str, ...]:
     physically spiral-shaped or that phi has privileged storage semantics.
     """
     cells = lexicographic_cells()
-    order = tuple(cells[(step * PHI_STRIDE) % len(cells)] for step in range(len(cells)))
-    if len(set(order)) != 27:
+    order = tuple(
+        cells[(step * PHI_STRIDE) % TRAVERSAL_MODULUS]
+        for step in range(TRAVERSAL_MODULUS)
+    )
+    if len(set(order)) != TRAVERSAL_MODULUS:
         raise DnaLatticeError("phi traversal must visit every lattice cell exactly once")
     return order
 
@@ -69,6 +73,23 @@ def traversal_cells(traversal_id: str) -> tuple[str, ...]:
         return lexicographic_cells()
     if traversal_id == PHI_GATED_TRAVERSAL:
         return phi_gated_cells()
+    raise DnaLatticeError(f"unknown traversal: {traversal_id}")
+
+
+def traversal_parameters(traversal_id: str) -> dict[str, Any]:
+    if traversal_id == LEXICOGRAPHIC_TRAVERSAL:
+        return {
+            "mode": "lexicographic",
+            "modulus": TRAVERSAL_MODULUS,
+            "rule": "cell_index(n)=n",
+        }
+    if traversal_id == PHI_GATED_TRAVERSAL:
+        return {
+            "mode": "fixed-modular-stride",
+            "stride": PHI_STRIDE,
+            "modulus": TRAVERSAL_MODULUS,
+            "rule": "cell_index(n)=(17*n) mod 27",
+        }
     raise DnaLatticeError(f"unknown traversal: {traversal_id}")
 
 
@@ -131,9 +152,10 @@ def encode_projection(
     padded = bases + ("A" * padding_bases)
     codons = [padded[index:index + 3] for index in range(0, len(padded), 3)]
     order = traversal_cells(traversal_id)
+    parameters = traversal_parameters(traversal_id)
     cells: dict[str, list[str]] = {cell: [] for cell in lexicographic_cells()}
     for sequence, codon in enumerate(codons):
-        cells[order[sequence % 27]].append(codon)
+        cells[order[sequence % TRAVERSAL_MODULUS]].append(codon)
     compact_cells = {cell: "".join(cells[cell]) for cell in lexicographic_cells()}
     histogram = Counter(codon_index(codon) for codon in codons)
     projection_payload = {
@@ -143,6 +165,7 @@ def encode_projection(
         "bit_mapping": {"A": "00", "C": "01", "G": "10", "T": "11"},
         "lattice_profile": LATTICE_PROFILE,
         "traversal_id": traversal_id,
+        "traversal_parameters": parameters,
         "traversal_rule": "round_robin_codon_assignment_across_versioned_27_cell_path",
         "byte_length": len(raw),
         "base_length": len(bases),
@@ -182,7 +205,11 @@ def decode_projection(projection: dict[str, Any]) -> bytes:
     if projection.get("projection_id") != expected_projection_id:
         raise DnaLatticeError("DNA projection identity mismatch")
 
-    order = traversal_cells(projection.get("traversal_id"))
+    traversal_id = projection.get("traversal_id")
+    expected_parameters = traversal_parameters(traversal_id)
+    if projection.get("traversal_parameters") != expected_parameters:
+        raise DnaLatticeError("DNA traversal parameters do not match the versioned traversal")
+    order = traversal_cells(traversal_id)
     cells = projection.get("cells")
     if not isinstance(cells, dict) or set(cells) != set(lexicographic_cells()):
         raise DnaLatticeError("DNA projection must define exactly the 27 lattice cells")
@@ -195,7 +222,9 @@ def decode_projection(projection: dict[str, Any]) -> bytes:
     codon_count = projection.get("codon_count")
     if not isinstance(codon_count, int) or codon_count < 0:
         raise DnaLatticeError("codon_count is invalid")
-    expected_per_cell = Counter(order[index % 27] for index in range(codon_count))
+    expected_per_cell = Counter(
+        order[index % TRAVERSAL_MODULUS] for index in range(codon_count)
+    )
     for cell in lexicographic_cells():
         if len(cells[cell]) != expected_per_cell[cell] * 3:
             raise DnaLatticeError("cell codon count does not match traversal assignment")
@@ -203,7 +232,7 @@ def decode_projection(projection: dict[str, Any]) -> bytes:
     cell_offsets = {cell: 0 for cell in lexicographic_cells()}
     codons: list[str] = []
     for sequence in range(codon_count):
-        cell = order[sequence % 27]
+        cell = order[sequence % TRAVERSAL_MODULUS]
         start = cell_offsets[cell]
         codon = cells[cell][start:start + 3]
         if len(codon) != 3:
