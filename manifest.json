@@ -122,11 +122,12 @@
     "search_index": {
       "valid": "examples/schema/search-index.valid.json",
       "invalid": "examples/schema/search-index.invalid.json"
-    },
-    "dna_lattice": {
-      "valid": "examples/schema/dna-lattice.valid.json",
-      "invalid": "examples/schema/dna-lattice.invalid.json"
     }
+  },
+  "dna_projection_examples": {
+    "valid": "examples/schema/dna-lattice.valid.json",
+    "invalid": "examples/schema/dna-lattice.invalid.json",
+    "validation": "runtime round-trip tests plus JSON Schema"
   },
   "documentation": [
     "README.md",
