@@ -1,0 +1,21 @@
+{
+  "index_id": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "protocol": "qsol-control-search-index/1",
+  "kind": "semantic-vector",
+  "engine": "qsol.cosine-vector-search/1",
+  "collection_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "built_at": "2026-08-18T07:46:00+09:30",
+  "derived": true,
+  "rebuildable": true,
+  "authority": "truth",
+  "embedding": {
+    "provider": "fixture",
+    "model_id": "toy-embedding",
+    "revision": "1",
+    "dimensions": 2
+  },
+  "vectors": {
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [1.0, 0.0]
+  }
+}
