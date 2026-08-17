@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-constitution",
   "protocol": "QSOL-CONTROL/0.1",
-  "version": 1,
+  "version": 2,
   "operator_role": "orchestration-only",
   "invariants": [
     "CONTROL_DISPLAY != AUTHORITY",
@@ -18,6 +18,11 @@
     "VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
     "RUNTIME_METADATA != CONSCIOUSNESS",
     "GEOMETRY != TRUTH",
+    "SEARCH_SCORE != TRUTH",
+    "SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH",
+    "INDEX != CANONICAL_MEMORY",
+    "COLLECTION_MEMBERSHIP != ENDORSEMENT",
+    "LATTICE_ADDRESS != COLLECTION_MEMBERSHIP",
     "CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY",
     "CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES",
     "CONTROL_MUST_NOT_PROMOTE_CONSENSUS_TO_EVIDENCE",
@@ -30,12 +35,17 @@
     "witness_history": "QSOL-ORACLE",
     "council_reasoning_and_governance": "QSOL-NEXUS",
     "orchestration_and_operator_ui": "QSOL-CONTROL",
-    "interaction_storage_mechanics": "QSOL-CONTROL-LATTICE"
+    "interaction_storage_mechanics": "QSOL-CONTROL-LATTICE",
+    "persistent_file_and_collection_storage_mechanics": "QSOL-CONTROL"
   },
   "forbidden_authority_escalations": [
     "derive_truth_from_vote_count",
     "derive_evidence_from_model_confidence",
     "derive_canonical_status_from_storage",
+    "derive_truth_from_retrieval_score",
+    "derive_evidence_strength_from_vector_similarity",
+    "derive_endorsement_from_collection_membership",
+    "treat_derived_search_index_as_canonical_memory",
     "rewrite_oracle_event_history",
     "modify_nexus_ballots_or_vote_weights",
     "grant_ai_callers_hidden_epistemic_privilege",
