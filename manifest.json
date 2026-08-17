@@ -52,10 +52,12 @@
   },
   "persistent_storage": {
     "runtime": "storage/control_store.py",
+    "dna_lattice_codec": "storage/dna_lattice.py",
     "file_protocol": "qsol-control-file/1",
     "collection_protocol": "qsol-control-collection/1",
     "collection_snapshot_protocol": "qsol-control-collection-snapshot/1",
     "search_index_protocol": "qsol-control-search-index/1",
+    "dna_lattice_protocol": "qsol-control-dna-lattice/1",
     "canonical_object_identity": "sha256(raw_bytes)",
     "canonical_record_serialization": "utf-8 canonical JSON with sorted keys and compact separators",
     "collection_history": "immutable snapshots with atomic HEAD pointer",
@@ -63,7 +65,24 @@
     "indexes_are_derived_and_rebuildable": true,
     "search_modes": ["deterministic-lexical-baseline", "semantic-vector"],
     "semantic_embedding_generation": "external-adapter-required",
-    "canonical_fingerprint_excludes_derived_indexes": true
+    "canonical_fingerprint_excludes_derived_indexes": true,
+    "dna_projection": {
+      "codec": "qsol.dna-2bit-codon64/1",
+      "alphabet": ["A", "C", "G", "T"],
+      "bits_per_base": 2,
+      "bases_per_byte": 4,
+      "bases_per_codon": 3,
+      "codon_slots": 64,
+      "outer_lattice_radix": 3,
+      "outer_lattice_cells": 27,
+      "canonical_traversal": "qsol.lexicographic-27/1",
+      "optional_phi_gated_traversal": "qsol.phi-stride-27/1",
+      "phi_stride": 17,
+      "authority": "none",
+      "derived": true,
+      "rebuildable": true,
+      "compression_claim": false
+    }
   },
   "schemas": {
     "query": "schema/control-query.schema.json",
@@ -72,7 +91,8 @@
     "file": "schema/file-record.schema.json",
     "collection": "schema/collection-record.schema.json",
     "collection_snapshot": "schema/collection-snapshot.schema.json",
-    "search_index": "schema/search-index.schema.json"
+    "search_index": "schema/search-index.schema.json",
+    "dna_lattice": "schema/dna-lattice.schema.json"
   },
   "schema_examples": {
     "query": {
@@ -102,6 +122,10 @@
     "search_index": {
       "valid": "examples/schema/search-index.valid.json",
       "invalid": "examples/schema/search-index.invalid.json"
+    },
+    "dna_lattice": {
+      "valid": "examples/schema/dna-lattice.valid.json",
+      "invalid": "examples/schema/dna-lattice.invalid.json"
     }
   },
   "documentation": [
@@ -130,6 +154,7 @@
     "collection_snapshot_history": "implemented",
     "deterministic_lexical_retrieval": "implemented",
     "semantic_vector_index_registration_and_search": "implemented",
+    "dna_lattice_recovery_projection": "implemented",
     "embedding_generation_adapter": "not-yet-implemented",
     "persistent_lattice_engine": "not-yet-implemented",
     "live_oracle_adapter": "not-yet-implemented",
