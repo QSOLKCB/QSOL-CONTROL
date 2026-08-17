@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Dependency-free structural validator for QSOL-CONTROL bootstrap contracts."""
+"""Dependency-free structural validator for QSOL-CONTROL contracts."""
 
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from datetime import datetime
@@ -17,6 +18,8 @@ LATTICE_RE = re.compile(r"^L\[[0-2],[0-2],[0-2]\](?:/L\[[0-2],[0-2],[0-2]\])*$")
 SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 PYTHON_MAJOR_MINOR_RE = re.compile(r"^[0-9]+\.[0-9]+$")
 FORBIDDEN_SECRET_MARKERS = ("ghp_", "github_pat_", "Bearer ", "AKIA", "-----BEGIN PRIVATE KEY-----")
+PRIVACY_CLASSES = {"PUBLIC", "INTERNAL", "RESTRICTED"}
+RETENTION_CLASSES = {"TRANSIENT", "SESSION", "ARCHIVE"}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -66,6 +69,11 @@ def reject_obvious_secrets(path: Path) -> None:
             raise ValueError(f"{path.relative_to(ROOT)} contains forbidden secret marker {marker!r}")
 
 
+def require_sha_ref(value: Any, field: str) -> None:
+    if not isinstance(value, str) or not RUN_ID_RE.fullmatch(value):
+        raise ValueError(f"{field} must be a sha256: content reference")
+
+
 def validate_query_instance(value: dict[str, Any]) -> None:
     require_keys(value, {"operation", "question", "mode"}, "query fixture")
     if value["operation"] != "control.ask":
@@ -101,8 +109,7 @@ def validate_interaction_instance(value: dict[str, Any]) -> None:
     require_keys(value, required, "interaction fixture")
     if value["protocol"] != "qsol-control-interaction/1":
         raise ValueError("interaction protocol mismatch")
-    if not isinstance(value["run_id"], str) or not RUN_ID_RE.fullmatch(value["run_id"]):
-        raise ValueError("interaction run_id must be a sha256 content identifier")
+    require_sha_ref(value["run_id"], "interaction run_id")
     if not isinstance(value["question_sha256"], str) or not SHA256_RE.fullmatch(value["question_sha256"]):
         raise ValueError("interaction question_sha256 is invalid")
     if value["mode"] not in {"evidence_only", "council"}:
@@ -118,8 +125,8 @@ def validate_interaction_instance(value: dict[str, Any]) -> None:
     model_refs = value["model_state_refs"]
     if not isinstance(model_refs, list) or len(model_refs) != len(set(model_refs)):
         raise ValueError("interaction model_state_refs must be unique")
-    if any(not isinstance(ref, str) or not RUN_ID_RE.fullmatch(ref) for ref in model_refs):
-        raise ValueError("interaction model_state_refs contain an invalid hash reference")
+    for ref in model_refs:
+        require_sha_ref(ref, "interaction model_state_ref")
     lattice_refs = value.get("lattice_refs", [])
     if not isinstance(lattice_refs, list) or len(lattice_refs) != len(set(lattice_refs)):
         raise ValueError("interaction lattice_refs must be unique")
@@ -137,8 +144,7 @@ def validate_model_state_instance(value: dict[str, Any]) -> None:
     require_keys(value, required, "model-state fixture")
     if value["protocol"] != "qsol-control-model-state/1":
         raise ValueError("model-state protocol mismatch")
-    if not isinstance(value["state_id"], str) or not RUN_ID_RE.fullmatch(value["state_id"]):
-        raise ValueError("model-state state_id is invalid")
+    require_sha_ref(value["state_id"], "model-state state_id")
     parse_datetime(value["captured_at"], "model-state captured_at")
     model = value["model"]
     if not isinstance(model, dict):
@@ -162,10 +168,139 @@ def validate_model_state_instance(value: dict[str, Any]) -> None:
     if not isinstance(system, dict):
         raise ValueError("model-state system must be an object")
     require_keys(system, {"control_run_id"}, "model-state system")
-    if not isinstance(system["control_run_id"], str) or not RUN_ID_RE.fullmatch(system["control_run_id"]):
-        raise ValueError("model-state control_run_id is invalid")
+    require_sha_ref(system["control_run_id"], "model-state control_run_id")
     if value["hidden_chain_of_thought_captured"] is not False:
         raise ValueError("model-state must never claim hidden chain-of-thought capture")
+
+
+def validate_file_instance(value: dict[str, Any]) -> None:
+    required = {
+        "file_id", "protocol", "object_id", "content_sha256", "size_bytes", "filename",
+        "media_type", "created_at", "privacy_class", "retention_class", "source", "metadata",
+    }
+    require_keys(value, required, "file fixture")
+    if value["protocol"] != "qsol-control-file/1":
+        raise ValueError("file protocol mismatch")
+    require_sha_ref(value["file_id"], "file_id")
+    require_sha_ref(value["object_id"], "file object_id")
+    if not isinstance(value["content_sha256"], str) or not SHA256_RE.fullmatch(value["content_sha256"]):
+        raise ValueError("file content_sha256 is invalid")
+    if not isinstance(value["size_bytes"], int) or value["size_bytes"] < 0:
+        raise ValueError("file size_bytes is invalid")
+    if not isinstance(value["filename"], str) or not (1 <= len(value["filename"]) <= 512):
+        raise ValueError("file filename is invalid")
+    if not isinstance(value["media_type"], str) or not (1 <= len(value["media_type"]) <= 256):
+        raise ValueError("file media_type is invalid")
+    parse_datetime(value["created_at"], "file created_at")
+    if value["privacy_class"] not in PRIVACY_CLASSES:
+        raise ValueError("file privacy_class is invalid or forbidden")
+    if value["retention_class"] not in RETENTION_CLASSES:
+        raise ValueError("file retention_class is invalid")
+    if not isinstance(value["source"], dict):
+        raise ValueError("file source must be an object")
+    require_keys(value["source"], {"kind", "locator"}, "file source")
+    if not isinstance(value["metadata"], dict):
+        raise ValueError("file metadata must be an object")
+
+
+def validate_collection_instance(value: dict[str, Any]) -> None:
+    required = {
+        "collection_id", "protocol", "name", "created_at", "privacy_class",
+        "retention_class", "metadata",
+    }
+    require_keys(value, required, "collection fixture")
+    if value["protocol"] != "qsol-control-collection/1":
+        raise ValueError("collection protocol mismatch")
+    require_sha_ref(value["collection_id"], "collection_id")
+    if not isinstance(value["name"], str) or not (1 <= len(value["name"]) <= 256):
+        raise ValueError("collection name is invalid")
+    parse_datetime(value["created_at"], "collection created_at")
+    if value["privacy_class"] not in PRIVACY_CLASSES:
+        raise ValueError("collection privacy_class is invalid or forbidden")
+    if value["retention_class"] not in RETENTION_CLASSES:
+        raise ValueError("collection retention_class is invalid")
+    if not isinstance(value["metadata"], dict):
+        raise ValueError("collection metadata must be an object")
+
+
+def validate_collection_snapshot_instance(value: dict[str, Any]) -> None:
+    required = {
+        "snapshot_id", "protocol", "collection_id", "revision", "previous_snapshot_id",
+        "created_at", "members",
+    }
+    require_keys(value, required, "collection snapshot fixture")
+    if value["protocol"] != "qsol-control-collection-snapshot/1":
+        raise ValueError("collection snapshot protocol mismatch")
+    require_sha_ref(value["snapshot_id"], "snapshot_id")
+    require_sha_ref(value["collection_id"], "snapshot collection_id")
+    if not isinstance(value["revision"], int) or value["revision"] < 0:
+        raise ValueError("collection snapshot revision is invalid")
+    previous = value["previous_snapshot_id"]
+    if previous is not None:
+        require_sha_ref(previous, "previous_snapshot_id")
+    if value["revision"] == 0 and previous is not None:
+        raise ValueError("revision 0 must not have a previous snapshot")
+    if value["revision"] > 0 and previous is None:
+        raise ValueError("non-zero revision must reference a previous snapshot")
+    parse_datetime(value["created_at"], "collection snapshot created_at")
+    members = value["members"]
+    if not isinstance(members, list) or len(members) != len(set(members)):
+        raise ValueError("collection snapshot members must be a unique list")
+    for member in members:
+        require_sha_ref(member, "collection snapshot member")
+
+
+def validate_search_index_instance(value: dict[str, Any]) -> None:
+    required = {
+        "index_id", "protocol", "kind", "engine", "collection_id", "snapshot_id",
+        "built_at", "derived", "rebuildable", "authority",
+    }
+    require_keys(value, required, "search index fixture")
+    if value["protocol"] != "qsol-control-search-index/1":
+        raise ValueError("search index protocol mismatch")
+    require_sha_ref(value["index_id"], "search index_id")
+    require_sha_ref(value["collection_id"], "search collection_id")
+    require_sha_ref(value["snapshot_id"], "search snapshot_id")
+    if value["kind"] not in {"deterministic-lexical-baseline", "semantic-vector"}:
+        raise ValueError("search index kind is invalid")
+    if not isinstance(value["engine"], str) or not value["engine"]:
+        raise ValueError("search index engine is invalid")
+    parse_datetime(value["built_at"], "search index built_at")
+    if value["derived"] is not True or value["rebuildable"] is not True:
+        raise ValueError("search indexes must be derived and rebuildable")
+    if value["authority"] != "none":
+        raise ValueError("search indexes must have no authority")
+
+    if value["kind"] == "deterministic-lexical-baseline":
+        documents = value.get("documents")
+        skipped = value.get("skipped_file_ids")
+        if not isinstance(documents, dict) or not isinstance(skipped, list):
+            raise ValueError("lexical index requires documents and skipped_file_ids")
+        for file_id, terms in documents.items():
+            require_sha_ref(file_id, "lexical document file_id")
+            if not isinstance(terms, dict):
+                raise ValueError("lexical term map must be an object")
+            if any(not isinstance(count, int) or count < 1 for count in terms.values()):
+                raise ValueError("lexical term counts must be positive integers")
+        if len(skipped) != len(set(skipped)):
+            raise ValueError("skipped_file_ids must be unique")
+        for file_id in skipped:
+            require_sha_ref(file_id, "skipped file_id")
+    else:
+        embedding = value.get("embedding")
+        vectors = value.get("vectors")
+        if not isinstance(embedding, dict) or not isinstance(vectors, dict):
+            raise ValueError("semantic index requires embedding descriptor and vectors")
+        require_keys(embedding, {"provider", "model_id", "revision", "dimensions"}, "embedding")
+        dimensions = embedding["dimensions"]
+        if not isinstance(dimensions, int) or dimensions < 1:
+            raise ValueError("embedding dimensions are invalid")
+        for file_id, vector in vectors.items():
+            require_sha_ref(file_id, "semantic vector file_id")
+            if not isinstance(vector, list) or len(vector) != dimensions:
+                raise ValueError("semantic vector dimension mismatch")
+            if any(not isinstance(item, (int, float)) or not math.isfinite(float(item)) for item in vector):
+                raise ValueError("semantic vectors must contain finite numbers")
 
 
 def validate_schema_examples(manifest: dict[str, Any]) -> int:
@@ -173,6 +308,10 @@ def validate_schema_examples(manifest: dict[str, Any]) -> int:
         "query": validate_query_instance,
         "interaction": validate_interaction_instance,
         "model_state": validate_model_state_instance,
+        "file": validate_file_instance,
+        "collection": validate_collection_instance,
+        "collection_snapshot": validate_collection_snapshot_instance,
+        "search_index": validate_search_index_instance,
     }
     example_map = manifest.get("schema_examples", {})
     if set(example_map) != set(validators):
@@ -221,13 +360,16 @@ def validate() -> dict[str, Any]:
     require_file(manifest["architecture"])
     require_file(manifest["roadmap"])
     require_file(manifest["security"])
+    require_file(manifest["persistent_storage_document"])
+    require_file(manifest["persistent_storage"]["runtime"])
+    require_file(manifest["interfaces"]["storage_cli"])
 
     for path in manifest.get("documentation", []):
         require_file(path)
 
     schema_draft = manifest.get("json_schema", {}).get("draft")
     if schema_draft != "https://json-schema.org/draft/2020-12/schema":
-        raise ValueError("QSOL-CONTROL Phase 0 requires JSON Schema draft 2020-12")
+        raise ValueError("QSOL-CONTROL requires JSON Schema draft 2020-12")
     if manifest.get("json_schema", {}).get("compatibility_policy") != "semantic-versioning":
         raise ValueError("schema compatibility policy must be semantic-versioning")
     for path in manifest.get("schemas", {}).values():
@@ -250,6 +392,10 @@ def validate() -> dict[str, Any]:
         "VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
         "CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY",
         "CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES",
+        "SEARCH_SCORE != TRUTH",
+        "SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH",
+        "INDEX != CANONICAL_MEMORY",
+        "COLLECTION_MEMBERSHIP != ENDORSEMENT",
     }
     present = set(constitution.get("invariants", []))
     missing = sorted(required_invariants - present)
@@ -274,6 +420,16 @@ def validate() -> dict[str, Any]:
     if hidden.get("const") is not False:
         raise ValueError("model-state schema must forbid hidden chain-of-thought capture")
 
+    storage = manifest.get("persistent_storage", {})
+    if storage.get("index_authority") != "none":
+        raise ValueError("persistent search indexes must have no authority")
+    if storage.get("indexes_are_derived_and_rebuildable") is not True:
+        raise ValueError("search indexes must be declared derived and rebuildable")
+    if storage.get("canonical_fingerprint_excludes_derived_indexes") is not True:
+        raise ValueError("canonical fingerprint must exclude rebuildable indexes")
+    if manifest.get("status", {}).get("phase") != 1:
+        raise ValueError("persistent storage PR must declare Phase 1 status")
+
     example_count = validate_schema_examples(manifest)
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -292,11 +448,13 @@ def validate() -> dict[str, Any]:
     return {
         "protocol": manifest["protocol"],
         "status": "valid",
+        "phase": manifest["status"]["phase"],
         "documentation_files": len(manifest.get("documentation", [])),
         "schemas": len(manifest.get("schemas", {})),
         "schema_examples": example_count,
         "schema_draft": schema_draft,
         "lattice_cells": lattice["top_level_cell_count"],
+        "persistent_storage": storage["collection_protocol"],
     }
 
 

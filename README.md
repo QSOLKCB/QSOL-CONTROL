@@ -1,17 +1,17 @@
 # QSOL-CONTROL
 
-**A human + AI control plane for the QSOL ecosystem, orchestrating NEXUS Council reasoning, ORACLE evidence, deterministic votes, replayable queries, and 3×3×3 lattice memory for preserving questions, responses, provenance, and AI model states.**
+**A human + AI control plane for the QSOL ecosystem, orchestrating NEXUS Council reasoning, ORACLE evidence, deterministic votes, replayable queries, persistent Collections, and 3×3×3 lattice memory.**
 
 > **CONTROL controls the machinery, not reality.**
 >
-> A button becoming green does not make a claim true. Six models agreeing does not make a claim true either. It merely means six models have found a way to agree, which is interesting evidence about six models.
+> A button becoming green does not make a claim true. Six models agreeing does not make a claim true either. A semantic-search score of `0.97` does not make it true. We are trying very hard to disappoint the dashboard industry.
 
-QSOL-CONTROL is the operator layer for the wider QSOL architecture. It exposes the same underlying system through two deliberately separate surfaces:
+QSOL-CONTROL exposes the same governed system through two planned surfaces:
 
-- **Human control plane** — browser/WebUI for asking questions, inspecting evidence, viewing Council votes, minority reports, timelines, receipts, model-state records, and replays.
-- **AI control plane** — structured machine interface for agents or other AI systems to submit questions, inspect evidence, request Council runs, retrieve receipts, and traverse stored interaction history.
+- **Human control plane** — WebUI for questions, evidence, Council votes, minority reports, Files, Collections, search, model states, lattice memory and replay.
+- **AI control plane** — structured machine interface for equivalent operations without hidden epistemic privilege.
 
-CONTROL does **not** own scientific truth, public epistemic authority, Council vote mechanics, ORACLE history, or recovery authority. It orchestrates systems that already own those responsibilities.
+CONTROL owns orchestration and storage mechanics. It does **not** own scientific truth, public epistemic authority, NEXUS governance, ORACLE history, or ARK recovery authority.
 
 ## Full architecture
 
@@ -27,11 +27,9 @@ CONTROL does **not** own scientific truth, public epistemic authority, Council v
                              |-----------------------------|
                              | Human WebUI                 |
                              | AI / agent API              |
-                             | query router                |
-                             | run orchestration           |
-                             | vote / evidence views       |
+                             | query orchestration         |
+                             | File / Collection control   |
                              | replay / comparison         |
-                             | model-state inspection      |
                              +--------------+--------------+
                                             |
                          +------------------+------------------+
@@ -40,18 +38,17 @@ CONTROL does **not** own scientific truth, public epistemic authority, Council v
                          |                                     |
                          v                                     v
               +----------------------+              +----------------------+
-              |     QSOL-ORACLE      |<------------>|      QSOL-NEXUS      |
-              |      WITNESSES       |   receipts   |       REASONS        |
+              |     QSOL-ORACLE      |              |      QSOL-NEXUS      |
+              |      WITNESSES       |              |       REASONS        |
               |----------------------|              |----------------------|
               | provenance           |              | AI Council           |
               | observations         |              | WHITE -> RED         |
-              | conflicts            |              | -> BLACK -> YELLOW   |
-              | unknowns             |              | -> GREEN -> BLUE     |
-              | append-only ledger   |              | -> SEALED BALLOT     |
-              | temporal contracts   |              | minority reports     |
+              | conflicts / unknowns |              | -> BLACK -> YELLOW   |
+              | witness ledger       |              | -> GREEN -> BLUE     |
+              | temporal contracts   |              | -> SEALED BALLOT     |
               +----------+-----------+              +-----------+----------+
                          |                                          |
-                         |         witnessed records / runs         |
+                         |         witnessed / reasoned refs        |
                          |                                          |
                          +------------------+-----------------------+
                                             |
@@ -60,19 +57,30 @@ CONTROL does **not** own scientific truth, public epistemic authority, Council v
                              |  3 x 3 x 3 LATTICE MEMORY   |
                              |        REMEMBERS            |
                              |-----------------------------|
-                             | questions                   |
-                             | responses                   |
-                             | evidence refs               |
-                             | Council ballots             |
-                             | minority reports            |
-                             | AI model-state records      |
+                             | question / response /       |
+                             | evidence classification     |
                              | provenance / lineage        |
-                             | recovery metadata           |
+                             | AI model-state refs         |
+                             | historical / recovery refs  |
                              +--------------+--------------+
                                             |
-                              preservation / reconstruction
-                                            |
+                                            | references
                                             v
+                    +---------------------------------------------+
+                    |       PERSISTENT FILES + COLLECTIONS        |
+                    |---------------------------------------------|
+                    | raw objects: sha256(bytes)                  |
+                    | immutable File metadata                     |
+                    | named persistent Collections                |
+                    | immutable membership snapshots              |
+                    | deterministic lexical retrieval             |
+                    | semantic vector indexes (derived)           |
+                    | DNA/codon lattice projection (derived)      |
+                    +----------------------+----------------------+
+                                           |
+                               preservation / reconstruction
+                                           |
+                                           v
                                    +----------------+
                                    |    QSOL-ARK    |
                                    |    SURVIVES    |
@@ -111,64 +119,72 @@ QSOL-CONTROL    OPERATES
 LATTICE MEMORY  REMEMBERS
 ```
 
-The lattice memory is a CONTROL storage protocol, **not another authority-bearing pillar**.
+## Files vs Collections
 
-## Human question flow
-
-```text
-Human
-  -> CONTROL receives question
-  -> ORACLE supplies bounded evidence / known / conflict / unknown state
-  -> NEXUS runs the Council against the admitted evidence
-  -> sealed ballots and minority reports are preserved
-  -> ORACLE witnesses externally visible run receipts
-  -> CONTROL renders evidence, reasoning outputs, votes, uncertainty, and provenance
-  -> LATTICE stores the interaction and model-state records
-```
-
-A typical result should expose dimensions separately:
+The Phase-1 storage model makes a deliberate distinction:
 
 ```text
-QUESTION
-EVIDENCE STATE
-SOURCES
-COUNCIL OUTPUTS
-SEALED VOTES
-CONSENSUS STATUS
-MINORITY REPORTS
-ORACLE RECEIPT
-MODEL STATES
-REPLAY ID
+FILE
+= one immutable content object + metadata
+= may be attached to a single run for immediate context
+
+COLLECTION
+= persistent named group of File references
+= survives across runs
+= membership is snapshot-versioned
+= may have searchable derived indexes
 ```
 
-CONTROL must never collapse those into a fake meter such as `TRUTH = 87%`.
+A File does not need to be copied when it joins a Collection. Collections store content-addressed references.
 
-## AI question flow
-
-Another AI or automated system may use the machine interface:
-
-```json
-{
-  "operation": "control.ask",
-  "question": "Does the current admitted evidence support hypothesis X?",
-  "mode": "council",
-  "include": [
-    "oracle_evidence",
-    "votes",
-    "minority_reports",
-    "model_states",
-    "receipts"
-  ]
-}
+```text
+raw bytes
+   |
+   +--> File record
+           |
+           +--> run attachment
+           |
+           +--> Collection A
+           |
+           +--> Collection B
 ```
 
-The caller receives structured results rather than privileged truth access. AI callers receive **no more epistemic authority than human callers**.
+Collection membership is stored as immutable snapshots. Only a small atomic `HEAD` pointer moves forward.
 
-## 3×3×3 Sierpinski-derived lattice memory
+See [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md).
 
-CONTROL defines a **3×3×3 Sierpinski-derived logical lattice** with 27 top-level cells. The term is deliberately `Sierpinski-derived`: this is an information architecture inspired by recursive/fractal partitioning, not a claim that the datastore is literally a mathematical Sierpinski triangle.
+## Search without pretending similarity is truth
 
-The first-level axes are:
+Phase 1 provides two retrieval paths:
+
+### Deterministic lexical baseline
+
+```text
+qsol.term-frequency-cosine/1
+```
+
+Dependency-free UTF-8 token counts + cosine similarity provide a reproducible offline baseline.
+
+### Semantic vector retrieval
+
+```text
+qsol.cosine-vector-search/1
+```
+
+CONTROL accepts externally generated embedding vectors together with an explicit provider/model/revision/dimension descriptor. This keeps one embedding vendor out of canonical storage.
+
+Every search index binds to an exact Collection snapshot. If Collection membership changes, an old semantic index becomes stale and search fails closed until it is rebuilt/re-registered.
+
+```text
+SEARCH_SCORE != TRUTH
+SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
+INDEX != CANONICAL_MEMORY
+COLLECTION_MEMBERSHIP != ENDORSEMENT
+```
+
+## 3×3×3 lattice memory
+
+CONTROL defines a **3×3×3 Sierpinski-derived logical lattice** with 27 top-level cells.
 
 ```text
 X = information role   question | response | evidence
@@ -176,47 +192,102 @@ Y = epistemic role     observed | derived | unresolved
 Z = temporal role      current | historical | recovery
 ```
 
-A record therefore receives a deterministic logical coordinate:
-
 ```text
 L[x,y,z]
 ```
 
-Cells may recursively expose another 3×3×3 namespace when a future storage profile needs subdivision:
+The geometry is a deterministic addressing/recovery discipline, not a literal claim about cognition or physics.
 
 ```text
-L[2,1,0]/[0,2,1]/...
+GEOMETRY != TRUTH
+LATTICE_ADDRESS != COLLECTION_MEMBERSHIP
 ```
-
-Geometry is an addressing and recovery discipline. **GEOMETRY != TRUTH.**
 
 See [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md).
 
-## AI model-state preservation
+## DNA / codon recovery projection
 
-For every participating model, CONTROL should preserve externally inspectable state sufficient for future archaeology where available:
+Phase 1 adds a reversible digital projection over the same 27-cell lattice:
 
 ```text
-provider / runtime
-model identifier + revision
-open/closed-weight status when known
-model or weight hashes when available
-architecture/tokenizer identity when available
-quantization
-context limits
-sampling parameters
-seed when deterministic
-NEXUS protocol/runtime identity
-ORACLE snapshot / receipt identity
-SUBSTRATE snapshot identity
-CONTROL run identity
-Council seat / mode
-allowed tools
-execution timestamp
-relevant hardware/runtime metadata
+outer address structure:
+  3 x 3 x 3
+  = ternary coordinate structure
+  = 27 cells
+
+payload alphabet:
+  A = 00
+  C = 01
+  G = 10
+  T = 11
+
+4 bases = 1 byte
+3 bases = 6 bits = 64 possible codon slots
 ```
 
-CONTROL does **not** claim to store a model's mind or hidden reasoning.
+Bytes are encoded into `A/C/G/T`, grouped into three-base codons, and distributed round-robin across one deterministic 27-cell traversal.
+
+Two versioned traversals exist:
+
+```text
+qsol.lexicographic-27/1
+qsol.phi-stride-27/1
+```
+
+The optional φ-gated path uses a fixed stride of `17` over the 27 lexicographic cells:
+
+```text
+cell_index(n) = (17 * n) mod 27
+```
+
+Because `gcd(17, 27) = 1`, every cell is visited exactly once before the path repeats.
+
+The projection stores original byte length and SHA-256 and must decode byte-for-byte before it is accepted.
+
+**Raw bytes remain canonical.** The DNA/lattice form is a derived recovery representation, not a compression claim and not a biological claim.
+
+```text
+DNA_ENCODING != BIOLOGICAL_CLAIM
+PHI_TRAVERSAL != PHYSICAL_TRUTH
+CODON_FREQUENCY != EVIDENCE
+```
+
+Conceptual lineage is documented in [`docs/STORAGE-LINEAGE.md`](docs/STORAGE-LINEAGE.md), including QSOLAI, QAI-UFT, `supreme-engine`, and THESIS.
+
+## Human / AI question flow
+
+```text
+Human or AI caller
+  -> CONTROL receives question
+  -> optional File attachments / Collection snapshot selected
+  -> retrieval finds candidate context
+  -> ORACLE supplies bounded evidence state
+  -> NEXUS runs Council reasoning against admitted evidence
+  -> votes and minority reports remain separate from evidence
+  -> ORACLE witnesses externally visible receipts
+  -> CONTROL preserves references, visible outputs and model states
+  -> lattice classifies interaction memory
+```
+
+AI callers receive **no more epistemic authority than human callers**.
+
+## AI model-state preservation
+
+CONTROL's model-state contract preserves externally inspectable runtime metadata for future computational archaeology where available:
+
+```text
+provider / runtime / model identifier / revision
+weight or tokenizer identity where verifiable
+quantization
+sampling configuration
+seed where meaningful
+Council seat / mode
+NEXUS / ORACLE / SUBSTRATE identities
+CONTROL run identity
+relevant runtime hardware metadata
+```
+
+It does not claim to preserve a model's mind or hidden chain-of-thought.
 
 ```text
 MODEL_STATE != MODEL_MIND
@@ -225,6 +296,24 @@ RUNTIME_METADATA != CONSCIOUSNESS
 ```
 
 See [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md).
+
+## Storage CLI
+
+The current Phase-1 reference runtime is standard-library-only.
+
+```bash
+python3 tools/storage_cli.py --root .store put-file notes.txt
+python3 tools/storage_cli.py --root .store create-collection "Research"
+python3 tools/storage_cli.py --root .store update-collection <collection_id> --add <file_id>
+python3 tools/storage_cli.py --root .store build-lexical <collection_id>
+python3 tools/storage_cli.py --root .store search <collection_id> "quantum evidence"
+python3 tools/storage_cli.py --root .store dna-export <file_id> --output file.dna.json
+python3 tools/storage_cli.py dna-decode file.dna.json --output recovered.bin
+python3 tools/storage_cli.py --root .store verify
+python3 tools/storage_cli.py --root .store fingerprint
+```
+
+Semantic vectors can be registered with `register-semantic` and searched with `search-semantic`; embedding generation itself is intentionally outside the canonical storage core.
 
 ## Constitutional invariants
 
@@ -236,9 +325,14 @@ CONSENSUS != TRUTH
 CONFIDENCE != PROBABILITY
 STORED != TRUE
 PERSISTED != CANONICAL
-MODEL_STATE != EVIDENCE
-AI_RESPONSE != FACT
 MEMORY != AUTHORITY
+SEARCH_SCORE != TRUTH
+SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
+INDEX != CANONICAL_MEMORY
+COLLECTION_MEMBERSHIP != ENDORSEMENT
+MODEL_STATE != MODEL_MIND
+DNA_ENCODING != BIOLOGICAL_CLAIM
+PHI_TRAVERSAL != PHYSICAL_TRUTH
 HUMAN_CALLER == AI_CALLER_FOR_EPISTEMIC_AUTHORITY
 CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY
 CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
@@ -246,65 +340,29 @@ CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
 
 ## Replay instead of chat amnesia
 
-Each completed run should receive a content-bound identifier and preserve enough public metadata to compare the same question over time.
+Future interaction persistence will bind each run to the exact File refs, Collection snapshot, evidence state, Council roster/model state, receipts and lattice refs used at that time.
 
-A future interface may offer:
+That makes these operations possible without rewriting history:
 
 ```text
 REPLAY ORIGINAL RUN
-RE-RUN WITH CURRENT EVIDENCE
+RE-RUN WITH CURRENT COLLECTION
 COMPARE RESULTS
 EXPLAIN WHAT CHANGED
 ```
 
-The comparison must distinguish changes caused by new evidence, different model roster, model/version drift, configuration changes, or stochastic inference. A later result does not rewrite an earlier result.
+## Validation
 
-## Validation and canonical examples
-
-Phase 0 validation is dependency-free and requires **Python 3.11 or newer**. CI currently exercises it with Python 3.12.
-
-Run locally:
+Validation remains dependency-free and requires **Python 3.11 or newer**. CI currently uses Python 3.12.
 
 ```bash
 python3 tools/validate_control.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
-A successful validator report includes the following fields (hashes/counts may grow in later compatible versions):
+The Phase-1 validator reports 8 declared JSON Schemas and 14 canonical valid/invalid fixtures, plus runtime regression tests for persistent storage and DNA/lattice round trips.
 
-```json
-{
-  "protocol": "QSOL-CONTROL/0.1",
-  "status": "valid",
-  "schemas": 3,
-  "schema_examples": 6,
-  "schema_draft": "https://json-schema.org/draft/2020-12/schema",
-  "lattice_cells": 27
-}
-```
-
-Every public JSON Schema uses **JSON Schema draft 2020-12** and has a canonical valid and intentionally invalid fixture under `examples/schema/`. The dependency-free validator must accept every valid fixture and reject every invalid fixture.
-
-```text
-examples/schema/control-query.valid.json
-examples/schema/control-query.invalid.json
-examples/schema/interaction-record.valid.json
-examples/schema/interaction-record.invalid.json
-examples/schema/model-state.valid.json
-examples/schema/model-state.invalid.json
-```
-
-The invalid fixtures are not documentation jokes only; they are regression cases. In particular, a model-state fixture claiming hidden chain-of-thought capture must fail.
-
-## Contract versioning
-
-`manifest.json` declares `schema_version` using `MAJOR.MINOR.PATCH` semantics:
-
-- **MAJOR** — breaking schema or authority-contract changes;
-- **MINOR** — backward-compatible optional fields or capabilities;
-- **PATCH** — clarifications/fixes that do not change accepted contract meaning.
-
-The lattice profile is independently versioned (`qsol-3x3x3-sierpinski-derived-memory/1`). Consumers must reject or explicitly negotiate unknown major contract/profile versions rather than silently guessing new coordinate meanings.
+All public schemas use **JSON Schema draft 2020-12**.
 
 ## Documentation map
 
@@ -312,14 +370,16 @@ The lattice profile is independently versioned (`qsol-3x3x3-sierpinski-derived-m
 - [`AGENTS.md`](AGENTS.md) — contributor/agent operating rules.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — authority boundaries and system design.
 - [`ROADMAP.md`](ROADMAP.md) — implementation sequence.
-- [`SECURITY.md`](SECURITY.md) — control-plane, storage, privacy, redaction, access-control, and retention boundaries.
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution and local-validation contract.
-- [`CHANGELOG.md`](CHANGELOG.md) — contract/release evolution.
-- [`docs/WEBUI.md`](docs/WEBUI.md) — human operator surface.
-- [`docs/AI-API.md`](docs/AI-API.md) — machine caller contract.
-- [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md) — 27-cell recursive storage model.
+- [`SECURITY.md`](SECURITY.md) — privacy, redaction and control/storage threat boundaries.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution/validation contract.
+- [`CHANGELOG.md`](CHANGELOG.md) — contract evolution.
+- [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md) — Files, Collections, snapshots and search.
+- [`docs/STORAGE-LINEAGE.md`](docs/STORAGE-LINEAGE.md) — conceptual lineage for lexicographic, codon and φ-gated design.
+- [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md) — 27-cell interaction-memory model.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md) — future-AI model-state preservation.
 - [`docs/NEXUS-ORACLE.md`](docs/NEXUS-ORACLE.md) — orchestration boundary.
+- [`docs/WEBUI.md`](docs/WEBUI.md) — planned human surface.
+- [`docs/AI-API.md`](docs/AI-API.md) — planned machine caller surface.
 - [`manifest.json`](manifest.json) — canonical machine map.
 
 ## License
@@ -328,8 +388,11 @@ QSOL-CONTROL is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. See
 
 ## Status
 
-**PR #1 bootstrap:** documentation, machine contracts, architecture, schemas, canonical fixtures, and roadmap. Runtime adapters, WebUI implementation, persistent storage engine, live ORACLE transport, and NEXUS Council invocation are intentionally sequenced after the contracts are reviewable.
+- **PR #1:** Phase-0 architecture/contracts bootstrap — merged.
+- **PR #2:** Phase-1A persistent Files/Collections, retrieval indexes, and DNA/lattice recovery projection — in development.
+
+Live ORACLE/NEXUS adapters, full interaction persistence, WebUI and network AI API remain sequenced in the ROADMAP.
 
 ---
 
-**QSOL-CONTROL controls the machinery, not reality. If the Council unanimously votes that the Moon is made of cheese, CONTROL's job is to preserve the vote — not update astronomy.**
+**QSOL-CONTROL controls the machinery, not reality. If the Council unanimously votes that the Moon is made of cheese and the semantic index returns it at 0.999 similarity, CONTROL's job is to preserve both facts about the system — not update astronomy.**

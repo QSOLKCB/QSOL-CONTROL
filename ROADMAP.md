@@ -11,20 +11,54 @@
 - [x] Add initial schemas and constitutional contracts.
 - [x] Add dependency-free repository validator and CI contract checks.
 
-## Phase 1 — Deterministic storage substrate
+## Phase 1A — Persistent Files and Collections
 
-- [ ] Implement canonical JSON interaction records.
+- [x] Implement content-addressed raw File objects.
+- [x] Separate raw object identity from immutable File metadata identity.
+- [x] Implement persistent named Collections.
+- [x] Implement immutable Collection membership snapshots with atomic `HEAD` updates.
+- [x] Keep Collection membership lexicographically ordered by `file_id`.
+- [x] Implement deterministic lexical retrieval baseline.
+- [x] Implement externally supplied semantic-vector index registration and cosine retrieval.
+- [x] Bind every search index to an exact Collection snapshot.
+- [x] Fail closed on stale semantic indexes after membership changes.
+- [x] Mark search indexes derived, rebuildable, and authority-free.
+- [x] Implement canonical storage fingerprint and integrity verification.
+- [x] Add adversarial tests for mutation/corruption, duplicate identities, stale indexes, and snapshot lineage.
+- [x] Add storage operator CLI.
+- [x] Define schemas and canonical fixtures for Files, Collections, snapshots, and indexes.
+
+### DNA/lattice recovery projection
+
+- [x] Implement reversible `A/C/G/T` 2-bit encoding (`qsol.dna-2bit-codon64/1`).
+- [x] Group three bases into one 0–63 codon slot.
+- [x] Map codons over the 27-cell 3×3×3 lattice.
+- [x] Implement canonical lexicographic 27-cell traversal.
+- [x] Implement optional deterministic φ-gated single path (`qsol.phi-stride-27/1`, stride 17).
+- [x] Preserve original byte length/hash and verify exact round-trip decode.
+- [x] Make the DNA/lattice form explicitly derived and rebuildable.
+- [x] Refuse biological, physical, compression, or truth-authority claims from the encoding.
+- [x] Add CLI export/decode operations and regression tests.
+
+### Phase 1A gate
+
+The persistent document layer must round-trip canonical fixtures offline, detect corruption, preserve immutable Collection history, and never depend on one embedding vendor. Raw bytes remain canonical; lexical/vector/DNA representations are projections.
+
+## Phase 1B — Interaction and lattice persistence
+
+- [ ] Implement canonical JSON interaction records in the runtime store.
 - [ ] Implement content-addressed run IDs.
-- [ ] Implement deterministic lattice-address assignment.
-- [ ] Implement immutable lineage between questions, evidence, responses, receipts, and model states.
-- [ ] Implement append-only local persistence with atomic writes.
-- [ ] Add storage integrity/fingerprint command.
-- [ ] Add adversarial tests for mutation, path traversal, duplicate identities, and lineage loops.
-- [ ] Define storage export bundle for ARK recovery.
+- [ ] Implement deterministic epistemic lattice-address assignment for questions/responses/evidence.
+- [ ] Link run records to File IDs and exact Collection snapshot IDs.
+- [ ] Implement immutable lineage between questions, evidence, responses, receipts, model states, and Files.
+- [ ] Implement append-only run/event persistence with atomic writes.
+- [ ] Add run-level storage integrity/fingerprint command.
+- [ ] Add adversarial tests for path traversal, duplicate identities, lineage loops, and malformed imports.
+- [ ] Define the minimum storage export bundle for ARK recovery.
 
-### Gate
+### Phase 1B gate
 
-No network or model integration until the storage layer can round-trip and verify deterministic fixtures offline.
+No live ORACLE/model integration until interaction records, referenced Files/Collection snapshots, and lattice lineage can round-trip and verify deterministically offline.
 
 ## Phase 2 — ORACLE adapter
 
@@ -57,7 +91,7 @@ CONTROL may invoke Council operations but cannot alter NEXUS vote weights, ballo
 
 ## Phase 4 — AI model-state registry
 
-- [ ] Implement `qsol-control-model-state/1` records.
+- [ ] Implement `qsol-control-model-state/1` records in persistent runtime storage.
 - [ ] Capture provider/runtime/model/revision metadata where available.
 - [ ] Capture model/weight/tokenizer hashes where locally verifiable.
 - [ ] Capture quantization, sampling, context and deterministic seed metadata.
@@ -73,6 +107,9 @@ CONTROL may invoke Council operations but cannot alter NEXUS vote weights, ballo
 ## Phase 5 — Human WebUI
 
 - [ ] Build question composer with explicit `Evidence only` / `Ask Council` modes.
+- [ ] Build File attachment flow for immediate context.
+- [ ] Build persistent Collection create/browse/search interface.
+- [ ] Show exact Collection snapshot used by a run.
 - [ ] Build evidence panel.
 - [ ] Build Council phase + sealed-vote panel.
 - [ ] Build minority-report panel.
@@ -80,19 +117,22 @@ CONTROL may invoke Council operations but cannot alter NEXUS vote weights, ballo
 - [ ] Build ORACLE timeline/receipt view.
 - [ ] Build model-state inspector.
 - [ ] Build lattice-memory browser.
+- [ ] Build DNA/lattice recovery projection inspector/export control.
 - [ ] Build replay/compare view.
 - [ ] Build health/status page for connected QSOL services.
 - [ ] Add accessible keyboard-first interface and mobile fallback.
 
 ### UI invariant
 
-Never display a synthetic `truth percentage` derived from votes, confidence, entropy, model count, or consensus.
+Never display a synthetic `truth percentage` derived from votes, confidence, entropy, model count, consensus, retrieval score, embedding similarity, codon frequency, or lattice position.
 
 ## Phase 6 — AI / agent API
 
 - [ ] Implement structured request/response API.
 - [ ] Implement `control.health` and capability discovery.
 - [ ] Implement `control.ask`.
+- [ ] Implement File upload/reference operations.
+- [ ] Implement Collection create/snapshot/search operations.
 - [ ] Implement run retrieval/comparison.
 - [ ] Implement evidence/Council/model-state retrieval.
 - [ ] Implement bounded lattice traversal.
@@ -103,19 +143,22 @@ Never display a synthetic `truth percentage` derived from votes, confidence, ent
 ## Phase 7 — Replay and longitudinal research
 
 - [ ] Implement replay classification.
+- [ ] Bind replay to exact Collection snapshot and index descriptor used originally.
 - [ ] Compare original run with current evidence.
-- [ ] Explain changes in evidence set, Council roster, model revision, runtime, and configuration.
+- [ ] Explain changes in evidence set, Collection membership, Council roster, model revision, runtime, and configuration.
 - [ ] Preserve original result immutably.
 - [ ] Produce deterministic comparison reports.
 - [ ] Add research timeline view for recurring questions.
 
 ## Phase 8 — ARK recovery bridge
 
+- [x] Define a reversible DNA/lattice projection for individual File bytes.
 - [ ] Define minimum recoverable CONTROL bundle.
-- [ ] Export schemas, contracts, run records, model states, and lattice addressing rules.
+- [ ] Export raw objects, File records, Collection descriptors/snapshots, schemas, run records, model states, and lattice addressing rules.
+- [ ] Include optional DNA/lattice projections and search-index descriptors without requiring them as canonical source.
 - [ ] Add plain-text recovery map.
 - [ ] Add standard-library validator/reconstructor.
-- [ ] Test reconstruction without CONTROL WebUI.
+- [ ] Test reconstruction without CONTROL WebUI or original search engine.
 - [ ] Add constrained-environment recovery fixtures.
 
 ## Phase 9 — INT composition batteries
@@ -126,12 +169,14 @@ Never display a synthetic `truth percentage` derived from votes, confidence, ent
 - [ ] Test vote/evidence separation.
 - [ ] Test memory/canonical separation.
 - [ ] Test model-state/identity separation.
+- [ ] Test Collection/search-index authority separation.
+- [ ] Test DNA/lattice projection/raw-byte canonical separation.
 - [ ] Test schema/version drift.
 
 ## Phase 10 — Hardening and release discipline
 
 - [ ] Threat-model network and browser boundaries.
-- [ ] Secret-scrubbing tests.
+- [ ] Expand secret-scrubbing tests for File metadata/imports.
 - [ ] CSRF/CORS/session protection as applicable to chosen runtime.
 - [ ] Strict local-bind default for operator service.
 - [ ] Import/export size limits and decompression-bomb defenses.
@@ -148,5 +193,7 @@ Never display a synthetic `truth percentage` derived from votes, confidence, ent
 - [ ] Automatic truth scoring.
 - [ ] Hidden chain-of-thought capture.
 - [ ] Literal geometric-cognition claims from the lattice.
+- [ ] Biological claims from the DNA-symbol codec.
+- [ ] Claims that φ traversal is physically optimal storage.
 
-The last three are less "deferred" and more "please do not invent these while nobody is looking."
+The last four are less "deferred" and more "please do not invent these while nobody is looking."

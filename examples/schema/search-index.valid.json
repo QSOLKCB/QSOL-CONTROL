@@ -1,0 +1,31 @@
+{
+  "index_id": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "protocol": "qsol-control-search-index/1",
+  "kind": "deterministic-lexical-baseline",
+  "engine": "qsol.term-frequency-cosine/2",
+  "collection_id": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "snapshot_id": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "built_at": "2026-08-18T07:46:00+09:30",
+  "privacy_class": "INTERNAL",
+  "collation": "qsol.utf8-byte-lexicographic/1",
+  "derived": true,
+  "rebuildable": true,
+  "authority": "none",
+  "tokenizer": {
+    "id": "qsol.unicode-nfkc-casefold-alnum/1",
+    "normalization": "NFKC",
+    "case_mapping": "casefold",
+    "token_characters": "Unicode categories L* and N* plus underscore",
+    "stopwords": false,
+    "stemming": false,
+    "unicode_database_version": "fixture"
+  },
+  "documents": {
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": {
+      "evidence": 1,
+      "quantum": 2
+    }
+  },
+  "documents_sha256": "f7193a8e43bfdf0119445bfe1b21db2bd0011cca1e194a88b8b3c75391aa0a4c",
+  "skipped_file_ids": []
+}

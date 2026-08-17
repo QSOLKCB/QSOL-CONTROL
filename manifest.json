@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-manifest",
   "protocol": "QSOL-CONTROL/0.1",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "snapshot_date": "2026-08-18",
   "role": "human-and-ai-control-plane",
   "verb": "OPERATES",
@@ -15,6 +15,8 @@
   "architecture": "ARCHITECTURE.md",
   "roadmap": "ROADMAP.md",
   "security": "SECURITY.md",
+  "persistent_storage_document": "docs/PERSISTENT-STORAGE.md",
+  "storage_hardening_document": "docs/STORAGE-HARDENING.md",
   "json_schema": {
     "draft": "https://json-schema.org/draft/2020-12/schema",
     "compatibility_policy": "semantic-versioning",
@@ -30,7 +32,8 @@
   },
   "interfaces": {
     "human": "webui-planned",
-    "ai": "structured-api-planned"
+    "ai": "structured-api-planned",
+    "storage_cli": "tools/storage_cli.py"
   },
   "roles": {
     "QSOL-SUBSTRATE": "KNOWS",
@@ -41,6 +44,23 @@
     "QSOL-CONTROL": "OPERATES",
     "LATTICE_MEMORY": "REMEMBERS"
   },
+  "repository_boundaries": {
+    "QSOL-CONTROL": {
+      "visibility": "public",
+      "role": "storage/control machinery",
+      "private_corpus_home": false
+    },
+    "QSOL-CORPUS": {
+      "visibility": "private",
+      "role": "persistent interaction corpus and curated Collections",
+      "canonical_raw_export_home": false
+    },
+    "LATTICE": {
+      "visibility": "public",
+      "role": "reusable lattice-memory implementation/profile",
+      "evidence_authority": "none"
+    }
+  },
   "query_modes": ["evidence_only", "council"],
   "lattice": {
     "profile": "qsol-3x3x3-sierpinski-derived-memory/1",
@@ -48,10 +68,75 @@
     "authority": "storage-only",
     "recursive": true
   },
+  "persistent_storage": {
+    "runtime": "storage/control_store.py",
+    "dna_lattice_codec": "storage/dna_lattice.py",
+    "file_protocol": "qsol-control-file/1",
+    "collection_protocol": "qsol-control-collection/1",
+    "collection_snapshot_protocol": "qsol-control-collection-snapshot/1",
+    "search_index_protocol": "qsol-control-search-index/1",
+    "dna_lattice_protocol": "qsol-control-dna-lattice/1",
+    "audit_event_protocol": "qsol-control-audit-event/1",
+    "canonical_object_identity": "sha256(raw_bytes)",
+    "canonical_record_serialization": "utf-8 canonical JSON with sorted keys and compact separators",
+    "collection_history": "immutable snapshots with atomic HEAD pointer",
+    "writer_model": "single-node local filesystem with exclusive lock files and optional HEAD compare-and-swap",
+    "distributed_transaction_claim": false,
+    "snapshot_gc": "not-yet-implemented",
+    "index_authority": "none",
+    "indexes_are_derived_and_rebuildable": true,
+    "search_modes": ["deterministic-lexical-baseline", "semantic-vector"],
+    "lexical_engine": "qsol.term-frequency-cosine/2",
+    "lexical_tokenizer": {
+      "id": "qsol.unicode-nfkc-casefold-alnum/1",
+      "normalization": "NFKC",
+      "case_mapping": "casefold",
+      "token_characters": "Unicode categories L* and N* plus underscore",
+      "stopwords": false,
+      "stemming": false
+    },
+    "collation": "qsol.utf8-byte-lexicographic/1",
+    "semantic_embedding_generation": "external-adapter-required",
+    "semantic_snapshot_mismatch_policy": "fail-closed",
+    "semantic_index_fingerprints": ["embedding_sha256", "vectors_sha256"],
+    "canonical_fingerprint_excludes_derived_indexes": true,
+    "canonical_fingerprint_excludes_audit_events": true,
+    "restricted_dna_export": {
+      "requires_allow_restricted": true,
+      "requires_reversibility_acknowledgement": true,
+      "requires_actor": true,
+      "audited_on_commit": true,
+      "dry_run_writes_nothing": true
+    },
+    "dna_projection": {
+      "codec": "qsol.dna-2bit-codon64/1",
+      "alphabet": ["A", "C", "G", "T"],
+      "bits_per_base": 2,
+      "bases_per_byte": 4,
+      "bases_per_codon": 3,
+      "codon_slots": 64,
+      "outer_lattice_radix": 3,
+      "outer_lattice_cells": 27,
+      "canonical_traversal": "qsol.lexicographic-27/1",
+      "optional_phi_gated_traversal": "qsol.phi-stride-27/1",
+      "phi_stride": 17,
+      "phi_modulus": 27,
+      "phi_rule": "cell_index(n)=(17*n) mod 27",
+      "authority": "none",
+      "derived": true,
+      "rebuildable": true,
+      "compression_claim": false
+    }
+  },
   "schemas": {
     "query": "schema/control-query.schema.json",
     "interaction": "schema/interaction-record.schema.json",
-    "model_state": "schema/model-state.schema.json"
+    "model_state": "schema/model-state.schema.json",
+    "file": "schema/file-record.schema.json",
+    "collection": "schema/collection-record.schema.json",
+    "collection_snapshot": "schema/collection-snapshot.schema.json",
+    "search_index": "schema/search-index.schema.json",
+    "dna_lattice": "schema/dna-lattice.schema.json"
   },
   "schema_examples": {
     "query": {
@@ -65,7 +150,28 @@
     "model_state": {
       "valid": "examples/schema/model-state.valid.json",
       "invalid": "examples/schema/model-state.invalid.json"
+    },
+    "file": {
+      "valid": "examples/schema/file-record.valid.json",
+      "invalid": "examples/schema/file-record.invalid.json"
+    },
+    "collection": {
+      "valid": "examples/schema/collection-record.valid.json",
+      "invalid": "examples/schema/collection-record.invalid.json"
+    },
+    "collection_snapshot": {
+      "valid": "examples/schema/collection-snapshot.valid.json",
+      "invalid": "examples/schema/collection-snapshot.invalid.json"
+    },
+    "search_index": {
+      "valid": "examples/schema/search-index.valid.json",
+      "invalid": "examples/schema/search-index.invalid.json"
     }
+  },
+  "dna_projection_examples": {
+    "valid": "examples/schema/dna-lattice.valid.json",
+    "invalid": "examples/schema/dna-lattice.invalid.json",
+    "validation": "runtime round-trip tests plus JSON Schema"
   },
   "documentation": [
     "README.md",
@@ -80,15 +186,29 @@
     "docs/AI-API.md",
     "docs/LATTICE-MEMORY.md",
     "docs/MODEL-STATE.md",
-    "docs/NEXUS-ORACLE.md"
+    "docs/NEXUS-ORACLE.md",
+    "docs/PERSISTENT-STORAGE.md",
+    "docs/STORAGE-HARDENING.md",
+    "docs/STORAGE-LINEAGE.md"
   ],
   "status": {
-    "phase": 0,
+    "phase": 1,
     "architecture_contracts": "implemented",
     "validation_ci": "implemented",
-    "runtime": "not-yet-implemented",
+    "persistent_storage_core": "implemented",
+    "persistent_files": "implemented",
+    "persistent_collections": "implemented",
+    "collection_snapshot_history": "implemented",
+    "deterministic_lexical_retrieval": "implemented",
+    "semantic_vector_index_registration_and_search": "implemented",
+    "dna_lattice_recovery_projection": "implemented",
+    "operator_audit_records": "implemented-local",
+    "collection_compare_and_swap": "implemented-local",
+    "embedding_generation_adapter": "not-yet-implemented",
+    "persistent_lattice_engine": "not-yet-implemented",
+    "live_oracle_adapter": "not-yet-implemented",
+    "live_nexus_adapter": "not-yet-implemented",
     "webui": "not-yet-implemented",
-    "ai_api": "not-yet-implemented",
-    "persistent_lattice_engine": "not-yet-implemented"
+    "ai_api": "not-yet-implemented"
   }
 }

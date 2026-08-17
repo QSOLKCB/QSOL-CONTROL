@@ -1,8 +1,8 @@
 # QSOL-CONTROL Security
 
-QSOL-CONTROL is a control plane. That makes its most important security property **authority containment**.
+QSOL-CONTROL is a control plane. Its most important security property is **authority containment**.
 
-A compromised display should not become a compromised ORACLE ledger. A malicious AI response should not become a NEXUS command. A stored interaction should not become trusted evidence merely because it survived disk I/O.
+A compromised display must not become a compromised ORACLE ledger. A malicious model response must not become a NEXUS command. A stored File, Collection membership, search hit, vector similarity, or DNA projection must not become trusted evidence merely because it survived disk I/O.
 
 ## Trust boundaries
 
@@ -11,51 +11,121 @@ Treat as untrusted by default:
 - browser input;
 - AI/agent API requests;
 - model output;
-- imported interaction bundles;
+- File uploads/imports;
+- Collection metadata;
+- semantic vectors supplied by external adapters;
+- imported interaction/recovery bundles;
 - external source payloads;
 - ORACLE/NEXUS transport payloads until validated against their protocol contracts;
-- filenames, archive paths, content types, and user-supplied metadata.
+- filenames, archive paths, content types, source locators and user-supplied metadata.
 
 ## Credentials
 
-Credentials are operational secrets, not lattice memory and not model state.
+Credentials are operational secrets, not lattice memory, Files, Collections or model state.
 
 Credentials must never intentionally enter:
 
 - questions sent to models;
 - Council prompts;
+- persistent File content intended for archival storage;
+- File/Collection metadata;
+- search indexes or embedding descriptors;
+- DNA/lattice recovery projections;
 - model-state records;
 - interaction records;
 - ORACLE evidence;
 - replay bundles;
-- screenshots or browser-export artifacts;
+- screenshots/browser exports;
 - ordinary logs.
 
-Future runtime work should prefer references to external secret sources rather than copying secret values into CONTROL state.
+Prefer references to external secret stores rather than copying secret values into CONTROL state.
 
 ## Data classification
 
-Before persistence or export, CONTROL data should be classified into one of these operational classes:
+Before persistence or export, classify CONTROL data as:
 
 ```text
 PUBLIC      safe for deliberate public export
 INTERNAL    operator-owned local state; not public by default
-RESTRICTED  sensitive metadata requiring explicit access and export approval
-FORBIDDEN   credentials, hidden chain-of-thought, or other material CONTROL must not retain
+RESTRICTED  sensitive metadata/content requiring explicit access/export approval
+FORBIDDEN   credentials, hidden chain-of-thought, or material CONTROL must not retain
 ```
 
-`FORBIDDEN` material must be rejected or redacted before persistence. A hash of forbidden plaintext is not a safe substitute for removing the plaintext when the hash itself could disclose a sensitive identifier or permit guessing attacks.
+`FORBIDDEN` material must be rejected or redacted before persistence.
+
+A hash of forbidden plaintext is not automatically safe: hashes can disclose sensitive identifiers or permit guessing attacks when the input space is small.
+
+## Monotonic Collection privacy
+
+Phase 1 enforces this ordering:
+
+```text
+PUBLIC < INTERNAL < RESTRICTED
+```
+
+A Collection may be equally or **more restrictive** than its member Files; it may never make a File less restricted.
+
+Therefore:
+
+```text
+PUBLIC Collection     -> PUBLIC Files only
+INTERNAL Collection   -> PUBLIC or INTERNAL Files
+RESTRICTED Collection -> PUBLIC, INTERNAL or RESTRICTED Files
+```
+
+This rule is checked during Collection updates and again during store verification.
+
+```text
+COLLECTION_MEMBERSHIP != DECLASSIFICATION
+```
+
+## Search-index confidentiality
+
+Lexical indexes and semantic vectors are derived, but derived data can still leak source content.
+
+Examples:
+
+- term-frequency maps reveal vocabulary;
+- embeddings can encode sensitive semantic information;
+- nearest-neighbour outputs reveal Collection membership and relationships;
+- embedding descriptors may expose provider/workspace identifiers.
+
+Search indexes therefore inherit the access/export restrictions of the Collection snapshot from which they were built.
+
+```text
+DERIVED != PUBLIC
+VECTOR != SAFE_TO_DISCLOSE
+SEARCHABLE != AUTHORITATIVE
+```
+
+A future multi-user runtime must authorize search operations against Collection privacy, not merely hide raw File download buttons.
+
+## DNA/lattice projection confidentiality
+
+The `A/C/G/T` projection is reversible. Anyone with the full projection can reconstruct the source bytes.
+
+Encoding data into DNA symbols does **not** redact, anonymize, encrypt or declassify it.
+
+```text
+ENCODED != ENCRYPTED
+ENCODED != REDACTED
+DNA_PROJECTION_INHERITS_SOURCE_PRIVACY
+```
+
+A `RESTRICTED` File remains restricted when represented as codons or distributed over 27 lattice cells.
+
+The φ-gated traversal is an addressing order only and provides no security property.
 
 ## Redaction policy
 
-Redaction happens **before** durable storage, content hashing, lattice placement, export, screenshots, or ordinary logs whenever the sensitive value is not required for reproducibility.
+Redaction happens **before** durable storage, content hashing, lattice placement, embedding generation, DNA export, screenshots or ordinary logs whenever the sensitive value is not required for reproducibility.
 
 At minimum, redact or omit:
 
 - API keys, bearer tokens, cookies, OAuth refresh/access tokens and session identifiers;
 - authorization headers and secret environment variables;
 - account/billing identifiers not required for the research record;
-- email addresses, usernames, hostnames, filesystem paths, IP addresses or device identifiers when they are incidental rather than reproducibility-critical;
+- email addresses, usernames, hostnames, filesystem paths, IP addresses or device identifiers when incidental;
 - command-line arguments containing credentials;
 - provider request IDs that are account-linkable unless explicitly required and reviewed;
 - unreviewed free-form metadata copied from provider responses.
@@ -66,13 +136,16 @@ Redaction must be explicit and inspectable. Do not silently replace sensitive ma
 
 ## Access-control policy
 
-Phase 0 defines contracts only; it does not claim a deployed access-control system. A future runtime must fail closed and should default to a **single local operator on loopback**.
+Phase 1 implements a local filesystem storage core but **does not claim a deployed authentication/authorization system**.
+
+The intended default remains a single local operator. A future WebUI/service should bind to loopback unless a later threat model explicitly supports remote operation.
 
 Any remote or multi-user deployment must define and test:
 
 - authentication;
 - authorization by operation and record class;
 - least-privilege access to `INTERNAL` and `RESTRICTED` records;
+- Collection-aware search authorization;
 - separation between read/query operations and authority-sensitive writes;
 - audit records for export, deletion, retention-class changes and privileged operations;
 - session expiry and credential rotation.
@@ -83,52 +156,50 @@ AI callers do not become administrators merely because they are machine clients.
 
 CONTROL exists partly to preserve research history, but **retention must be intentional rather than accidental**.
 
-Future runtime records should carry or inherit a retention decision equivalent to:
+Records carry one of:
 
 ```text
-TRANSIENT  process only; do not persist after the operation
-SESSION    retain for the bounded operator session/workspace
-ARCHIVE    intentionally preserve for longitudinal research/recovery
+TRANSIENT  process only / intended short-lived lifecycle
+SESSION    bounded operator session/workspace
+ARCHIVE    intentionally preserved for longitudinal research/recovery
 ```
+
+Important Phase-1 limitation: these labels are persisted as policy metadata; automatic expiry/garbage collection is **not yet implemented**. Do not interpret a `TRANSIENT` label as proof that bytes have already been deleted.
 
 Recommended defaults:
 
 - credentials and `FORBIDDEN` material: never persist;
 - incidental transport/debug data: `TRANSIENT`;
-- unreviewed operator queries or model-state metadata: no stronger than `SESSION` by default;
+- unreviewed operator queries/model-state metadata: no stronger than `SESSION` by default;
 - curated research records: `ARCHIVE` only after classification/redaction succeeds;
-- public ARK/export bundles: contain only material explicitly cleared for that export surface.
+- public ARK/export bundles: only material explicitly cleared for that export surface.
 
-Changing a record from `TRANSIENT` or `SESSION` to `ARCHIVE` is a publication/retention decision, not a side effect of successful execution.
+Changing data from `TRANSIENT`/`SESSION` to `ARCHIVE` is a retention decision, not a side effect of successful execution.
 
-Deletion or expiry policy must not rewrite ORACLE history or pretend an absent CONTROL copy means the underlying witnessed event never existed.
+Deletion/expiry must not rewrite ORACLE history or imply an underlying witnessed event never existed.
 
 ## Model-state privacy
 
 Model-state capture must be minimized to reproducibility/recovery metadata. Do not record credentials, private provider account details, hidden prompts not intended for preservation, or hidden chain-of-thought.
 
-Model-state fields should prefer allowlisted structured metadata over arbitrary provider-response blobs. Hardware/user environment details should be scoped to what materially supports reproducibility and should be reviewable before export.
-
-Fields may contain sensitive identifiers even when they look technical. In particular, review provider request IDs, workspace IDs, model endpoints, local paths, usernames, IP addresses, machine names and tool configuration before persistence.
+Prefer allowlisted structured metadata over arbitrary provider-response blobs. Review provider request IDs, workspace IDs, endpoints, local paths, usernames, IP addresses, machine names and tool configuration before persistence.
 
 ## Browser/WebUI boundary
 
-When the WebUI is implemented, the default operator deployment should prefer local/loopback binding unless a later threat model explicitly supports remote operation.
-
-Remote or multi-user deployment must not be inferred from the existence of a WebUI.
-
-Future implementation must review:
+When the WebUI is implemented, review at minimum:
 
 - CSRF protection;
 - CORS policy;
 - session/cookie scope;
-- websocket/event-stream authorization if used;
+- websocket/event-stream authorization;
 - content-security policy;
 - output escaping;
 - untrusted Markdown/HTML rendering;
 - download/import handling;
-- clickjacking and framing behavior;
+- clickjacking/framing behavior;
 - rate/resource limits.
+
+Remote or multi-user deployment must not be inferred merely from the existence of a WebUI.
 
 ## AI/agent API boundary
 
@@ -138,7 +209,7 @@ The AI interface must not expose hidden operations that can:
 
 - modify NEXUS ballots or vote weights;
 - rewrite ORACLE history;
-- elevate stored content to canonical evidence;
+- elevate stored/search-retrieved content to canonical evidence;
 - bypass caller authorization;
 - access credentials;
 - request hidden chain-of-thought.
@@ -153,24 +224,26 @@ CONTROL must not convert free-form model text into executable CONTROL operations
 
 The default ORACLE adapter should be read/query oriented. Any future write/append path requires separate review because witnessing is authority-sensitive even when semantic authority remains limited.
 
-A hash match proves integrity of the hashed bytes, not authorship or truth.
+A hash match proves integrity of hashed bytes, not authorship or truth.
 
-## Storage boundary
+## Persistent storage boundary
 
-The lattice datastore must validate:
+The storage core must validate:
 
 - canonical IDs;
+- object byte hashes and sizes;
 - record schemas;
-- path confinement;
-- maximum record/bundle sizes;
-- lineage references;
+- path confinement through content IDs;
+- immutable Collection descriptor/snapshot identities;
+- snapshot revision continuity and lineage loops;
+- Collection-member privacy monotonicity;
 - duplicate identity behavior;
-- atomic write behavior;
+- atomic pointer/write behavior;
 - import provenance;
-- recursive-address depth limits;
-- classification/redaction status before archival persistence.
+- maximum future record/bundle sizes;
+- classification/redaction before archival persistence.
 
-Recursive lattice addressing must not permit unbounded recursion or resource exhaustion.
+Recursive lattice addressing and imported recovery data must not permit unbounded recursion or resource exhaustion.
 
 ## Replay boundary
 
@@ -178,11 +251,13 @@ A replay label is a technical claim and must be earned.
 
 Live stochastic inference must not be labelled exact replay merely because the same model name and prompt were used again.
 
-## Secret scanning and fixture discipline
+A future replay involving Collections must record the exact historical Collection snapshot rather than silently using current membership.
 
-Examples and tests must use obviously synthetic placeholders, never copied production credentials or private provider payloads. CI should remain safe to run on forks and public runners.
+## Secret scanning and fixtures
 
-Before release or public export, scan tracked content and generated bundles for common credential patterns and review any detected high-entropy or account-linked values.
+Examples/tests must use synthetic placeholders, never copied production credentials or private provider payloads. CI should remain safe on forks/public runners.
+
+Before release/public export, scan tracked content and generated bundles for common credential patterns and review detected high-entropy/account-linked values.
 
 ## Security invariants
 
@@ -197,6 +272,10 @@ REPLAY_LABEL_REQUIRES_EVIDENCE
 HIDDEN_CHAIN_OF_THOUGHT = OUT_OF_SCOPE
 FORBIDDEN_DATA != ARCHIVAL_MATERIAL
 ARCHIVE_REQUIRES_CLASSIFICATION_AND_REDACTION
+COLLECTION_MEMBERSHIP != DECLASSIFICATION
+DERIVED_INDEX != PUBLIC_DATA
+ENCODED != ENCRYPTED
+DNA_PROJECTION_INHERITS_SOURCE_PRIVACY
 ```
 
 ## Reporting

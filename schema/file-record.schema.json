@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/file-record.schema.json",
+  "title": "QSOL-CONTROL Persistent File Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "file_id",
+    "protocol",
+    "object_id",
+    "content_sha256",
+    "size_bytes",
+    "filename",
+    "media_type",
+    "created_at",
+    "privacy_class",
+    "retention_class",
+    "source",
+    "metadata"
+  ],
+  "properties": {
+    "file_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-file/1"},
+    "object_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "size_bytes": {"type": "integer", "minimum": 0},
+    "filename": {"type": "string", "minLength": 1, "maxLength": 512},
+    "media_type": {"type": "string", "minLength": 1, "maxLength": 256},
+    "created_at": {"type": "string", "format": "date-time"},
+    "privacy_class": {"enum": ["PUBLIC", "INTERNAL", "RESTRICTED"]},
+    "retention_class": {"enum": ["TRANSIENT", "SESSION", "ARCHIVE"]},
+    "source": {
+      "type": "object",
+      "required": ["kind", "locator"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "locator": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "metadata": {"type": "object"}
+  }
+}
