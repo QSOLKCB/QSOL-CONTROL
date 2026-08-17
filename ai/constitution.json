@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-constitution",
   "protocol": "QSOL-CONTROL/0.1",
-  "version": 2,
+  "version": 3,
   "operator_role": "orchestration-only",
   "invariants": [
     "CONTROL_DISPLAY != AUTHORITY",
@@ -23,6 +23,8 @@
     "INDEX != CANONICAL_MEMORY",
     "COLLECTION_MEMBERSHIP != ENDORSEMENT",
     "LATTICE_ADDRESS != COLLECTION_MEMBERSHIP",
+    "DNA_ENCODING != BIOLOGICAL_CLAIM",
+    "PHI_TRAVERSAL != PHYSICAL_TRUTH",
     "CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY",
     "CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES",
     "CONTROL_MUST_NOT_PROMOTE_CONSENSUS_TO_EVIDENCE",
@@ -46,6 +48,8 @@
     "derive_evidence_strength_from_vector_similarity",
     "derive_endorsement_from_collection_membership",
     "treat_derived_search_index_as_canonical_memory",
+    "treat_dna_symbol_encoding_as_biological_evidence",
+    "treat_phi_lattice_traversal_as_physical_or_cognitive_truth",
     "rewrite_oracle_event_history",
     "modify_nexus_ballots_or_vote_weights",
     "grant_ai_callers_hidden_epistemic_privilege",
