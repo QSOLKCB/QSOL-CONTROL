@@ -1,0 +1,14 @@
+{
+  "file_id": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "protocol": "qsol-control-file/1",
+  "object_id": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "content_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "size_bytes": 12,
+  "filename": "example.txt",
+  "media_type": "text/plain",
+  "created_at": "2026-08-18T07:44:00+09:30",
+  "privacy_class": "INTERNAL",
+  "retention_class": "ARCHIVE",
+  "source": {"kind": "operator", "locator": "local"},
+  "metadata": {"purpose": "canonical fixture"}
+}
