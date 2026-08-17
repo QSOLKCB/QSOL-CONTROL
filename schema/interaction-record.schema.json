@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/interaction-record.schema.json",
+  "title": "QSOL-CONTROL Interaction Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "run_id",
+    "question_sha256",
+    "mode",
+    "requester_kind",
+    "created_at",
+    "evidence_state",
+    "record_refs",
+    "model_state_refs",
+    "replayability"
+  ],
+  "properties": {
+    "protocol": {"const": "qsol-control-interaction/1"},
+    "run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "question_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "mode": {"enum": ["evidence_only", "council"]},
+    "requester_kind": {"enum": ["human", "ai", "system"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "evidence_state": {"enum": ["known", "conflict", "unknown", "unavailable"]},
+    "oracle_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "nexus_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "record_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "model_state_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    },
+    "lattice_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^L\\[[0-2],[0-2],[0-2]\\](?:/L\\[[0-2],[0-2],[0-2]\\])*$"}
+    },
+    "replayability": {"enum": ["R0", "R1", "R2", "R3"]}
+  }
+}
