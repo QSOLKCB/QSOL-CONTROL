@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from storage.control_store import ControlStore
+from storage.control_store import ControlStore, StorageError
 from storage.dna_lattice import (
     LEXICOGRAPHIC_TRAVERSAL,
     PHI_GATED_TRAVERSAL,
@@ -105,6 +105,11 @@ def command_search_semantic(args: argparse.Namespace) -> int:
 
 def command_dna_export(args: argparse.Namespace) -> int:
     store = store_from(args)
+    record = store.get_file_record(args.file_id)
+    if record["privacy_class"] == "RESTRICTED" and not args.allow_restricted:
+        raise StorageError(
+            "RESTRICTED File DNA export requires explicit --allow-restricted; encoding is reversible"
+        )
     payload = store.read_file(args.file_id)
     traversal = (
         LEXICOGRAPHIC_TRAVERSAL
@@ -213,6 +218,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="phi-gated",
     )
     dna_export.add_argument("--output", help="write projection JSON instead of stdout")
+    dna_export.add_argument(
+        "--allow-restricted",
+        action="store_true",
+        help="explicitly permit reversible export of a RESTRICTED File",
+    )
     dna_export.set_defaults(func=command_dna_export)
 
     dna_decode = sub.add_parser("dna-decode", help="verify and decode a DNA/lattice projection")
@@ -232,7 +242,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    return args.func(args)
+    try:
+        return args.func(args)
+    except StorageError as exc:
+        parser.error(str(exc))
+        return 2
 
 
 if __name__ == "__main__":
