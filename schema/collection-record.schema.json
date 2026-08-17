@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/collection-record.schema.json",
+  "title": "QSOL-CONTROL Collection Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "collection_id",
+    "protocol",
+    "name",
+    "created_at",
+    "privacy_class",
+    "retention_class",
+    "metadata"
+  ],
+  "properties": {
+    "collection_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-collection/1"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 256},
+    "created_at": {"type": "string", "format": "date-time"},
+    "privacy_class": {"enum": ["PUBLIC", "INTERNAL", "RESTRICTED"]},
+    "retention_class": {"enum": ["TRANSIENT", "SESSION", "ARCHIVE"]},
+    "metadata": {"type": "object"}
+  }
+}
