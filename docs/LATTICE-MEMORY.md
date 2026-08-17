@@ -155,6 +155,34 @@ run manifests preserve historical membership
 
 Storage engines may use indexes/caches internally, but exported canonical records should remain inspectable.
 
+## Versioning and migration
+
+The current profile is:
+
+```text
+qsol-3x3x3-sierpinski-derived-memory/1
+```
+
+The profile version binds the meanings of all axis values and recursive-address rules. Existing coordinates must **never be silently reinterpreted** under the same profile version.
+
+Compatibility rules:
+
+- adding non-semantic implementation metadata does not require a new lattice profile;
+- adding a new optional record type that uses existing coordinate meanings may be backward compatible;
+- changing the meaning of `x`, `y`, or `z`, changing an existing numeric value, or changing canonical recursive assignment requires a new profile major/version;
+- migrations create a new mapping/receipt and preserve the original address/profile rather than rewriting historical records;
+- content identity remains independent of lattice address, so migration should not change a record's content ID merely because its index changes.
+
+A consumer that encounters an unknown lattice profile must fail closed for semantic traversal:
+
+```text
+UNKNOWN_PROFILE -> preserve bytes/metadata if safe
+UNKNOWN_PROFILE -> do not guess coordinate meanings
+UNKNOWN_PROFILE -> require explicit adapter/migration contract
+```
+
+Future profiles may expose additional indexes, but they may not treat an unfamiliar cell or coordinate as evidence of importance, truth, or model cognition.
+
 ## ARK integration
 
 A recovery bundle should contain enough material to reconstruct:
@@ -166,7 +194,8 @@ A recovery bundle should contain enough material to reconstruct:
 - lineage;
 - interaction manifests;
 - model-state records;
-- validation/fingerprint rules.
+- validation/fingerprint rules;
+- migration receipts when more than one lattice profile is present.
 
 A future AI should not need the original WebUI to understand the archive.
 
@@ -179,4 +208,5 @@ STORED != CANONICAL
 MEMORY != EVIDENCE_AUTHORITY
 MODEL_STATE != EVIDENCE
 RECURSION != INFINITE_RUNTIME_PERMISSION
+UNKNOWN_PROFILE != PERMISSION_TO_GUESS
 ```
