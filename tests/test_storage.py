@@ -25,8 +25,12 @@ class PersistentStorageTests(unittest.TestCase):
             retention_class="ARCHIVE",
         )
 
-    def create_collection(self, name: str = "research"):
-        return self.store.create_collection(name=name, created_at=FIXED_TIME)
+    def create_collection(self, name: str = "research", *, privacy_class: str = "INTERNAL"):
+        return self.store.create_collection(
+            name=name,
+            created_at=FIXED_TIME,
+            privacy_class=privacy_class,
+        )
 
     def test_file_bytes_are_content_addressed_and_metadata_is_immutable(self):
         first = self.put_text("same bytes", "first.txt")
@@ -66,6 +70,30 @@ class PersistentStorageTests(unittest.TestCase):
         collection = self.create_collection()
         with self.assertRaisesRegex(StorageError, "non-member"):
             self.store.update_collection(collection["collection_id"], remove=[alpha["file_id"]])
+
+    def test_public_collection_rejects_internal_file(self):
+        internal = self.put_text("internal", "internal.txt", privacy_class="INTERNAL")
+        collection = self.create_collection("public", privacy_class="PUBLIC")
+        with self.assertRaisesRegex(StorageError, "more-restricted"):
+            self.store.update_collection(collection["collection_id"], add=[internal["file_id"]])
+
+    def test_internal_collection_rejects_restricted_file(self):
+        restricted = self.put_text("restricted", "restricted.txt", privacy_class="RESTRICTED")
+        collection = self.create_collection("internal", privacy_class="INTERNAL")
+        with self.assertRaisesRegex(StorageError, "more-restricted"):
+            self.store.update_collection(collection["collection_id"], add=[restricted["file_id"]])
+
+    def test_restricted_collection_may_contain_less_restricted_files(self):
+        public = self.put_text("public", "public.txt", privacy_class="PUBLIC")
+        internal = self.put_text("internal", "internal.txt", privacy_class="INTERNAL")
+        restricted = self.put_text("restricted", "restricted.txt", privacy_class="RESTRICTED")
+        collection = self.create_collection("restricted", privacy_class="RESTRICTED")
+        snapshot = self.store.update_collection(
+            collection["collection_id"],
+            add=[public["file_id"], internal["file_id"], restricted["file_id"]],
+            created_at="2026-08-18T07:45:00+09:30",
+        )
+        self.assertEqual(len(snapshot["members"]), 3)
 
     def test_lexical_search_is_deterministic_and_not_truth_scoring(self):
         apple = self.put_text("apple orchard fruit apple", "apple.txt")
