@@ -259,13 +259,62 @@ EXPLAIN WHAT CHANGED
 
 The comparison must distinguish changes caused by new evidence, different model roster, model/version drift, configuration changes, or stochastic inference. A later result does not rewrite an earlier result.
 
+## Validation and canonical examples
+
+Phase 0 validation is dependency-free and requires **Python 3.11 or newer**. CI currently exercises it with Python 3.12.
+
+Run locally:
+
+```bash
+python3 tools/validate_control.py
+python3 -W default -m unittest discover -s tests -v
+```
+
+A successful validator report includes the following fields (hashes/counts may grow in later compatible versions):
+
+```json
+{
+  "protocol": "QSOL-CONTROL/0.1",
+  "status": "valid",
+  "schemas": 3,
+  "schema_examples": 6,
+  "schema_draft": "https://json-schema.org/draft/2020-12/schema",
+  "lattice_cells": 27
+}
+```
+
+Every public JSON Schema uses **JSON Schema draft 2020-12** and has a canonical valid and intentionally invalid fixture under `examples/schema/`. The dependency-free validator must accept every valid fixture and reject every invalid fixture.
+
+```text
+examples/schema/control-query.valid.json
+examples/schema/control-query.invalid.json
+examples/schema/interaction-record.valid.json
+examples/schema/interaction-record.invalid.json
+examples/schema/model-state.valid.json
+examples/schema/model-state.invalid.json
+```
+
+The invalid fixtures are not documentation jokes only; they are regression cases. In particular, a model-state fixture claiming hidden chain-of-thought capture must fail.
+
+## Contract versioning
+
+`manifest.json` declares `schema_version` using `MAJOR.MINOR.PATCH` semantics:
+
+- **MAJOR** — breaking schema or authority-contract changes;
+- **MINOR** — backward-compatible optional fields or capabilities;
+- **PATCH** — clarifications/fixes that do not change accepted contract meaning.
+
+The lattice profile is independently versioned (`qsol-3x3x3-sierpinski-derived-memory/1`). Consumers must reject or explicitly negotiate unknown major contract/profile versions rather than silently guessing new coordinate meanings.
+
 ## Documentation map
 
 - [`README4AI.md`](README4AI.md) — compact machine bootstrap.
 - [`AGENTS.md`](AGENTS.md) — contributor/agent operating rules.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — authority boundaries and system design.
 - [`ROADMAP.md`](ROADMAP.md) — implementation sequence.
-- [`SECURITY.md`](SECURITY.md) — control-plane and storage threat boundaries.
+- [`SECURITY.md`](SECURITY.md) — control-plane, storage, privacy, redaction, access-control, and retention boundaries.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution and local-validation contract.
+- [`CHANGELOG.md`](CHANGELOG.md) — contract/release evolution.
 - [`docs/WEBUI.md`](docs/WEBUI.md) — human operator surface.
 - [`docs/AI-API.md`](docs/AI-API.md) — machine caller contract.
 - [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md) — 27-cell recursive storage model.
@@ -273,9 +322,13 @@ The comparison must distinguish changes caused by new evidence, different model 
 - [`docs/NEXUS-ORACLE.md`](docs/NEXUS-ORACLE.md) — orchestration boundary.
 - [`manifest.json`](manifest.json) — canonical machine map.
 
+## License
+
+QSOL-CONTROL is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. See [`LICENSE`](LICENSE).
+
 ## Status
 
-**PR #1 bootstrap:** documentation, machine contracts, architecture, schemas, and roadmap. Runtime adapters, WebUI implementation, persistent storage engine, live ORACLE transport, and NEXUS Council invocation are intentionally sequenced after the contracts are reviewable.
+**PR #1 bootstrap:** documentation, machine contracts, architecture, schemas, canonical fixtures, and roadmap. Runtime adapters, WebUI implementation, persistent storage engine, live ORACLE transport, and NEXUS Council invocation are intentionally sequenced after the contracts are reviewable.
 
 ---
 
