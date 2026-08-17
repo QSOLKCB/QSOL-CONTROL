@@ -16,6 +16,7 @@
   "roadmap": "ROADMAP.md",
   "security": "SECURITY.md",
   "persistent_storage_document": "docs/PERSISTENT-STORAGE.md",
+  "storage_hardening_document": "docs/STORAGE-HARDENING.md",
   "json_schema": {
     "draft": "https://json-schema.org/draft/2020-12/schema",
     "compatibility_policy": "semantic-versioning",
@@ -43,6 +44,23 @@
     "QSOL-CONTROL": "OPERATES",
     "LATTICE_MEMORY": "REMEMBERS"
   },
+  "repository_boundaries": {
+    "QSOL-CONTROL": {
+      "visibility": "public",
+      "role": "storage/control machinery",
+      "private_corpus_home": false
+    },
+    "QSOL-CORPUS": {
+      "visibility": "private",
+      "role": "persistent interaction corpus and curated Collections",
+      "canonical_raw_export_home": false
+    },
+    "LATTICE": {
+      "visibility": "public",
+      "role": "reusable lattice-memory implementation/profile",
+      "evidence_authority": "none"
+    }
+  },
   "query_modes": ["evidence_only", "council"],
   "lattice": {
     "profile": "qsol-3x3x3-sierpinski-derived-memory/1",
@@ -58,14 +76,38 @@
     "collection_snapshot_protocol": "qsol-control-collection-snapshot/1",
     "search_index_protocol": "qsol-control-search-index/1",
     "dna_lattice_protocol": "qsol-control-dna-lattice/1",
+    "audit_event_protocol": "qsol-control-audit-event/1",
     "canonical_object_identity": "sha256(raw_bytes)",
     "canonical_record_serialization": "utf-8 canonical JSON with sorted keys and compact separators",
     "collection_history": "immutable snapshots with atomic HEAD pointer",
+    "writer_model": "single-node local filesystem with exclusive lock files and optional HEAD compare-and-swap",
+    "distributed_transaction_claim": false,
+    "snapshot_gc": "not-yet-implemented",
     "index_authority": "none",
     "indexes_are_derived_and_rebuildable": true,
     "search_modes": ["deterministic-lexical-baseline", "semantic-vector"],
+    "lexical_engine": "qsol.term-frequency-cosine/2",
+    "lexical_tokenizer": {
+      "id": "qsol.unicode-nfkc-casefold-alnum/1",
+      "normalization": "NFKC",
+      "case_mapping": "casefold",
+      "token_characters": "Unicode categories L* and N* plus underscore",
+      "stopwords": false,
+      "stemming": false
+    },
+    "collation": "qsol.utf8-byte-lexicographic/1",
     "semantic_embedding_generation": "external-adapter-required",
+    "semantic_snapshot_mismatch_policy": "fail-closed",
+    "semantic_index_fingerprints": ["embedding_sha256", "vectors_sha256"],
     "canonical_fingerprint_excludes_derived_indexes": true,
+    "canonical_fingerprint_excludes_audit_events": true,
+    "restricted_dna_export": {
+      "requires_allow_restricted": true,
+      "requires_reversibility_acknowledgement": true,
+      "requires_actor": true,
+      "audited_on_commit": true,
+      "dry_run_writes_nothing": true
+    },
     "dna_projection": {
       "codec": "qsol.dna-2bit-codon64/1",
       "alphabet": ["A", "C", "G", "T"],
@@ -78,6 +120,8 @@
       "canonical_traversal": "qsol.lexicographic-27/1",
       "optional_phi_gated_traversal": "qsol.phi-stride-27/1",
       "phi_stride": 17,
+      "phi_modulus": 27,
+      "phi_rule": "cell_index(n)=(17*n) mod 27",
       "authority": "none",
       "derived": true,
       "rebuildable": true,
@@ -143,7 +187,9 @@
     "docs/LATTICE-MEMORY.md",
     "docs/MODEL-STATE.md",
     "docs/NEXUS-ORACLE.md",
-    "docs/PERSISTENT-STORAGE.md"
+    "docs/PERSISTENT-STORAGE.md",
+    "docs/STORAGE-HARDENING.md",
+    "docs/STORAGE-LINEAGE.md"
   ],
   "status": {
     "phase": 1,
@@ -156,6 +202,8 @@
     "deterministic_lexical_retrieval": "implemented",
     "semantic_vector_index_registration_and_search": "implemented",
     "dna_lattice_recovery_projection": "implemented",
+    "operator_audit_records": "implemented-local",
+    "collection_compare_and_swap": "implemented-local",
     "embedding_generation_adapter": "not-yet-implemented",
     "persistent_lattice_engine": "not-yet-implemented",
     "live_oracle_adapter": "not-yet-implemented",
