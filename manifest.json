@@ -8,6 +8,7 @@
   "semantic_authority": "none",
   "evidence_authority": "none",
   "reasoning_authority": "none",
+  "license": "LICENSE",
   "machine_entrypoint": "README4AI.md",
   "constitution": "ai/constitution.json",
   "lattice_contract": "ai/lattice-contract.json",
