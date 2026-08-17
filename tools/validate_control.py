@@ -15,6 +15,7 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 RUN_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 LATTICE_RE = re.compile(r"^L\[[0-2],[0-2],[0-2]\](?:/L\[[0-2],[0-2],[0-2]\])*$")
 SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+PYTHON_MAJOR_MINOR_RE = re.compile(r"^[0-9]+\.[0-9]+$")
 FORBIDDEN_SECRET_MARKERS = ("ghp_", "github_pat_", "Bearer ", "AKIA", "-----BEGIN PRIVATE KEY-----")
 
 
@@ -42,6 +43,14 @@ def parse_datetime(value: Any, field: str) -> None:
         raise ValueError(f"{field} must be a valid ISO-8601 timestamp") from exc
     if parsed.tzinfo is None:
         raise ValueError(f"{field} must include an explicit UTC offset")
+
+
+def parse_python_minimum(value: Any) -> tuple[int, int]:
+    """Parse the validator's minimum Python contract as exactly MAJOR.MINOR."""
+    if not isinstance(value, str) or not PYTHON_MAJOR_MINOR_RE.fullmatch(value):
+        raise ValueError("validation.python_minimum must use MAJOR.MINOR")
+    major, minor = value.split(".")
+    return int(major), int(minor)
 
 
 def require_keys(value: dict[str, Any], required: set[str], name: str) -> None:
@@ -200,9 +209,10 @@ def validate() -> dict[str, Any]:
     if not SEMVER_RE.fullmatch(str(manifest.get("schema_version", ""))):
         raise ValueError("manifest schema_version must use MAJOR.MINOR.PATCH")
 
-    minimum_python = tuple(int(part) for part in manifest["validation"]["python_minimum"].split("."))
+    python_minimum = manifest.get("validation", {}).get("python_minimum")
+    minimum_python = parse_python_minimum(python_minimum)
     if sys.version_info[:2] < minimum_python:
-        raise ValueError(f"validator requires Python >= {manifest['validation']['python_minimum']}")
+        raise ValueError(f"validator requires Python >= {python_minimum}")
 
     require_file(manifest["license"])
     require_file(manifest["machine_entrypoint"])
