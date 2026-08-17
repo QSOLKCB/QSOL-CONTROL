@@ -1,0 +1,63 @@
+{
+  "type": "qsol-control-manifest",
+  "protocol": "QSOL-CONTROL/0.1",
+  "schema_version": "1.0.0",
+  "snapshot_date": "2026-08-18",
+  "role": "human-and-ai-control-plane",
+  "verb": "OPERATES",
+  "semantic_authority": "none",
+  "evidence_authority": "none",
+  "reasoning_authority": "none",
+  "machine_entrypoint": "README4AI.md",
+  "constitution": "ai/constitution.json",
+  "lattice_contract": "ai/lattice-contract.json",
+  "architecture": "ARCHITECTURE.md",
+  "roadmap": "ROADMAP.md",
+  "security": "SECURITY.md",
+  "interfaces": {
+    "human": "webui-planned",
+    "ai": "structured-api-planned"
+  },
+  "roles": {
+    "QSOL-SUBSTRATE": "KNOWS",
+    "QSOL-ARK": "SURVIVES",
+    "QSOL-INT": "COMPOSES",
+    "QSOL-ORACLE": "WITNESSES",
+    "QSOL-NEXUS": "REASONS",
+    "QSOL-CONTROL": "OPERATES",
+    "LATTICE_MEMORY": "REMEMBERS"
+  },
+  "query_modes": ["evidence_only", "council"],
+  "lattice": {
+    "profile": "qsol-3x3x3-sierpinski-derived-memory/1",
+    "top_level_cells": 27,
+    "authority": "storage-only",
+    "recursive": true
+  },
+  "schemas": {
+    "query": "schema/control-query.schema.json",
+    "interaction": "schema/interaction-record.schema.json",
+    "model_state": "schema/model-state.schema.json"
+  },
+  "documentation": [
+    "README.md",
+    "README4AI.md",
+    "AGENTS.md",
+    "ARCHITECTURE.md",
+    "ROADMAP.md",
+    "SECURITY.md",
+    "docs/WEBUI.md",
+    "docs/AI-API.md",
+    "docs/LATTICE-MEMORY.md",
+    "docs/MODEL-STATE.md",
+    "docs/NEXUS-ORACLE.md"
+  ],
+  "status": {
+    "phase": 0,
+    "architecture_contracts": "implemented",
+    "runtime": "not-yet-implemented",
+    "webui": "not-yet-implemented",
+    "ai_api": "not-yet-implemented",
+    "persistent_lattice_engine": "not-yet-implemented"
+  }
+}
