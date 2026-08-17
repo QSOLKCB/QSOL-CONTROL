@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/model-state.schema.json",
+  "title": "QSOL-CONTROL Model State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "state_id",
+    "captured_at",
+    "model",
+    "execution",
+    "system",
+    "hidden_chain_of_thought_captured"
+  ],
+  "properties": {
+    "protocol": {"const": "qsol-control-model-state/1"},
+    "state_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "captured_at": {"type": "string", "format": "date-time"},
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "runtime", "model_id"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "runtime": {"type": "string", "minLength": 1},
+        "runtime_version": {"type": ["string", "null"]},
+        "model_id": {"type": "string", "minLength": 1},
+        "revision": {"type": ["string", "null"]},
+        "weight_hash": {"type": ["string", "null"]},
+        "tokenizer_identity": {"type": ["string", "null"]},
+        "quantization": {"type": ["string", "null"]},
+        "metadata_provenance": {"enum": ["observed", "provider_reported", "locally_verified", "inferred", "unknown"]}
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "council_seat": {"type": ["string", "null"]},
+        "mode": {"type": ["string", "null"]},
+        "stochastic": {"type": ["boolean", "null"]},
+        "seed": {"type": ["integer", "string", "null"]},
+        "context_limit": {"type": ["integer", "null"], "minimum": 1},
+        "sampling": {"type": "object"},
+        "tool_permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string"}
+        }
+      }
+    },
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control_run_id"],
+      "properties": {
+        "control_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "nexus_identity": {"type": ["string", "null"]},
+        "oracle_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string"}
+        },
+        "substrate_identity": {"type": ["string", "null"]},
+        "hardware_runtime_metadata": {"type": "object"}
+      }
+    },
+    "hidden_chain_of_thought_captured": {"const": false}
+  }
+}
