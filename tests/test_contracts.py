@@ -14,11 +14,12 @@ SPEC.loader.exec_module(validator)
 class ControlContractTests(unittest.TestCase):
     def test_repository_contracts_validate(self):
         report = validator.validate()
+        manifest = validator.load_json(ROOT / "manifest.json")
         self.assertEqual(report["status"], "valid")
         self.assertEqual(report["phase"], 1)
         self.assertEqual(report["lattice_cells"], 27)
         self.assertGreaterEqual(report["documentation_files"], 10)
-        self.assertEqual(report["schemas"], 8)
+        self.assertEqual(report["schemas"], len(manifest["schemas"]))
         self.assertEqual(report["schema_examples"], 14)
         self.assertEqual(report["persistent_storage"], "qsol-control-collection/1")
         self.assertEqual(
