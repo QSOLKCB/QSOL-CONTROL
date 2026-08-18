@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/nexus-discovery.schema.json",
+  "title": "QSOL-CONTROL NEXUS Runtime Discovery",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "availability",
+    "nexus_protocol",
+    "nexus_runtime_version",
+    "control_transport",
+    "operations",
+    "operations_sha256",
+    "required_operations",
+    "optional_epoch_verification",
+    "health",
+    "adapter_mutation_operations",
+    "direct_worldstore_mutation_exposed",
+    "governance_override_operations",
+    "hidden_chain_of_thought_capture",
+    "authority"
+  ],
+  "properties": {
+    "protocol": {"const": "qsol-control-nexus-discovery/1"},
+    "availability": {"const": "available"},
+    "nexus_protocol": {"type": "string", "pattern": "^nexus/[0-9]+\\.[0-9]+$"},
+    "nexus_runtime_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "control_transport": {"const": "jsonl_stdio"},
+    "operations": {
+      "type": "array",
+      "minItems": 5,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "operations_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "required_operations": {
+      "const": ["system.health", "system.operations", "council.run", "world.inspect", "receipt.verify"]
+    },
+    "optional_epoch_verification": {"type": "boolean"},
+    "health": {"type": "object"},
+    "adapter_mutation_operations": {"const": ["council.run"]},
+    "direct_worldstore_mutation_exposed": {"const": false},
+    "governance_override_operations": {"const": []},
+    "hidden_chain_of_thought_capture": {"const": false},
+    "authority": {"const": "none"}
+  }
+}
