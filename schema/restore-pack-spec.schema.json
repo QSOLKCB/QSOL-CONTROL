@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/restore-pack-spec.schema.json",
+  "title": "QSOL-CONTROL Restore Pack Specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "capsule", "recovery_class", "entries"],
+  "properties": {
+    "protocol": {"const": "qsol-control-restore-pack-spec/1"},
+    "capsule": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,256}\\.dat$"
+    },
+    "recovery_class": {
+      "enum": ["NEAR_SHELL", "MID_SHELL", "OUTER_SHELL", "RESONANCE_NODE", "WIGGLE_ZONE"]
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "logical_path",
+          "source_path",
+          "kind",
+          "privacy_class",
+          "recovery_class",
+          "source_ref"
+        ],
+        "properties": {
+          "logical_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))(?!.*\\\\)[^\\u0000\\r\\n]+$"
+          },
+          "source_path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.?(/|$))(?!.*\\\\)[^\\u0000\\r\\n]+$"
+          },
+          "kind": {"type": "string", "minLength": 1, "maxLength": 128},
+          "privacy_class": {"enum": ["PUBLIC", "INTERNAL", "RESTRICTED"]},
+          "recovery_class": {
+            "enum": ["NEAR_SHELL", "MID_SHELL", "OUTER_SHELL", "RESONANCE_NODE", "WIGGLE_ZONE"]
+          },
+          "source_ref": {"type": "string", "minLength": 1, "maxLength": 2048}
+        }
+      }
+    }
+  }
+}
