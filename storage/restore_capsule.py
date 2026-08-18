@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Deterministic cold-restore capsule container for QSOL-CONTROL.
 
-`QSOL-RESTORE-DAT/1` is an application-defined `.dat` container. It preserves
-canonical section bytes plus a compact manifest. DNA/lattice output is a
-reversible derived projection of the capsule bytes, never the canonical source.
-
-The QEC invariant identifiers recorded here are deterministic recovery lineage
-only. They do not grant physical, biological, epistemic, or model-identity
-meaning to the storage representation.
+`QSOL-RESTORE-DAT/1` is an application-defined `.dat` container. Canonical
+source bytes remain the source of truth; DNA/lattice output is a reversible,
+derived recovery projection.
 """
 
 from __future__ import annotations
@@ -21,6 +17,7 @@ from typing import Any, Iterable
 
 from storage.dna_lattice import (
     PHI_GATED_TRAVERSAL,
+    DnaLatticeError,
     decode_projection,
     encode_projection,
 )
@@ -32,6 +29,7 @@ PACK_SPEC_PROTOCOL = "qsol-control-restore-pack-spec/1"
 LATTICE_PROFILE = "qsol-3x3x3-sierpinski-derived-memory/1"
 DNA_CODEC = "qsol.dna-2bit-codon64/1"
 MAX_MANIFEST_BYTES = 4 * 1024 * 1024
+MAX_PAYLOAD_BYTES = 256 * 1024 * 1024
 MAX_ENTRY_COUNT = 4096
 MAX_LOGICAL_PATH = 512
 MAX_SOURCE_REF = 2048
@@ -56,6 +54,7 @@ PHI_SHELL_MILLI = {
 }
 
 PRIVACY_CLASSES = {"PUBLIC", "INTERNAL", "RESTRICTED"}
+# Ordering is canonical because these values participate in manifest identity.
 BOUNDARIES = (
     "RESTORE_CAPSULE != MODEL_MEMORY",
     "RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE",
@@ -70,7 +69,6 @@ class RestoreCapsuleError(ValueError):
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    """Return the repository canonical JSON representation."""
     return json.dumps(
         value,
         sort_keys=True,
@@ -88,6 +86,14 @@ def sha256_ref(data: bytes) -> str:
     return f"sha256:{sha256_hex(data)}"
 
 
+def _valid_sha256_hex(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(ch in "0123456789abcdef" for ch in value)
+    )
+
+
 def _validate_logical_path(value: Any) -> str:
     if not isinstance(value, str) or not value or len(value) > MAX_LOGICAL_PATH:
         raise RestoreCapsuleError("logical_path must contain 1..512 characters")
@@ -98,8 +104,7 @@ def _validate_logical_path(value: Any) -> str:
         raise RestoreCapsuleError("logical_path must be relative")
     if any(part in {"", ".", ".."} for part in path.parts):
         raise RestoreCapsuleError("logical_path must not contain empty, dot, or parent segments")
-    canonical = path.as_posix()
-    if canonical != value:
+    if path.as_posix() != value:
         raise RestoreCapsuleError("logical_path must already be canonical POSIX form")
     return value
 
@@ -174,6 +179,12 @@ def pack_capsule(entries: Iterable[dict[str, Any]]) -> bytes:
     if len(normalized) > MAX_ENTRY_COUNT:
         raise RestoreCapsuleError(f"restore capsule exceeds {MAX_ENTRY_COUNT} entries")
 
+    payload_size = sum(len(entry["data"]) for entry in normalized)
+    if payload_size > MAX_PAYLOAD_BYTES:
+        raise RestoreCapsuleError(
+            f"restore payload exceeds in-memory limit of {MAX_PAYLOAD_BYTES} bytes; split it into multiple capsules"
+        )
+
     normalized.sort(key=lambda item: item["logical_path"].encode("utf-8"))
     paths = [entry["logical_path"] for entry in normalized]
     if len(paths) != len(set(paths)):
@@ -246,7 +257,7 @@ def _validate_manifest_entry(value: Any) -> dict[str, Any]:
         raise RestoreCapsuleError(f"manifest entry contains unsupported fields: {extra}")
 
     path = _validate_logical_path(value.get("logical_path"))
-    kind = _validate_text(value.get("kind"), "kind", maximum=128)
+    _validate_text(value.get("kind"), "kind", maximum=128)
     privacy = value.get("privacy_class")
     if privacy not in PRIVACY_CLASSES:
         raise RestoreCapsuleError(f"manifest entry {path} privacy_class is invalid")
@@ -256,10 +267,9 @@ def _validate_manifest_entry(value: Any) -> dict[str, Any]:
     if value.get("phi_shell_milli") != PHI_SHELL_MILLI[recovery_class]:
         raise RestoreCapsuleError(f"manifest entry {path} phi shell drift")
     size = value.get("size_bytes")
-    if not isinstance(size, int) or size < 0:
+    if not isinstance(size, int) or isinstance(size, bool) or size < 0:
         raise RestoreCapsuleError(f"manifest entry {path} size_bytes is invalid")
-    digest = value.get("sha256")
-    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+    if not _valid_sha256_hex(value.get("sha256")):
         raise RestoreCapsuleError(f"manifest entry {path} sha256 is invalid")
     source_ref = value.get("source_ref")
     if source_ref is not None:
@@ -279,6 +289,11 @@ def parse_capsule(capsule: bytes) -> tuple[dict[str, Any], list[dict[str, Any]]]
     manifest_end = header_len + manifest_len
     if manifest_end > len(raw):
         raise RestoreCapsuleError("restore capsule ended inside manifest")
+    payload_len = len(raw) - manifest_end
+    if payload_len > MAX_PAYLOAD_BYTES:
+        raise RestoreCapsuleError(
+            f"restore payload exceeds in-memory limit of {MAX_PAYLOAD_BYTES} bytes"
+        )
 
     try:
         manifest = json.loads(raw[header_len:manifest_end].decode("utf-8"))
@@ -321,14 +336,14 @@ def parse_capsule(capsule: bytes) -> tuple[dict[str, Any], list[dict[str, Any]]]
         raise RestoreCapsuleError("restore lattice/DNA contract mismatch")
     if manifest.get("boundaries") != list(BOUNDARIES):
         raise RestoreCapsuleError("restore epistemic boundary contract mismatch")
-    qec = manifest.get("qec_recovery_lineage")
+
     expected_qec = {
         "ouroboros_feedback_loop": "QSOL-OURO-INV-006",
         "phi_scale_node": "QSOL-PHI-INV-004",
         "e8_triality_lock": "QSOL-E8-INV-005",
         "semantics": "deterministic recovery scheduling lineage only",
     }
-    if qec != expected_qec:
+    if manifest.get("qec_recovery_lineage") != expected_qec:
         raise RestoreCapsuleError("QEC recovery-lineage contract mismatch")
 
     manifest_id = manifest.get("manifest_id")
@@ -349,8 +364,13 @@ def parse_capsule(capsule: bytes) -> tuple[dict[str, Any], list[dict[str, Any]]]
         raise RestoreCapsuleError("restore manifest contains duplicate logical paths")
 
     payload = raw[manifest_end:]
-    if manifest.get("payload_size_bytes") != len(payload):
+    declared_payload_size = manifest.get("payload_size_bytes")
+    if not isinstance(declared_payload_size, int) or isinstance(declared_payload_size, bool):
+        raise RestoreCapsuleError("restore payload_size_bytes is invalid")
+    if declared_payload_size != len(payload):
         raise RestoreCapsuleError("restore payload size mismatch")
+    if not _valid_sha256_hex(manifest.get("payload_sha256")):
+        raise RestoreCapsuleError("restore payload SHA-256 is invalid")
     if manifest.get("payload_sha256") != sha256_hex(payload):
         raise RestoreCapsuleError("restore payload hash mismatch")
 
@@ -379,7 +399,7 @@ def verify_capsule(capsule: bytes) -> dict[str, Any]:
     """Verify integrity plus canonical fixed-point reconstruction."""
     raw = bytes(capsule)
     manifest, extracted = parse_capsule(raw)
-    repack_entries = [
+    rebuilt = pack_capsule(
         {
             "logical_path": entry["logical_path"],
             "data": entry["data"],
@@ -389,8 +409,7 @@ def verify_capsule(capsule: bytes) -> dict[str, Any]:
             "source_ref": entry.get("source_ref"),
         }
         for entry in extracted
-    ]
-    rebuilt = pack_capsule(repack_entries)
+    )
     if rebuilt != raw:
         raise RestoreCapsuleError("restore capsule is not a canonical fixed point")
 
@@ -414,36 +433,70 @@ def verify_capsule(capsule: bytes) -> dict[str, Any]:
 
 
 def recovery_schedule(capsule: bytes) -> tuple[str, ...]:
-    """Return the deterministic QEC-lineage restore schedule."""
     manifest, _ = parse_capsule(capsule)
     return tuple(manifest["restore_order"])
 
 
 def capsule_contains_restricted(capsule: bytes) -> bool:
-    """Return whether any section is marked RESTRICTED."""
     _, entries = parse_capsule(capsule)
     return any(entry["privacy_class"] == "RESTRICTED" for entry in entries)
 
 
+def _validate_dna_adapter_projection(projection: Any, capsule: bytes) -> dict[str, Any]:
+    if not isinstance(projection, dict):
+        raise RestoreCapsuleError("DNA codec adapter returned a non-object projection")
+    projection_id = projection.get("projection_id")
+    if (
+        not isinstance(projection_id, str)
+        or not projection_id.startswith("sha256:")
+        or len(projection_id) != 71
+    ):
+        raise RestoreCapsuleError("DNA codec adapter returned an invalid projection_id")
+    if projection.get("protocol") != "qsol-control-dna-lattice/1":
+        raise RestoreCapsuleError("DNA codec adapter returned an unexpected protocol")
+    if projection.get("codec") != DNA_CODEC:
+        raise RestoreCapsuleError("DNA codec adapter returned an unexpected codec")
+    if projection.get("lattice_profile") != LATTICE_PROFILE:
+        raise RestoreCapsuleError("DNA codec adapter returned an unexpected lattice profile")
+    if projection.get("traversal_id") != PHI_GATED_TRAVERSAL:
+        raise RestoreCapsuleError("DNA codec adapter returned an unexpected traversal")
+    if projection.get("content_sha256") != sha256_hex(capsule):
+        raise RestoreCapsuleError("DNA codec adapter content hash mismatch")
+    return projection
+
+
 def encode_capsule_dna(capsule: bytes) -> dict[str, Any]:
-    """Encode verified capsule bytes using CONTROL's existing DNA codec."""
-    verify_capsule(capsule)
-    projection = encode_projection(bytes(capsule), traversal_id=PHI_GATED_TRAVERSAL)
+    """Encode verified capsule bytes through the versioned DNA/lattice adapter."""
+    raw = bytes(capsule)
+    verify_capsule(raw)
+    try:
+        projection = encode_projection(raw, traversal_id=PHI_GATED_TRAVERSAL)
+    except DnaLatticeError as exc:
+        raise RestoreCapsuleError(f"DNA codec rejected capsule: {exc}") from exc
+    projection = _validate_dna_adapter_projection(projection, raw)
     projection["restore_capsule_protocol"] = PROTOCOL
-    projection["restore_capsule_sha256"] = sha256_hex(bytes(capsule))
+    projection["restore_capsule_sha256"] = sha256_hex(raw)
     return projection
 
 
 def decode_capsule_dna(projection: dict[str, Any]) -> bytes:
     """Decode a DNA projection and require a valid canonical restore capsule."""
+    if not isinstance(projection, dict):
+        raise RestoreCapsuleError("DNA projection must be an object")
     expected_protocol = projection.get("restore_capsule_protocol")
     expected_sha = projection.get("restore_capsule_sha256")
+    if expected_protocol != PROTOCOL:
+        raise RestoreCapsuleError("DNA projection restore-capsule protocol mismatch")
+    if not _valid_sha256_hex(expected_sha):
+        raise RestoreCapsuleError("DNA projection restore-capsule SHA-256 is invalid")
+
     projection_copy = dict(projection)
     projection_copy.pop("restore_capsule_protocol", None)
     projection_copy.pop("restore_capsule_sha256", None)
-    capsule = decode_projection(projection_copy)
-    if expected_protocol != PROTOCOL:
-        raise RestoreCapsuleError("DNA projection restore-capsule protocol mismatch")
+    try:
+        capsule = decode_projection(projection_copy)
+    except DnaLatticeError as exc:
+        raise RestoreCapsuleError(f"DNA codec rejected projection: {exc}") from exc
     if expected_sha != sha256_hex(capsule):
         raise RestoreCapsuleError("DNA projection restore-capsule hash mismatch")
     verify_capsule(capsule)
