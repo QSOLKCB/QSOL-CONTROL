@@ -131,16 +131,31 @@ python3 tools/restore_cli.py inspect identity.dat
 python3 tools/restore_cli.py unpack identity.dat --output-dir restored/
 ```
 
-A restricted capsule may only be exported into reversible DNA form with two explicit acknowledgements:
+A RESTRICTED capsule may only be exported into reversible DNA form after two explicit acknowledgements **and** actor attribution. A successful export appends a non-canonical local JSONL audit event:
 
 ```bash
 python3 tools/restore_cli.py dna-export identity.dat \
   --output identity.dna.json \
   --allow-restricted \
-  --acknowledge-reversible-sensitive-export
+  --acknowledge-reversible-sensitive-export \
+  --actor trent \
+  --audit-log .qsol-control-restore-audit.jsonl
 
 python3 tools/restore_cli.py dna-decode identity.dna.json --output identity-restored.dat
 ```
+
+Preview validation without writing projection bytes or an audit record:
+
+```bash
+python3 tools/restore_cli.py dna-export identity.dat \
+  --output identity.dna.json \
+  --allow-restricted \
+  --acknowledge-reversible-sensitive-export \
+  --actor trent \
+  --dry-run
+```
+
+Audit records are operational receipts, not canonical restore data and not evidence that the exported content is true.
 
 ## Cold-start acceptance test
 
