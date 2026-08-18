@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -142,6 +144,17 @@ class PortableConcapBundleTests(unittest.TestCase):
         with self.assertRaisesRegex(bundle.ConcapBundleError, "explicit acknowledgement"):
             bundle.validate_export_spec(spec)
 
+    def test_non_string_privacy_class_is_controlled_failure(self):
+        spec = copy.deepcopy(self.export)
+        spec["export_class"] = []
+        with self.assertRaisesRegex(bundle.ConcapBundleError, "privacy class is invalid"):
+            bundle.validate_export_spec(spec)
+
+        pack = copy.deepcopy(self.pack)
+        pack["entries"][0]["privacy_class"] = []
+        with self.assertRaisesRegex(bundle.ConcapBundleError, "privacy class is invalid"):
+            bundle._validate_pack_spec(pack, "synthetic")
+
     def test_tampered_object_fails_verification(self):
         output = self._build("bundle-tamper")
         index = bundle.load_json(output / "OBJECTS.json")
@@ -164,6 +177,7 @@ class PortableConcapBundleTests(unittest.TestCase):
         index_path = output / "OBJECTS.json"
         index = bundle.load_json(index_path)
         index["role_bindings"][0]["role_id"] = "concap.culture.music/1"
+        index["role_bindings"].sort(key=lambda item: item["role_id"].encode("utf-8"))
         body = dict(index)
         body.pop("index_id")
         index["index_id"] = bundle.digest(body)
@@ -181,6 +195,45 @@ class PortableConcapBundleTests(unittest.TestCase):
         (output / "surprise.txt").write_text("mystery meat\n", encoding="utf-8")
         with self.assertRaisesRegex(bundle.ConcapBundleError, "bundle file set mismatch"):
             bundle.verify_bundle(output)
+
+    def test_zip_output_inside_bundle_is_rejected(self):
+        output = self._build("bundle-zip-inside")
+        with self.assertRaisesRegex(bundle.ConcapBundleError, "outside the portable bundle tree"):
+            bundle.write_deterministic_zip(output, output / "bundle.zip")
+
+    def test_oversized_bundle_metadata_is_rejected_before_parse(self):
+        output = self._build("bundle-metadata-limit")
+        bootstrap = output / "BOOTSTRAP.json"
+        bootstrap.write_bytes(b" " * (bundle.MAX_BOOTSTRAP_BYTES + 1))
+        with self.assertRaisesRegex(bundle.ConcapBundleError, "JSON metadata too large"):
+            bundle.verify_bundle(output)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX permission semantics required")
+    def test_restricted_bundle_and_zip_are_private_by_default(self):
+        output = self._build("bundle-private-mode")
+        self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o700)
+        for path in output.rglob("*"):
+            if path.is_dir():
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o700)
+            elif path.is_file():
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+        zip_path = Path(self.tmp.name) / "restricted.zip"
+        bundle.write_deterministic_zip(output, zip_path)
+        self.assertEqual(stat.S_IMODE(zip_path.stat().st_mode), 0o600)
+
+    def test_export_schema_requires_restricted_acknowledgement(self):
+        schema = json.loads(
+            (ROOT / "schema" / "concap-export-spec.schema.json").read_text(encoding="utf-8")
+        )
+        conditional = schema["allOf"][0]
+        self.assertEqual(
+            conditional["if"]["properties"]["export_class"]["const"],
+            "RESTRICTED",
+        )
+        self.assertIs(
+            conditional["then"]["properties"]["sensitive_export_acknowledged"]["const"],
+            True,
+        )
 
 
 if __name__ == "__main__":
