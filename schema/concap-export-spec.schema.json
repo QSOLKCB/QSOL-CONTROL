@@ -65,5 +65,25 @@
         "minLength": 1
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "export_class": {
+            "const": "RESTRICTED"
+          }
+        },
+        "required": ["export_class"]
+      },
+      "then": {
+        "properties": {
+          "sensitive_export_acknowledged": {
+            "const": true
+          }
+        },
+        "required": ["sensitive_export_acknowledged"]
+      }
+    }
+  ]
 }
