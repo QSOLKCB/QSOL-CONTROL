@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-manifest",
   "protocol": "QSOL-CONTROL/0.1",
-  "schema_version": "1.2.0",
+  "schema_version": "1.3.0",
   "snapshot_date": "2026-08-18",
   "role": "human-and-ai-control-plane",
   "verb": "OPERATES",
@@ -12,12 +12,14 @@
   "machine_entrypoint": "README4AI.md",
   "constitution": "ai/constitution.json",
   "lattice_contract": "ai/lattice-contract.json",
+  "concap_bundle_contract": "ai/concap-bundle-contract.json",
   "architecture": "ARCHITECTURE.md",
   "roadmap": "ROADMAP.md",
   "security": "SECURITY.md",
   "persistent_storage_document": "docs/PERSISTENT-STORAGE.md",
   "storage_hardening_document": "docs/STORAGE-HARDENING.md",
   "cold_restore_document": "docs/COLD-RESTORE.md",
+  "portable_concap_document": "docs/PORTABLE-CONCAP-BUNDLES.md",
   "json_schema": {
     "draft": "https://json-schema.org/draft/2020-12/schema",
     "compatibility_policy": "semantic-versioning",
@@ -30,6 +32,7 @@
     "command": "python3 tools/validate_control.py",
     "restore_command": "python3 tools/restore_cli.py",
     "restore_validation_command": "python3 tools/validate_restore_contracts.py",
+    "concap_bundle_command": "python3 tools/concap_bundle.py",
     "test_command": "python3 -W default -m unittest discover -s tests -v",
     "workflow": ".github/workflows/validate.yml"
   },
@@ -37,7 +40,8 @@
     "human": "webui-planned",
     "ai": "structured-api-planned",
     "storage_cli": "tools/storage_cli.py",
-    "restore_cli": "tools/restore_cli.py"
+    "restore_cli": "tools/restore_cli.py",
+    "concap_bundle_cli": "tools/concap_bundle.py"
   },
   "roles": {
     "QSOL-SUBSTRATE": "KNOWS",
@@ -87,6 +91,7 @@
     "runtime": "storage/control_store.py",
     "dna_lattice_codec": "storage/dna_lattice.py",
     "restore_capsule_runtime": "storage/restore_capsule.py",
+    "portable_concap_runtime": "storage/concap_bundle.py",
     "file_protocol": "qsol-control-file/1",
     "collection_protocol": "qsol-control-collection/1",
     "collection_snapshot_protocol": "qsol-control-collection-snapshot/1",
@@ -95,6 +100,9 @@
     "restore_capsule_protocol": "qsol-control-restore-capsule/1",
     "restore_container": "qsol-restore-dat/1",
     "restore_pack_spec_protocol": "qsol-control-restore-pack-spec/1",
+    "portable_concap_export_spec_protocol": "qsol-control-concap-export-spec/1",
+    "portable_concap_object_index_protocol": "QSOL-CONCAP/OBJECT-INDEX/1",
+    "portable_concap_bootstrap_protocol": "QSOL-CONCAP/BOOTSTRAP/1",
     "audit_event_protocol": "qsol-control-audit-event/1",
     "canonical_object_identity": "sha256(raw_bytes)",
     "canonical_record_serialization": "utf-8 canonical JSON with sorted keys and compact separators",
@@ -126,6 +134,23 @@
       "requires_actor": true,
       "audited_on_commit": true,
       "dry_run_writes_nothing": true
+    },
+    "portable_concap": {
+      "export_spec_schema": "schema/concap-export-spec.schema.json",
+      "transport_neutral": true,
+      "source_ref_stripped": true,
+      "source_bytes_anonymized_claim": false,
+      "restricted_acknowledgement_required": true,
+      "restricted_local_directory_mode": "0700",
+      "restricted_local_file_mode": "0600",
+      "metadata_limits": {
+        "bootstrap_bytes": 1048576,
+        "object_index_bytes": 16777216,
+        "object_count": 10000,
+        "role_count": 100000
+      },
+      "deterministic_zip": true,
+      "zip_must_be_outside_bundle_tree": true
     },
     "dna_projection": {
       "codec": "qsol.dna-2bit-codon64/1",
@@ -163,9 +188,11 @@
   },
   "restore_contracts": {
     "pack_spec_schema": "schema/restore-pack-spec.schema.json",
+    "concap_export_spec_schema": "schema/concap-export-spec.schema.json",
+    "concap_bundle_contract": "ai/concap-bundle-contract.json",
     "valid_fixture": "examples/schema/restore-pack-spec.valid.json",
     "invalid_fixture": "examples/schema/restore-pack-spec.invalid.json",
-    "runtime_tests": ["tests/test_restore_capsule.py", "tests/test_restore_cli.py"]
+    "runtime_tests": ["tests/test_restore_capsule.py", "tests/test_restore_cli.py", "tests/test_concap_bundle.py"]
   },
   "schemas": {
     "query": "schema/control-query.schema.json",
@@ -175,7 +202,8 @@
     "collection": "schema/collection-record.schema.json",
     "collection_snapshot": "schema/collection-snapshot.schema.json",
     "search_index": "schema/search-index.schema.json",
-    "dna_lattice": "schema/dna-lattice.schema.json"
+    "dna_lattice": "schema/dna-lattice.schema.json",
+    "concap_export_spec": "schema/concap-export-spec.schema.json"
   },
   "schema_examples": {
     "query": {
@@ -229,7 +257,8 @@
     "docs/PERSISTENT-STORAGE.md",
     "docs/STORAGE-HARDENING.md",
     "docs/STORAGE-LINEAGE.md",
-    "docs/COLD-RESTORE.md"
+    "docs/COLD-RESTORE.md",
+    "docs/PORTABLE-CONCAP-BUNDLES.md"
   ],
   "status": {
     "phase": 1,
@@ -245,6 +274,8 @@
     "cold_restore_dat_container": "implemented-experimental",
     "cold_restore_fixed_point_verification": "implemented-experimental",
     "cold_restore_dna_roundtrip": "implemented-experimental",
+    "portable_concap_bundle_export": "implemented-experimental",
+    "portable_concap_bundle_verification": "implemented-experimental",
     "operator_audit_records": "implemented-local",
     "collection_compare_and_swap": "implemented-local",
     "embedding_generation_adapter": "not-yet-implemented",
