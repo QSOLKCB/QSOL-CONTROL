@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/interaction-record-v2.schema.json",
+  "title": "QSOL-CONTROL Persistent Interaction Record v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "run_id",
+    "question_sha256",
+    "question",
+    "mode",
+    "requester_kind",
+    "created_at",
+    "evidence_state",
+    "oracle_refs",
+    "nexus_refs",
+    "record_refs",
+    "file_ids",
+    "collection_ref",
+    "model_state_refs",
+    "lattice_refs",
+    "lattice_profile",
+    "replayability",
+    "authority"
+  ],
+  "properties": {
+    "protocol": {"const": "qsol-control-interaction/2"},
+    "run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "question_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "sha256", "lattice_address", "epistemic_role", "temporal_role"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "lattice_address": {"const": "L[0,1,0]"},
+        "epistemic_role": {"const": "derived"},
+        "temporal_role": {"const": "current"}
+      }
+    },
+    "mode": {"enum": ["evidence_only", "council"]},
+    "requester_kind": {"enum": ["human", "ai", "system"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "evidence_state": {"enum": ["known", "conflict", "unknown", "unavailable"]},
+    "oracle_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "nexus_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "record_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "file_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}},
+    "collection_ref": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["collection_id", "snapshot_id"],
+          "properties": {
+            "collection_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "snapshot_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+          }
+        }
+      ]
+    },
+    "model_state_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}},
+    "lattice_refs": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^L\\[[0-2],[0-2],[0-2]\\](?:/L\\[[0-2],[0-2],[0-2]\\])*$"}
+    },
+    "lattice_profile": {"const": "qsol-3x3x3-sierpinski-derived-memory/1"},
+    "replayability": {"enum": ["R0", "R1", "R2", "R3"]},
+    "authority": {"const": "storage-only"}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"evidence_state": {"enum": ["known", "conflict", "unavailable"]}},
+        "required": ["evidence_state"]
+      },
+      "then": {"properties": {"oracle_refs": {"minItems": 1}}}
+    }
+  ]
+}
