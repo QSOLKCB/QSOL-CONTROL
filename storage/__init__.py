@@ -6,11 +6,14 @@ from .dna_lattice import (
     decode_projection,
     encode_projection,
 )
+from .interaction_store import InteractionStore, lattice_address
 
 __all__ = [
     "ControlStore",
+    "InteractionStore",
     "StorageError",
     "DnaLatticeError",
+    "lattice_address",
     "encode_projection",
     "decode_projection",
 ]

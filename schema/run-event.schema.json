@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/run-event.schema.json",
+  "title": "QSOL-CONTROL Run Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "protocol",
+    "run_id",
+    "sequence",
+    "previous_event_id",
+    "parent_event_ids",
+    "kind",
+    "occurred_at",
+    "epistemic_role",
+    "temporal_role",
+    "lattice_address",
+    "file_ids",
+    "record_refs",
+    "payload",
+    "authority"
+  ],
+  "properties": {
+    "event_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-run-event/1"},
+    "run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "sequence": {"type": "integer", "minimum": 0},
+    "previous_event_id": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      ]
+    },
+    "parent_event_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    },
+    "kind": {"enum": ["question", "response", "evidence", "receipt", "model_state"]},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "epistemic_role": {
+      "oneOf": [
+        {"type": "null"},
+        {"enum": ["observed", "derived", "unresolved"]}
+      ]
+    },
+    "temporal_role": {
+      "oneOf": [
+        {"type": "null"},
+        {"enum": ["current", "historical", "recovery"]}
+      ]
+    },
+    "lattice_address": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^L\\[[0-2],[0-2],[0-2]\\]$"}
+      ]
+    },
+    "file_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+    },
+    "record_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "payload": {"type": "object"},
+    "authority": {"const": "storage-only"}
+  }
+}

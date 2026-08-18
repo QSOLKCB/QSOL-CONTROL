@@ -1,8 +1,8 @@
 {
   "type": "qsol-control-manifest",
   "protocol": "QSOL-CONTROL/0.1",
-  "schema_version": "1.3.0",
-  "snapshot_date": "2026-08-18",
+  "schema_version": "1.4.0",
+  "snapshot_date": "2026-08-19",
   "role": "human-and-ai-control-plane",
   "verb": "OPERATES",
   "semantic_authority": "none",
@@ -33,6 +33,7 @@
     "restore_command": "python3 tools/restore_cli.py",
     "restore_validation_command": "python3 tools/validate_restore_contracts.py",
     "concap_bundle_command": "python3 tools/concap_bundle.py",
+    "interaction_command": "python3 tools/interaction_cli.py",
     "test_command": "python3 -W default -m unittest discover -s tests -v",
     "workflow": ".github/workflows/validate.yml"
   },
@@ -41,7 +42,8 @@
     "ai": "structured-api-planned",
     "storage_cli": "tools/storage_cli.py",
     "restore_cli": "tools/restore_cli.py",
-    "concap_bundle_cli": "tools/concap_bundle.py"
+    "concap_bundle_cli": "tools/concap_bundle.py",
+    "interaction_cli": "tools/interaction_cli.py"
   },
   "roles": {
     "QSOL-SUBSTRATE": "KNOWS",
@@ -80,7 +82,10 @@
       "recovery_authority": true
     }
   },
-  "query_modes": ["evidence_only", "council"],
+  "query_modes": [
+    "evidence_only",
+    "council"
+  ],
   "lattice": {
     "profile": "qsol-3x3x3-sierpinski-derived-memory/1",
     "top_level_cells": 27,
@@ -89,6 +94,7 @@
   },
   "persistent_storage": {
     "runtime": "storage/control_store.py",
+    "interaction_runtime": "storage/interaction_store.py",
     "dna_lattice_codec": "storage/dna_lattice.py",
     "restore_capsule_runtime": "storage/restore_capsule.py",
     "portable_concap_runtime": "storage/concap_bundle.py",
@@ -96,6 +102,12 @@
     "collection_protocol": "qsol-control-collection/1",
     "collection_snapshot_protocol": "qsol-control-collection-snapshot/1",
     "search_index_protocol": "qsol-control-search-index/1",
+    "interaction_protocol_legacy": "qsol-control-interaction/1",
+    "interaction_protocol": "qsol-control-interaction/2",
+    "run_event_protocol": "qsol-control-run-event/1",
+    "run_record_set_protocol": "qsol-control-run-record-set/1",
+    "run_fingerprint_protocol": "qsol-control-run-fingerprint/1",
+    "run_verification_protocol": "qsol-control-run-verification/1",
     "dna_lattice_protocol": "qsol-control-dna-lattice/1",
     "restore_capsule_protocol": "qsol-control-restore-capsule/1",
     "restore_container": "qsol-restore-dat/1",
@@ -107,12 +119,16 @@
     "canonical_object_identity": "sha256(raw_bytes)",
     "canonical_record_serialization": "utf-8 canonical JSON with sorted keys and compact separators",
     "collection_history": "immutable snapshots with atomic HEAD pointer",
+    "run_history": "immutable content-addressed run plus append-only event chain with atomic HEAD",
     "writer_model": "single-node local filesystem with exclusive lock files and optional HEAD compare-and-swap",
     "distributed_transaction_claim": false,
     "snapshot_gc": "not-yet-implemented",
     "index_authority": "none",
     "indexes_are_derived_and_rebuildable": true,
-    "search_modes": ["deterministic-lexical-baseline", "semantic-vector"],
+    "search_modes": [
+      "deterministic-lexical-baseline",
+      "semantic-vector"
+    ],
     "lexical_engine": "qsol.term-frequency-cosine/2",
     "lexical_tokenizer": {
       "id": "qsol.unicode-nfkc-casefold-alnum/1",
@@ -125,9 +141,25 @@
     "collation": "qsol.utf8-byte-lexicographic/1",
     "semantic_embedding_generation": "external-adapter-required",
     "semantic_snapshot_mismatch_policy": "fail-closed",
-    "semantic_index_fingerprints": ["embedding_sha256", "vectors_sha256"],
+    "semantic_index_fingerprints": [
+      "embedding_sha256",
+      "vectors_sha256"
+    ],
     "canonical_fingerprint_excludes_derived_indexes": true,
     "canonical_fingerprint_excludes_audit_events": true,
+    "interaction_persistence": {
+      "authority": "storage-only",
+      "lattice_profile": "qsol-3x3x3-sierpinski-derived-memory/1",
+      "non_unknown_evidence_requires_oracle_ref": true,
+      "credentials_forbidden_in_questions_and_event_payloads": true,
+      "model_state_hidden_chain_of_thought": false,
+      "derived_events_require_explicit_inputs": true,
+      "record_set_max_bytes": 16777216,
+      "record_set_max_events": 100000,
+      "restricted_export_requires_acknowledgement": true,
+      "restricted_export_file_mode": "0600",
+      "verify_referenced_object_bytes": true
+    },
     "restricted_dna_export": {
       "requires_allow_restricted": true,
       "requires_reversibility_acknowledgement": true,
@@ -154,7 +186,12 @@
     },
     "dna_projection": {
       "codec": "qsol.dna-2bit-codon64/1",
-      "alphabet": ["A", "C", "G", "T"],
+      "alphabet": [
+        "A",
+        "C",
+        "G",
+        "T"
+      ],
       "bits_per_base": 2,
       "bases_per_byte": 4,
       "bases_per_codon": 3,
@@ -179,8 +216,20 @@
       "identity": "sha256 manifest id + per-entry SHA-256 + payload SHA-256",
       "fixed_point_required": true,
       "dna_projection_optional": true,
-      "recovery_classes": ["NEAR_SHELL", "MID_SHELL", "OUTER_SHELL", "RESONANCE_NODE", "WIGGLE_ZONE"],
-      "phi_shell_milli": [1000, 1618, 2618, 4236, 6854],
+      "recovery_classes": [
+        "NEAR_SHELL",
+        "MID_SHELL",
+        "OUTER_SHELL",
+        "RESONANCE_NODE",
+        "WIGGLE_ZONE"
+      ],
+      "phi_shell_milli": [
+        1000,
+        1618,
+        2618,
+        4236,
+        6854
+      ],
       "qec_lineage_semantics": "deterministic recovery scheduling lineage only",
       "recovery_authority": "QSOL-ARK",
       "model_instance_reconstruction_claim": false
@@ -192,11 +241,18 @@
     "concap_bundle_contract": "ai/concap-bundle-contract.json",
     "valid_fixture": "examples/schema/restore-pack-spec.valid.json",
     "invalid_fixture": "examples/schema/restore-pack-spec.invalid.json",
-    "runtime_tests": ["tests/test_restore_capsule.py", "tests/test_restore_cli.py", "tests/test_concap_bundle.py"]
+    "runtime_tests": [
+      "tests/test_restore_capsule.py",
+      "tests/test_restore_cli.py",
+      "tests/test_concap_bundle.py"
+    ]
   },
   "schemas": {
     "query": "schema/control-query.schema.json",
     "interaction": "schema/interaction-record.schema.json",
+    "interaction_v2": "schema/interaction-record-v2.schema.json",
+    "run_event": "schema/run-event.schema.json",
+    "run_record_set": "schema/run-record-set.schema.json",
     "model_state": "schema/model-state.schema.json",
     "file": "schema/file-record.schema.json",
     "collection": "schema/collection-record.schema.json",
@@ -235,6 +291,10 @@
       "invalid": "examples/schema/search-index.invalid.json"
     }
   },
+  "interaction_v2_examples": {
+    "valid": "examples/schema/interaction-record-v2.valid.json",
+    "invalid": "examples/schema/interaction-record-v2.invalid.json"
+  },
   "dna_projection_examples": {
     "valid": "examples/schema/dna-lattice.valid.json",
     "invalid": "examples/schema/dna-lattice.invalid.json",
@@ -271,6 +331,13 @@
     "deterministic_lexical_retrieval": "implemented",
     "semantic_vector_index_registration_and_search": "implemented",
     "dna_lattice_recovery_projection": "implemented",
+    "interaction_persistence": "implemented-phase-1b",
+    "content_addressed_run_ids": "implemented-phase-1b",
+    "append_only_run_events": "implemented-phase-1b",
+    "deterministic_lattice_addressing": "implemented-phase-1b",
+    "run_fingerprint_and_verification": "implemented-phase-1b",
+    "run_record_set_roundtrip": "implemented-phase-1b",
+    "minimum_ark_control_bundle": "not-yet-implemented",
     "cold_restore_dat_container": "implemented-experimental",
     "cold_restore_fixed_point_verification": "implemented-experimental",
     "cold_restore_dna_roundtrip": "implemented-experimental",
@@ -279,7 +346,7 @@
     "operator_audit_records": "implemented-local",
     "collection_compare_and_swap": "implemented-local",
     "embedding_generation_adapter": "not-yet-implemented",
-    "persistent_lattice_engine": "not-yet-implemented",
+    "persistent_lattice_engine": "implemented-phase-1b-top-level",
     "live_oracle_adapter": "not-yet-implemented",
     "live_nexus_adapter": "not-yet-implemented",
     "webui": "not-yet-implemented",

@@ -1,6 +1,6 @@
 {
   "document_type": "qsol-control-ai-bootstrap",
-  "schema_version": 3,
+  "schema_version": 4,
   "protocol": "QSOL-CONTROL/0.1",
   "audience": ["ai", "agents", "automated_reviewers", "tooling"],
   "human_document": "README.md",
@@ -23,6 +23,7 @@
     "recovery": "none",
     "operator_orchestration": "owned_by_control",
     "file_and_collection_storage_mechanics": "owned_by_control",
+    "interaction_and_lattice_storage_mechanics": "owned_by_control",
     "portable_bundle_construction_and_verification": "owned_by_control",
     "search_index_authority": "none"
   },
@@ -30,6 +31,7 @@
     "human": "webui_planned",
     "ai": "structured_machine_api_planned",
     "storage_cli": "tools/storage_cli.py",
+    "interaction_cli": "tools/interaction_cli.py",
     "restore_cli": "tools/restore_cli.py",
     "concap_bundle_cli": "tools/concap_bundle.py",
     "epistemic_authority_rule": "human_and_ai_callers_receive_equal_epistemic_authority"
@@ -37,9 +39,13 @@
   "contracts": {
     "json_schema_draft": "https://json-schema.org/draft/2020-12/schema",
     "schema_versioning": "semantic-versioning",
-    "schema_version": "1.3.0",
+    "schema_version": "1.4.0",
     "python_minimum": "3.11",
     "canonical_examples": "examples/schema/",
+    "legacy_interaction_protocol": "qsol-control-interaction/1",
+    "persistent_interaction_protocol": "qsol-control-interaction/2",
+    "run_event_protocol": "qsol-control-run-event/1",
+    "run_record_set_protocol": "qsol-control-run-record-set/1",
     "portable_concap_contract": "ai/concap-bundle-contract.json",
     "portable_concap_export_spec_schema": "schema/concap-export-spec.schema.json",
     "unknown_major_or_lattice_profile": "fail_closed_do_not_guess_semantics"
@@ -55,6 +61,8 @@
     "MODEL_STATE != EVIDENCE",
     "AI_RESPONSE != FACT",
     "MEMORY != AUTHORITY",
+    "HASH_INTEGRITY != EVIDENCE_AUTHORITY",
+    "RUN_RECORD != MODEL_MIND",
     "SEARCH_SCORE != TRUTH",
     "SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH",
     "INDEX != CANONICAL_MEMORY",
@@ -79,14 +87,38 @@
   ],
   "question_modes": ["evidence_only", "council"],
   "persistent_storage": {
-    "status": "phase1_files_collections_restore_and_portable_concap_implemented",
+    "status": "phase1a_and_phase1b_interaction_core_implemented",
     "runtime": "storage/control_store.py",
+    "interaction_runtime": "storage/interaction_store.py",
     "file_definition": "immutable metadata record referencing content-addressed raw bytes",
     "collection_definition": "persistent named group of file references with immutable membership snapshots",
     "object_identity": "sha256(raw_bytes)",
     "collection_membership_order": "lexicographically_sorted_file_ids",
     "collection_history": "immutable_snapshot_chain_plus_atomic_head_pointer",
     "canonical_fingerprint_excludes_rebuildable_search_indexes": true,
+    "interaction": {
+      "protocol": "qsol-control-interaction/2",
+      "legacy_protocol_preserved": "qsol-control-interaction/1",
+      "run_identity": "sha256(canonical_json_of_run_payload_without_run_id)",
+      "event_protocol": "qsol-control-run-event/1",
+      "event_history": "append_only_previous_event_chain_plus_explicit_parent_lineage_and_atomic_head",
+      "authority": "storage_only",
+      "lattice_profile": "qsol-3x3x3-sierpinski-derived-memory/1",
+      "non_unknown_evidence_requires_oracle_reference": true,
+      "credentials_forbidden_in_questions_event_payloads_and_refs": true,
+      "model_state_hidden_chain_of_thought_captured": false,
+      "derived_events_require_explicit_input_lineage": true,
+      "verification_reads_referenced_raw_object_bytes": true,
+      "record_set": {
+        "protocol": "qsol-control-run-record-set/1",
+        "max_bytes": 16777216,
+        "max_events": 100000,
+        "privacy_class_propagated_from_referenced_storage": true,
+        "restricted_export_requires_explicit_acknowledgement": true,
+        "restricted_export_file_mode": "0600"
+      },
+      "minimum_ark_control_bundle": "not_yet_implemented"
+    },
     "portable_concap": {
       "runtime": "storage/concap_bundle.py",
       "contract": "ai/concap-bundle-contract.json",
@@ -98,7 +130,12 @@
       "restricted_local_modes": {"directory": "0700", "file": "0600", "zip": "0600"},
       "transport_neutral": true,
       "zip_must_be_outside_bundle_tree": true,
-      "metadata_limits": {"bootstrap_bytes": 1048576, "object_index_bytes": 16777216, "object_count": 10000, "role_count": 100000}
+      "metadata_limits": {
+        "bootstrap_bytes": 1048576,
+        "object_index_bytes": 16777216,
+        "object_count": 10000,
+        "role_count": 100000
+      }
     },
     "search": {
       "deterministic_baseline": "qsol.term-frequency-cosine/1",
@@ -171,15 +208,12 @@
     ]
   },
   "run_record": {
+    "status": "implemented_phase1b_storage_core",
     "preserve": [
       "question",
       "requester_kind",
       "admitted_evidence_refs",
-      "council_roster",
       "visible_model_outputs",
-      "sealed_votes",
-      "consensus_status",
-      "minority_reports",
       "oracle_receipts",
       "model_states",
       "lattice_addresses",
@@ -192,11 +226,13 @@
       "truth_from_consensus",
       "truth_from_search_similarity",
       "replayability_of_live_stochastic_inference_without_evidence"
-    ]
+    ],
+    "minimum_ark_export_bundle": "not_yet_implemented"
   },
   "validation": {
     "command": "python3 tools/validate_control.py",
     "tests": "python3 -W default -m unittest discover -s tests -v",
+    "interaction_cli": "python3 tools/interaction_cli.py --help",
     "portable_concap_build": "python3 tools/concap_bundle.py build --source-root <root> --export-spec <spec> --output-dir <bundle>",
     "portable_concap_verify": "python3 tools/concap_bundle.py verify --bundle <bundle>",
     "valid_and_invalid_fixtures_are_executable_contracts": true,
@@ -207,6 +243,10 @@
     "ai/constitution.json",
     "ai/lattice-contract.json",
     "ai/concap-bundle-contract.json",
+    "schema/interaction-record.schema.json",
+    "schema/interaction-record-v2.schema.json",
+    "schema/run-event.schema.json",
+    "schema/run-record-set.schema.json",
     "docs/PERSISTENT-STORAGE.md",
     "docs/PORTABLE-CONCAP-BUNDLES.md",
     "ARCHITECTURE.md",

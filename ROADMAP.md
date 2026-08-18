@@ -62,14 +62,14 @@ The persistent document layer must round-trip canonical fixtures offline, detect
 
 ## Phase 1B — Interaction and lattice persistence
 
-- [ ] Implement canonical JSON interaction records in the runtime store.
-- [ ] Implement content-addressed run IDs.
-- [ ] Implement deterministic epistemic lattice-address assignment for questions/responses/evidence.
-- [ ] Link run records to File IDs and exact Collection snapshot IDs.
-- [ ] Implement immutable lineage between questions, evidence, responses, receipts, model states, and Files.
-- [ ] Implement append-only run/event persistence with atomic writes.
-- [ ] Add run-level storage integrity/fingerprint command.
-- [ ] Add adversarial tests for path traversal, duplicate identities, lineage loops, and malformed imports.
+- [x] Implement canonical JSON interaction records in the runtime store.
+- [x] Implement content-addressed run IDs.
+- [x] Implement deterministic epistemic lattice-address assignment for questions/responses/evidence.
+- [x] Link run records to File IDs and exact Collection snapshot IDs.
+- [x] Implement immutable lineage between questions, evidence, responses, receipts, model states, and Files.
+- [x] Implement append-only run/event persistence with atomic writes.
+- [x] Add run-level storage integrity/fingerprint command.
+- [x] Add adversarial tests for path traversal, duplicate identities, lineage loops, and malformed imports.
 - [ ] Define the minimum storage export bundle for ARK recovery.
 
 ### Phase 1B gate

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/run-record-set.schema.json",
+  "title": "QSOL-CONTROL Run Record Set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "privacy_class", "run", "events"],
+  "properties": {
+    "protocol": {"const": "qsol-control-run-record-set/1"},
+    "privacy_class": {"enum": ["PUBLIC", "INTERNAL", "RESTRICTED"]},
+    "run": {"$ref": "interaction-record-v2.schema.json"},
+    "events": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {"$ref": "run-event.schema.json"}
+    }
+  }
+}
