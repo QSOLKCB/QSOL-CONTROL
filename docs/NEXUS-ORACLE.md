@@ -12,18 +12,33 @@ CONTROL is not allowed to blur those responsibilities merely because it can disp
 
 ## Evidence-only path
 
+Phase 2 implements the local read-only ORACLE path:
+
 ```text
 caller
   -> CONTROL
-  -> ORACLE
-  -> evidence state + provenance + gaps
+  -> read-only QSOL-ORACLE adapter
+  -> verified ledger + exact subject query
+  -> evidence state + provenance refs + gaps + freshness
   -> CONTROL
   -> caller
 ```
 
 No Council run is required.
 
+The adapter returns only:
+
+```text
+known
+conflict
+unknown
+```
+
+Suggested searches are explicitly non-evidence.
+
 ## Council path
+
+The NEXUS path remains a later phase:
 
 ```text
 caller
@@ -65,7 +80,64 @@ CONTROL must treat the following as ORACLE-owned behavior:
 - temporal-contract state such as the QSOL-CONTEXT 2056 publication directive;
 - ORACLE event identities/receipts.
 
-CONTROL storage may cache or reference ORACLE results, but cached copies do not become new ORACLE authority.
+CONTROL storage may cache exact verified ORACLE payload bytes or references, but cached copies do not become new ORACLE authority.
+
+```text
+ORACLE_REFERENCE != CONTROL_AUTHORITY
+ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND
+```
+
+## Implemented read-only adapter security gate
+
+`qsol-control-oracle-adapter/1` discovers `QSOL-ORACLE/1` from the parent manifest at runtime and verifies the parent append-only ledger before returning evidence.
+
+Its ORACLE write capability set is empty:
+
+```text
+append     = forbidden
+correct    = forbidden
+supersede = forbidden
+rewrite    = forbidden
+relabel    = forbidden
+```
+
+The adapter also refuses to use a CONTROL receipt-storage root that overlaps the ORACLE repository tree.
+
+Unknown ORACLE protocol majors fail closed rather than being interpreted by analogy.
+
+## Freshness boundary
+
+CONTROL may display:
+
+```text
+fresh
+stale
+undated
+future-dated
+```
+
+but must preserve:
+
+```text
+FRESH != TRUE
+STALE != FALSE
+```
+
+Freshness is a temporal property of an observation, not a truth verdict.
+
+## Timelock boundary
+
+The read-only adapter exposes the `QSOL-TIMELOCK/1` QSOL-CONTEXT 2056 contract as `locked` or `eligible` and preserves the ORACLE witness reference when present.
+
+It always reports:
+
+```json
+"execution_authorized": false
+```
+
+```text
+ELIGIBLE != EXECUTED
+```
 
 ## Stenographer relationship
 
@@ -100,11 +172,12 @@ VERIFIED TRUE: interpretation A
 
 ## Availability behavior
 
-If ORACLE is unavailable:
+If ORACLE is unavailable or fails integrity verification:
 
 - mark evidence path unavailable;
 - do not manufacture evidence;
-- Council invocation should follow an explicit policy about whether an evidence-unavailable run is permitted and how it is labelled.
+- do not silently query an unverified ledger;
+- Council invocation should later follow an explicit policy about whether an evidence-unavailable run is permitted and how it is labelled.
 
 If NEXUS is unavailable:
 
@@ -114,4 +187,6 @@ If NEXUS is unavailable:
 
 ## Version drift
 
-Adapters should discover/report parent protocol versions and preserve them in run records. Later INT integration should test compatibility and stale-parent conditions.
+The ORACLE adapter reports parent protocol/schema versions and fails closed on unknown majors. Backward-compatible ORACLE 1.x additions may be discovered without becoming mandatory dependencies.
+
+Later INT integration should test CONTROL↔ORACLE compatibility, stale-parent handling, authority non-escalation, and schema/version drift explicitly.
