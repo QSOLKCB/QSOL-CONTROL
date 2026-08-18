@@ -1,6 +1,6 @@
 {
   "document_type": "qsol-control-ai-bootstrap",
-  "schema_version": 4,
+  "schema_version": 5,
   "protocol": "QSOL-CONTROL/0.1",
   "audience": ["ai", "agents", "automated_reviewers", "tooling"],
   "human_document": "README.md",
@@ -24,6 +24,9 @@
     "operator_orchestration": "owned_by_control",
     "file_and_collection_storage_mechanics": "owned_by_control",
     "interaction_and_lattice_storage_mechanics": "owned_by_control",
+    "ark_bundle_construction_and_verification": "owned_by_control",
+    "oracle_adapter_reads": "owned_by_control",
+    "oracle_adapter_writes": "forbidden",
     "portable_bundle_construction_and_verification": "owned_by_control",
     "search_index_authority": "none"
   },
@@ -32,6 +35,8 @@
     "ai": "structured_machine_api_planned",
     "storage_cli": "tools/storage_cli.py",
     "interaction_cli": "tools/interaction_cli.py",
+    "ark_bundle_cli": "tools/ark_bundle.py",
+    "oracle_adapter_cli": "tools/oracle_adapter.py",
     "restore_cli": "tools/restore_cli.py",
     "concap_bundle_cli": "tools/concap_bundle.py",
     "epistemic_authority_rule": "human_and_ai_callers_receive_equal_epistemic_authority"
@@ -39,13 +44,20 @@
   "contracts": {
     "json_schema_draft": "https://json-schema.org/draft/2020-12/schema",
     "schema_versioning": "semantic-versioning",
-    "schema_version": "1.4.0",
+    "schema_version": "1.5.0",
     "python_minimum": "3.11",
     "canonical_examples": "examples/schema/",
     "legacy_interaction_protocol": "qsol-control-interaction/1",
     "persistent_interaction_protocol": "qsol-control-interaction/2",
     "run_event_protocol": "qsol-control-run-event/1",
     "run_record_set_protocol": "qsol-control-run-record-set/1",
+    "ark_minimum_bundle_protocol": "qsol-control-ark-minimum-bundle/1",
+    "ark_recovery_contract": "ai/ark-recovery-contract.json",
+    "oracle_adapter_protocol": "qsol-control-oracle-adapter/1",
+    "oracle_adapter_contract": "ai/oracle-adapter-contract.json",
+    "oracle_parent_protocol": "QSOL-ORACLE/1",
+    "oracle_response_protocol": "qsol-control-oracle-evidence-response/1",
+    "oracle_receipt_reference_protocol": "qsol-control-oracle-receipt-ref/1",
     "portable_concap_contract": "ai/concap-bundle-contract.json",
     "portable_concap_export_spec_schema": "schema/concap-export-spec.schema.json",
     "unknown_major_or_lattice_profile": "fail_closed_do_not_guess_semantics"
@@ -70,6 +82,14 @@
     "LATTICE_ADDRESS != COLLECTION_MEMBERSHIP",
     "DNA_ENCODING != BIOLOGICAL_CLAIM",
     "PHI_TRAVERSAL != PHYSICAL_TRUTH",
+    "RECOVERY_BUNDLE != SEMANTIC_AUTHORITY",
+    "RECOVERY_HEAD != SOURCE_CURRENT_HEAD",
+    "ORACLE_REFERENCE != CONTROL_AUTHORITY",
+    "ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND",
+    "FRESH != TRUE",
+    "STALE != FALSE",
+    "SUGGESTED_SEARCH != EVIDENCE",
+    "ELIGIBLE != EXECUTED",
     "PRIVATE_SOURCE != PORTABLE_BUNDLE",
     "PORTABLE_BUNDLE != PUBLICATION",
     "RESTRICTED_BUNDLE != ENCRYPTED_BUNDLE",
@@ -87,9 +107,10 @@
   ],
   "question_modes": ["evidence_only", "council"],
   "persistent_storage": {
-    "status": "phase1a_and_phase1b_interaction_core_implemented",
+    "status": "phase1b_offline_gate_satisfied",
     "runtime": "storage/control_store.py",
     "interaction_runtime": "storage/interaction_store.py",
+    "ark_recovery_runtime": "storage/ark_recovery_bundle.py",
     "file_definition": "immutable metadata record referencing content-addressed raw bytes",
     "collection_definition": "persistent named group of file references with immutable membership snapshots",
     "object_identity": "sha256(raw_bytes)",
@@ -116,8 +137,36 @@
         "privacy_class_propagated_from_referenced_storage": true,
         "restricted_export_requires_explicit_acknowledgement": true,
         "restricted_export_file_mode": "0600"
-      },
-      "minimum_ark_control_bundle": "not_yet_implemented"
+      }
+    },
+    "ark_minimum_recovery": {
+      "protocol": "qsol-control-ark-minimum-bundle/1",
+      "container": "qsol-restore-dat/1",
+      "authority": "none",
+      "scope": "one verified interaction run plus canonical storage dependencies",
+      "includes": [
+        "run record",
+        "complete run event chain",
+        "referenced File records",
+        "referenced raw content-addressed objects",
+        "exact bound Collection descriptor and snapshot lineage to revision 0",
+        "all File/object dependencies of exported snapshot lineage",
+        "lattice profile descriptor"
+      ],
+      "excludes": [
+        "derived search indexes",
+        "optional DNA projections",
+        "source current Collection HEAD when later than the run snapshot",
+        "WebUI state",
+        "live ORACLE/NEXUS connectivity"
+      ],
+      "offline_reconstruction": true,
+      "network_required": false,
+      "fixed_point_required": true,
+      "run_fingerprint_must_match": true,
+      "recovered_collection_head": "exact_run_bound_snapshot",
+      "strictest_privacy_class_wins": true,
+      "restricted_export_file_mode": "0600"
     },
     "portable_concap": {
       "runtime": "storage/concap_bundle.py",
@@ -163,6 +212,40 @@
       "authority": "none",
       "compression_claim": false
     }
+  },
+  "oracle_adapter": {
+    "status": "implemented_phase2_read_only",
+    "protocol": "qsol-control-oracle-adapter/1",
+    "runtime": "adapters/oracle.py",
+    "parent_protocol": "QSOL-ORACLE/1",
+    "accepted_parent_major": 1,
+    "unknown_major": "fail_closed",
+    "parent_ledger_model": "single_writer_append_only",
+    "write_capabilities": [],
+    "evidence_states": ["known", "conflict", "unknown"],
+    "exact_subject_matching": true,
+    "ledger_integrity_verified_before_query": true,
+    "provenance_and_event_hashes_preserved": true,
+    "copied_authority": false,
+    "receipt_storage": {
+      "target": "separate_control_store_only",
+      "exact_payload_bytes_preserved": true,
+      "payload_sha256_required": true,
+      "oracle_identity_preserved": true,
+      "authority": "reference_only",
+      "oracle_repository_overlap_forbidden": true
+    },
+    "suggested_searches_are_evidence": false,
+    "freshness_states": ["fresh", "stale", "undated", "future-dated"],
+    "fresh_means_true": false,
+    "stale_means_false": false,
+    "timelock": {
+      "contract_protocol": "QSOL-TIMELOCK/1",
+      "view_states": ["locked", "eligible"],
+      "execution_authorized": false,
+      "eligible_is_executed": false
+    },
+    "optional_compatible_feed_protocol": "QSOL-ORACLE-FEED/1"
   },
   "lattice": {
     "name": "qsol-3x3x3-sierpinski-derived-memory",
@@ -227,26 +310,36 @@
       "truth_from_search_similarity",
       "replayability_of_live_stochastic_inference_without_evidence"
     ],
-    "minimum_ark_export_bundle": "not_yet_implemented"
+    "minimum_ark_export_bundle": "implemented_qsol-control-ark-minimum-bundle/1"
   },
   "validation": {
     "command": "python3 tools/validate_control.py",
     "tests": "python3 -W default -m unittest discover -s tests -v",
     "interaction_cli": "python3 tools/interaction_cli.py --help",
+    "ark_bundle_cli": "python3 tools/ark_bundle.py --help",
+    "oracle_adapter_cli": "python3 tools/oracle_adapter.py --help",
     "portable_concap_build": "python3 tools/concap_bundle.py build --source-root <root> --export-spec <spec> --output-dir <bundle>",
     "portable_concap_verify": "python3 tools/concap_bundle.py verify --bundle <bundle>",
     "valid_and_invalid_fixtures_are_executable_contracts": true,
-    "dna_projection_round_trip_tests": true
+    "dna_projection_round_trip_tests": true,
+    "phase1b_offline_recovery_round_trip_tests": true,
+    "oracle_read_only_boundary_tests": true
   },
   "read_next": [
     "manifest.json",
     "ai/constitution.json",
     "ai/lattice-contract.json",
+    "ai/ark-recovery-contract.json",
+    "ai/oracle-adapter-contract.json",
     "ai/concap-bundle-contract.json",
     "schema/interaction-record.schema.json",
     "schema/interaction-record-v2.schema.json",
     "schema/run-event.schema.json",
     "schema/run-record-set.schema.json",
+    "schema/ark-minimum-bundle.schema.json",
+    "schema/oracle-adapter-response.schema.json",
+    "docs/ARK-MINIMUM-BUNDLE.md",
+    "docs/ORACLE-ADAPTER.md",
     "docs/PERSISTENT-STORAGE.md",
     "docs/PORTABLE-CONCAP-BUNDLES.md",
     "ARCHITECTURE.md",
