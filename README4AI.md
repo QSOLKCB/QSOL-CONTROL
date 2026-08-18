@@ -1,6 +1,6 @@
 {
   "document_type": "qsol-control-ai-bootstrap",
-  "schema_version": 2,
+  "schema_version": 3,
   "protocol": "QSOL-CONTROL/0.1",
   "audience": ["ai", "agents", "automated_reviewers", "tooling"],
   "human_document": "README.md",
@@ -23,20 +23,25 @@
     "recovery": "none",
     "operator_orchestration": "owned_by_control",
     "file_and_collection_storage_mechanics": "owned_by_control",
+    "portable_bundle_construction_and_verification": "owned_by_control",
     "search_index_authority": "none"
   },
   "interfaces": {
     "human": "webui_planned",
     "ai": "structured_machine_api_planned",
     "storage_cli": "tools/storage_cli.py",
+    "restore_cli": "tools/restore_cli.py",
+    "concap_bundle_cli": "tools/concap_bundle.py",
     "epistemic_authority_rule": "human_and_ai_callers_receive_equal_epistemic_authority"
   },
   "contracts": {
     "json_schema_draft": "https://json-schema.org/draft/2020-12/schema",
     "schema_versioning": "semantic-versioning",
-    "schema_version": "1.1.0",
+    "schema_version": "1.3.0",
     "python_minimum": "3.11",
     "canonical_examples": "examples/schema/",
+    "portable_concap_contract": "ai/concap-bundle-contract.json",
+    "portable_concap_export_spec_schema": "schema/concap-export-spec.schema.json",
     "unknown_major_or_lattice_profile": "fail_closed_do_not_guess_semantics"
   },
   "core_invariants": [
@@ -57,6 +62,15 @@
     "LATTICE_ADDRESS != COLLECTION_MEMBERSHIP",
     "DNA_ENCODING != BIOLOGICAL_CLAIM",
     "PHI_TRAVERSAL != PHYSICAL_TRUTH",
+    "PRIVATE_SOURCE != PORTABLE_BUNDLE",
+    "PORTABLE_BUNDLE != PUBLICATION",
+    "RESTRICTED_BUNDLE != ENCRYPTED_BUNDLE",
+    "SOURCE_REF_STRIPPED != SOURCE_BYTES_ANONYMIZED",
+    "OBJECT_IDENTITY != TRANSPORT_LOCATION",
+    "MODEL_CAN_LOAD_OBJECT != MODEL_CAN_ACCESS_SOURCE_REPOSITORY",
+    "ROUTING != RESOLUTION",
+    "RESOLUTION != TRANSPORT",
+    "TRANSPORT != AUTHORITY",
     "CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY",
     "CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES",
     "MODEL_STATE != MODEL_MIND",
@@ -65,7 +79,7 @@
   ],
   "question_modes": ["evidence_only", "council"],
   "persistent_storage": {
-    "status": "phase1_files_and_collections_implemented",
+    "status": "phase1_files_collections_restore_and_portable_concap_implemented",
     "runtime": "storage/control_store.py",
     "file_definition": "immutable metadata record referencing content-addressed raw bytes",
     "collection_definition": "persistent named group of file references with immutable membership snapshots",
@@ -73,6 +87,19 @@
     "collection_membership_order": "lexicographically_sorted_file_ids",
     "collection_history": "immutable_snapshot_chain_plus_atomic_head_pointer",
     "canonical_fingerprint_excludes_rebuildable_search_indexes": true,
+    "portable_concap": {
+      "runtime": "storage/concap_bundle.py",
+      "contract": "ai/concap-bundle-contract.json",
+      "object_container": "qsol-restore-dat/1",
+      "object_identity": "sha256(exact_object_bytes)",
+      "source_ref_stripped": true,
+      "source_bytes_anonymized_claim": false,
+      "restricted_acknowledgement_required": true,
+      "restricted_local_modes": {"directory": "0700", "file": "0600", "zip": "0600"},
+      "transport_neutral": true,
+      "zip_must_be_outside_bundle_tree": true,
+      "metadata_limits": {"bootstrap_bytes": 1048576, "object_index_bytes": 16777216, "object_count": 10000, "role_count": 100000}
+    },
     "search": {
       "deterministic_baseline": "qsol.term-frequency-cosine/1",
       "semantic_vector_search": "qsol.cosine-vector-search/1",
@@ -170,6 +197,8 @@
   "validation": {
     "command": "python3 tools/validate_control.py",
     "tests": "python3 -W default -m unittest discover -s tests -v",
+    "portable_concap_build": "python3 tools/concap_bundle.py build --source-root <root> --export-spec <spec> --output-dir <bundle>",
+    "portable_concap_verify": "python3 tools/concap_bundle.py verify --bundle <bundle>",
     "valid_and_invalid_fixtures_are_executable_contracts": true,
     "dna_projection_round_trip_tests": true
   },
@@ -177,7 +206,9 @@
     "manifest.json",
     "ai/constitution.json",
     "ai/lattice-contract.json",
+    "ai/concap-bundle-contract.json",
     "docs/PERSISTENT-STORAGE.md",
+    "docs/PORTABLE-CONCAP-BUNDLES.md",
     "ARCHITECTURE.md",
     "SECURITY.md",
     "AGENTS.md",

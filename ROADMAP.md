@@ -40,9 +40,25 @@
 - [x] Refuse biological, physical, compression, or truth-authority claims from the encoding.
 - [x] Add CLI export/decode operations and regression tests.
 
+### Portable CONCAP delivery
+
+- [x] Reuse `QSOL-RESTORE-DAT/1` as the immutable portable object container.
+- [x] Define `qsol-control-concap-export-spec/1` with explicit role-to-pack bindings.
+- [x] Strip private `source_ref` metadata while preserving approved payload bytes exactly.
+- [x] Content-address portable objects as `sha256(exact object bytes)`.
+- [x] Deduplicate one object satisfying multiple semantic roles.
+- [x] Emit transport-neutral `BOOTSTRAP.json`, `OBJECTS.json`, and content-derived object paths.
+- [x] Add deterministic ZIP packaging with stable member ordering, timestamps and permissions.
+- [x] Require explicit acknowledgement for RESTRICTED exports in both runtime and JSON Schema.
+- [x] Create RESTRICTED bundle directories/files/ZIPs private-by-default (`0700`/`0600`).
+- [x] Bound imported bootstrap/index bytes plus object/role counts before verifier iteration.
+- [x] Reject ZIP outputs placed inside the verified bundle tree.
+- [x] Register the runtime, CLI, schema, docs and machine contract in `manifest.json` and `README4AI.md`.
+- [x] Preserve `ROUTING != RESOLUTION != TRANSPORT != AUTHORITY` across the THOTH handoff.
+
 ### Phase 1A gate
 
-The persistent document layer must round-trip canonical fixtures offline, detect corruption, preserve immutable Collection history, and never depend on one embedding vendor. Raw bytes remain canonical; lexical/vector/DNA representations are projections.
+The persistent document layer must round-trip canonical fixtures offline, detect corruption, preserve immutable Collection history, and never depend on one embedding vendor. Raw bytes remain canonical; lexical/vector/DNA representations are projections. Portable CONCAP bundles are transport artifacts, not new semantic authority.
 
 ## Phase 1B — Interaction and lattice persistence
 
@@ -153,6 +169,7 @@ Never display a synthetic `truth percentage` derived from votes, confidence, ent
 ## Phase 8 — ARK recovery bridge
 
 - [x] Define a reversible DNA/lattice projection for individual File bytes.
+- [x] Define deterministic portable CONCAP bundle machinery over `QSOL-RESTORE-DAT/1`.
 - [ ] Define minimum recoverable CONTROL bundle.
 - [ ] Export raw objects, File records, Collection descriptors/snapshots, schemas, run records, model states, and lattice addressing rules.
 - [ ] Include optional DNA/lattice projections and search-index descriptors without requiring them as canonical source.
@@ -164,6 +181,7 @@ Never display a synthetic `truth percentage` derived from votes, confidence, ent
 ## Phase 9 — INT composition batteries
 
 - [ ] Add cross-repo compatibility receipts for CONTROL↔ORACLE and CONTROL↔NEXUS.
+- [ ] Add CONTROL↔THOTH portable CONCAP compatibility receipts.
 - [ ] Test authority non-escalation.
 - [ ] Test stale-parent handling.
 - [ ] Test vote/evidence separation.
@@ -179,7 +197,8 @@ Never display a synthetic `truth percentage` derived from votes, confidence, ent
 - [ ] Expand secret-scrubbing tests for File metadata/imports.
 - [ ] CSRF/CORS/session protection as applicable to chosen runtime.
 - [ ] Strict local-bind default for operator service.
-- [ ] Import/export size limits and decompression-bomb defenses.
+- [x] Add portable CONCAP metadata/count limits and hostile-input guards.
+- [ ] Import/export decompression-bomb defenses where compressed untrusted inputs are accepted.
 - [ ] Fuzz/adversarial storage tests.
 - [ ] Reproducible release bundle.
 - [ ] Versioned migration policy.

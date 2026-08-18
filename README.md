@@ -1,6 +1,6 @@
 # QSOL-CONTROL
 
-**A human + AI control plane for the QSOL ecosystem, orchestrating NEXUS Council reasoning, ORACLE evidence, deterministic votes, replayable queries, persistent Collections, and 3×3×3 lattice memory.**
+**A human + AI control plane for the QSOL ecosystem, orchestrating NEXUS Council reasoning, ORACLE evidence, deterministic votes, replayable queries, persistent Collections, portable CONCAP delivery, and 3×3×3 lattice memory.**
 
 > **CONTROL controls the machinery, not reality.**
 >
@@ -78,8 +78,25 @@ CONTROL owns orchestration and storage mechanics. It does **not** own scientific
                     | DNA/codon lattice projection (derived)      |
                     +----------------------+----------------------+
                                            |
-                               preservation / reconstruction
+                         approved recovery/context projection
                                            |
+                                           v
+                    +---------------------------------------------+
+                    |        PORTABLE CONCAP DELIVERY             |
+                    |---------------------------------------------|
+                    | QSOL-RESTORE-DAT/1 objects                  |
+                    | content-addressed immutable paths           |
+                    | role -> object index                        |
+                    | deterministic transport bundle              |
+                    +----------------------+----------------------+
+                                           |
+                                transport-neutral bytes
+                                           |
+                                           v
+                                      QSOL-THOTH
+                               routing / resolution boundary
+                                           |
+                               preservation / reconstruction
                                            v
                                    +----------------+
                                    |    QSOL-ARK    |
@@ -315,6 +332,60 @@ python3 tools/storage_cli.py --root .store fingerprint
 
 Semantic vectors can be registered with `register-semantic` and searched with `search-semantic`; embedding generation itself is intentionally outside the canonical storage core.
 
+## Portable CONCAP delivery
+
+CONTROL now contains the packing and verification side of the portable-context bridge used with QSOL-THOTH.
+
+```text
+QSOL-CONTEXT / approved source
+          |
+          v
+      QSOL-CONTROL
+          |
+          | qsol-control-concap-export-spec/1
+          v
+  QSOL-RESTORE-DAT/1 objects
+          |
+          +--> BOOTSTRAP.json
+          +--> OBJECTS.json
+          +--> objects/sha256/<prefix>/<digest>.dat
+          |
+          v
+  local disk / USB / archive / LAN / HTTPS
+          |
+          v
+      QSOL-THOTH
+```
+
+The immutable object identity is `sha256(exact object bytes)`. Transport location is not part of object identity, and CONTROL does not acquire THOTH's semantic-routing authority.
+
+```text
+PRIVATE_SOURCE != PORTABLE_BUNDLE
+PORTABLE_BUNDLE != PUBLICATION
+RESTRICTED_BUNDLE != ENCRYPTED_BUNDLE
+SOURCE_REF_STRIPPED != SOURCE_BYTES_ANONYMIZED
+OBJECT_IDENTITY != TRANSPORT_LOCATION
+ROUTING != RESOLUTION
+RESOLUTION != TRANSPORT
+TRANSPORT != AUTHORITY
+```
+
+RESTRICTED export requires explicit acknowledgement. Locally built RESTRICTED bundle directories are owner-only (`0700`), files are owner-only (`0600`), and deterministic ZIP output is `0600`. This is local file protection, **not encryption**.
+
+Imported bundle metadata is bounded before JSON parsing: `BOOTSTRAP.json` is capped at 1 MiB, `OBJECTS.json` at 16 MiB, with 10,000 objects and 100,000 role bindings maximum. Deterministic ZIP output must be outside the verified bundle tree.
+
+```bash
+python3 tools/concap_bundle.py build \
+  --source-root /path/to/source \
+  --export-spec restore/CONCAP-EXPORT.spec.json \
+  --output-dir /secure/path/qsol-portable \
+  --zip-output /secure/path/qsol-portable.zip
+
+python3 tools/concap_bundle.py verify --bundle /secure/path/qsol-portable
+```
+
+See [`docs/PORTABLE-CONCAP-BUNDLES.md`](docs/PORTABLE-CONCAP-BUNDLES.md) and [`ai/concap-bundle-contract.json`](ai/concap-bundle-contract.json).
+
 ## Constitutional invariants
 
 ```text
@@ -360,7 +431,7 @@ python3 tools/validate_control.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
-The Phase-1 validator reports 8 declared JSON Schemas and 14 canonical valid/invalid fixtures, plus runtime regression tests for persistent storage and DNA/lattice round trips.
+The manifest registers the portable CONCAP schema, runtime, CLI, documentation and machine contract alongside the existing storage schemas. Portable bundle behavior is additionally covered by `tests/test_concap_bundle.py`.
 
 All public schemas use **JSON Schema draft 2020-12**.
 
@@ -378,6 +449,8 @@ All public schemas use **JSON Schema draft 2020-12**.
 - [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md) — 27-cell interaction-memory model.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md) — future-AI model-state preservation.
 - [`docs/NEXUS-ORACLE.md`](docs/NEXUS-ORACLE.md) — orchestration boundary.
+- [`docs/PORTABLE-CONCAP-BUNDLES.md`](docs/PORTABLE-CONCAP-BUNDLES.md) — deterministic portable bundle format and transport boundary.
+- [`ai/concap-bundle-contract.json`](ai/concap-bundle-contract.json) — machine-readable portable bundle contract.
 - [`docs/WEBUI.md`](docs/WEBUI.md) — planned human surface.
 - [`docs/AI-API.md`](docs/AI-API.md) — planned machine caller surface.
 - [`manifest.json`](manifest.json) — canonical machine map.
@@ -389,7 +462,8 @@ QSOL-CONTROL is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. See
 ## Status
 
 - **PR #1:** Phase-0 architecture/contracts bootstrap — merged.
-- **PR #2:** Phase-1A persistent Files/Collections, retrieval indexes, and DNA/lattice recovery projection — in development.
+- **PR #2:** Phase-1A persistent Files/Collections, retrieval indexes, and DNA/lattice recovery projection — merged/integrated baseline.
+- **Portable CONCAP delivery:** implemented experimentally in the current PR with deterministic verification and transport-neutral object identity.
 
 Live ORACLE/NEXUS adapters, full interaction persistence, WebUI and network AI API remain sequenced in the ROADMAP.
 

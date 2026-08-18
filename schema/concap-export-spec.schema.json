@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.invalid/schemas/control-concap-export-spec-v1.json",
+  "title": "QSOL-CONTROL Portable CONCAP Export Specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "schema_version",
+    "bundle_id",
+    "export_class",
+    "sensitive_export_acknowledged",
+    "bindings",
+    "boundaries"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "qsol-control-concap-export-spec/1"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "bundle_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]+$"
+    },
+    "export_class": {
+      "enum": [
+        "PUBLIC",
+        "INTERNAL",
+        "RESTRICTED"
+      ]
+    },
+    "sensitive_export_acknowledged": {
+      "type": "boolean"
+    },
+    "bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role_id",
+          "pack_spec"
+        ],
+        "properties": {
+          "role_id": {
+            "type": "string",
+            "pattern": "^concap\\.[a-z0-9_.-]+/[1-9][0-9]*$"
+          },
+          "pack_spec": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "export_class": {
+            "const": "RESTRICTED"
+          }
+        },
+        "required": ["export_class"]
+      },
+      "then": {
+        "properties": {
+          "sensitive_export_acknowledged": {
+            "const": true
+          }
+        },
+        "required": ["sensitive_export_acknowledged"]
+      }
+    }
+  ]
+}
