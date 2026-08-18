@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-manifest",
   "protocol": "QSOL-CONTROL/0.1",
-  "schema_version": "1.4.0",
+  "schema_version": "1.5.0",
   "snapshot_date": "2026-08-19",
   "role": "human-and-ai-control-plane",
   "verb": "OPERATES",
@@ -13,6 +13,8 @@
   "constitution": "ai/constitution.json",
   "lattice_contract": "ai/lattice-contract.json",
   "concap_bundle_contract": "ai/concap-bundle-contract.json",
+  "ark_recovery_contract": "ai/ark-recovery-contract.json",
+  "oracle_adapter_contract": "ai/oracle-adapter-contract.json",
   "architecture": "ARCHITECTURE.md",
   "roadmap": "ROADMAP.md",
   "security": "SECURITY.md",
@@ -20,6 +22,8 @@
   "storage_hardening_document": "docs/STORAGE-HARDENING.md",
   "cold_restore_document": "docs/COLD-RESTORE.md",
   "portable_concap_document": "docs/PORTABLE-CONCAP-BUNDLES.md",
+  "ark_minimum_bundle_document": "docs/ARK-MINIMUM-BUNDLE.md",
+  "oracle_adapter_document": "docs/ORACLE-ADAPTER.md",
   "json_schema": {
     "draft": "https://json-schema.org/draft/2020-12/schema",
     "compatibility_policy": "semantic-versioning",
@@ -34,6 +38,8 @@
     "restore_validation_command": "python3 tools/validate_restore_contracts.py",
     "concap_bundle_command": "python3 tools/concap_bundle.py",
     "interaction_command": "python3 tools/interaction_cli.py",
+    "ark_bundle_command": "python3 tools/ark_bundle.py",
+    "oracle_adapter_command": "python3 tools/oracle_adapter.py",
     "test_command": "python3 -W default -m unittest discover -s tests -v",
     "workflow": ".github/workflows/validate.yml"
   },
@@ -43,7 +49,9 @@
     "storage_cli": "tools/storage_cli.py",
     "restore_cli": "tools/restore_cli.py",
     "concap_bundle_cli": "tools/concap_bundle.py",
-    "interaction_cli": "tools/interaction_cli.py"
+    "interaction_cli": "tools/interaction_cli.py",
+    "ark_bundle_cli": "tools/ark_bundle.py",
+    "oracle_adapter_cli": "tools/oracle_adapter.py"
   },
   "roles": {
     "QSOL-SUBSTRATE": "KNOWS",
@@ -80,6 +88,12 @@
       "visibility": "public",
       "role": "recovery semantics, Minimum Recoverable Substrate and cold-start evaluation",
       "recovery_authority": true
+    },
+    "QSOL-ORACLE": {
+      "visibility": "public-parent",
+      "role": "witness and append-only evidence history",
+      "control_access": "read-only-adapter",
+      "control_write_authority": false
     }
   },
   "query_modes": [
@@ -95,6 +109,7 @@
   "persistent_storage": {
     "runtime": "storage/control_store.py",
     "interaction_runtime": "storage/interaction_store.py",
+    "ark_recovery_runtime": "storage/ark_recovery_bundle.py",
     "dna_lattice_codec": "storage/dna_lattice.py",
     "restore_capsule_runtime": "storage/restore_capsule.py",
     "portable_concap_runtime": "storage/concap_bundle.py",
@@ -108,6 +123,7 @@
     "run_record_set_protocol": "qsol-control-run-record-set/1",
     "run_fingerprint_protocol": "qsol-control-run-fingerprint/1",
     "run_verification_protocol": "qsol-control-run-verification/1",
+    "ark_minimum_bundle_protocol": "qsol-control-ark-minimum-bundle/1",
     "dna_lattice_protocol": "qsol-control-dna-lattice/1",
     "restore_capsule_protocol": "qsol-control-restore-capsule/1",
     "restore_container": "qsol-restore-dat/1",
@@ -159,6 +175,19 @@
       "restricted_export_requires_acknowledgement": true,
       "restricted_export_file_mode": "0600",
       "verify_referenced_object_bytes": true
+    },
+    "minimum_ark_recovery": {
+      "protocol": "qsol-control-ark-minimum-bundle/1",
+      "container": "qsol-restore-dat/1",
+      "authority": "none",
+      "offline_round_trip_required": true,
+      "container_fixed_point_required": true,
+      "run_fingerprint_required": true,
+      "exact_collection_snapshot_reconstructed": true,
+      "collection_lineage_to_revision_zero": true,
+      "derived_indexes_excluded": true,
+      "strictest_privacy_class_wins": true,
+      "restricted_export_file_mode": "0600"
     },
     "restricted_dna_export": {
       "requires_allow_restricted": true,
@@ -235,16 +264,40 @@
       "model_instance_reconstruction_claim": false
     }
   },
+  "oracle_adapter": {
+    "protocol": "qsol-control-oracle-adapter/1",
+    "runtime": "adapters/oracle.py",
+    "parent_protocol": "QSOL-ORACLE/1",
+    "parent_protocol_major": 1,
+    "mode": "read-only",
+    "authority": "none",
+    "response_protocol": "qsol-control-oracle-evidence-response/1",
+    "receipt_reference_protocol": "qsol-control-oracle-receipt-ref/1",
+    "evidence_states": ["known", "conflict", "unknown"],
+    "ledger_integrity_verified_before_query": true,
+    "event_provenance_preserved": true,
+    "suggested_searches_are_evidence": false,
+    "freshness_states": ["fresh", "stale", "undated", "future-dated"],
+    "fresh_means_true": false,
+    "stale_means_false": false,
+    "timelock_contract": "QSOL-TIMELOCK/1",
+    "timelock_execution_authorized": false,
+    "compatible_optional_feed_protocol": "QSOL-ORACLE-FEED/1",
+    "control_store_must_not_overlap_oracle_repository": true,
+    "oracle_write_operations": []
+  },
   "restore_contracts": {
     "pack_spec_schema": "schema/restore-pack-spec.schema.json",
     "concap_export_spec_schema": "schema/concap-export-spec.schema.json",
     "concap_bundle_contract": "ai/concap-bundle-contract.json",
+    "ark_minimum_bundle_contract": "ai/ark-recovery-contract.json",
     "valid_fixture": "examples/schema/restore-pack-spec.valid.json",
     "invalid_fixture": "examples/schema/restore-pack-spec.invalid.json",
     "runtime_tests": [
       "tests/test_restore_capsule.py",
       "tests/test_restore_cli.py",
-      "tests/test_concap_bundle.py"
+      "tests/test_concap_bundle.py",
+      "tests/test_ark_recovery_bundle.py"
     ]
   },
   "schemas": {
@@ -259,7 +312,9 @@
     "collection_snapshot": "schema/collection-snapshot.schema.json",
     "search_index": "schema/search-index.schema.json",
     "dna_lattice": "schema/dna-lattice.schema.json",
-    "concap_export_spec": "schema/concap-export-spec.schema.json"
+    "concap_export_spec": "schema/concap-export-spec.schema.json",
+    "ark_minimum_bundle": "schema/ark-minimum-bundle.schema.json",
+    "oracle_adapter_response": "schema/oracle-adapter-response.schema.json"
   },
   "schema_examples": {
     "query": {
@@ -318,10 +373,13 @@
     "docs/STORAGE-HARDENING.md",
     "docs/STORAGE-LINEAGE.md",
     "docs/COLD-RESTORE.md",
-    "docs/PORTABLE-CONCAP-BUNDLES.md"
+    "docs/PORTABLE-CONCAP-BUNDLES.md",
+    "docs/ARK-MINIMUM-BUNDLE.md",
+    "docs/ORACLE-ADAPTER.md"
   ],
   "status": {
     "phase": 1,
+    "completed_through_roadmap_phase": 2,
     "architecture_contracts": "implemented",
     "validation_ci": "implemented",
     "persistent_storage_core": "implemented",
@@ -337,7 +395,8 @@
     "deterministic_lattice_addressing": "implemented-phase-1b",
     "run_fingerprint_and_verification": "implemented-phase-1b",
     "run_record_set_roundtrip": "implemented-phase-1b",
-    "minimum_ark_control_bundle": "not-yet-implemented",
+    "minimum_ark_control_bundle": "implemented-phase-1b",
+    "phase_1b_offline_gate": "satisfied",
     "cold_restore_dat_container": "implemented-experimental",
     "cold_restore_fixed_point_verification": "implemented-experimental",
     "cold_restore_dna_roundtrip": "implemented-experimental",
@@ -347,7 +406,12 @@
     "collection_compare_and_swap": "implemented-local",
     "embedding_generation_adapter": "not-yet-implemented",
     "persistent_lattice_engine": "implemented-phase-1b-top-level",
-    "live_oracle_adapter": "not-yet-implemented",
+    "live_oracle_adapter": "implemented-phase-2-read-only",
+    "oracle_protocol_discovery": "implemented-phase-2",
+    "oracle_evidence_query": "implemented-phase-2",
+    "oracle_receipt_reference_storage": "implemented-phase-2",
+    "oracle_freshness_and_availability": "implemented-phase-2",
+    "oracle_timelock_view": "implemented-phase-2",
     "live_nexus_adapter": "not-yet-implemented",
     "webui": "not-yet-implemented",
     "ai_api": "not-yet-implemented"
