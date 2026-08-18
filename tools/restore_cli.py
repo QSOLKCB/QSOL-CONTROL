@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,7 +27,7 @@ from storage.restore_capsule import (
 )
 
 AUDIT_PROTOCOL = "qsol-control-restore-audit-event/1"
-DEFAULT_AUDIT_LOG = ".qsol-control-restore-audit.jsonl"
+DEFAULT_AUDIT_LOG = str(Path.home() / ".local" / "state" / "qsol-control" / "restore-audit.jsonl")
 
 
 def emit(value) -> None:
@@ -54,7 +55,24 @@ def refuse_symlink_output(path: Path) -> None:
         raise RestoreCapsuleError(f"refusing symlink output: {path}")
 
 
+def projection_receipt_fields(projection: dict) -> tuple[str, str]:
+    if not isinstance(projection, dict):
+        raise RestoreCapsuleError("DNA adapter returned a non-object projection")
+    projection_id = projection.get("projection_id")
+    capsule_sha = projection.get("restore_capsule_sha256")
+    if not isinstance(projection_id, str) or not projection_id.startswith("sha256:"):
+        raise RestoreCapsuleError("DNA adapter projection is missing a valid projection_id")
+    if (
+        not isinstance(capsule_sha, str)
+        or len(capsule_sha) != 64
+        or any(ch not in "0123456789abcdef" for ch in capsule_sha)
+    ):
+        raise RestoreCapsuleError("DNA adapter projection is missing a valid restore_capsule_sha256")
+    return projection_id, capsule_sha
+
+
 def append_audit_event(path: Path, *, actor: str, action: str, details: dict) -> dict:
+    path = path.expanduser()
     if path.is_symlink():
         raise RestoreCapsuleError("restore audit log must not be a symlink")
     if not isinstance(actor, str) or not actor.strip():
@@ -72,14 +90,27 @@ def append_audit_event(path: Path, *, actor: str, action: str, details: dict) ->
         "event_id": "sha256:" + hashlib.sha256(canonical_json_bytes(base)).hexdigest(),
         **base,
     }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        os.chmod(path, 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            fd = -1
+            handle.write(
+                json.dumps(event, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                + "\n"
+            )
+    finally:
+        if fd >= 0:
+            os.close(fd)
     return event
 
 
 def command_pack(args: argparse.Namespace) -> int:
-    spec_path = Path(args.spec).resolve()
+    spec_arg = Path(args.spec)
+    if spec_arg.is_symlink():
+        raise RestoreCapsuleError("restore pack spec must not be a symlink")
+    spec_path = spec_arg.resolve()
     spec = load_json(spec_path)
     if not isinstance(spec, dict) or spec.get("protocol") != PACK_SPEC_PROTOCOL:
         raise RestoreCapsuleError("restore pack spec protocol mismatch")
@@ -87,8 +118,11 @@ def command_pack(args: argparse.Namespace) -> int:
     if not isinstance(entries, list) or not entries:
         raise RestoreCapsuleError("restore pack spec requires a non-empty entries list")
 
-    source_root = Path(args.source_root).resolve() if args.source_root else spec_path.parent
-    if source_root.is_symlink() or not source_root.is_dir():
+    root_arg = Path(args.source_root) if args.source_root else spec_path.parent
+    if root_arg.is_symlink():
+        raise RestoreCapsuleError("restore pack source root must not be a symlink")
+    source_root = root_arg.resolve()
+    if not source_root.is_dir():
         raise RestoreCapsuleError("restore pack source root must be a real directory")
 
     prepared = []
@@ -105,13 +139,16 @@ def command_pack(args: argparse.Namespace) -> int:
         source_path = entry.get("source_path")
         if not isinstance(source_path, str) or not source_path:
             raise RestoreCapsuleError(f"pack entry {index} source_path is invalid")
-        source = (source_root / source_path).resolve()
+        unresolved = source_root / source_path
+        if unresolved.is_symlink():
+            raise RestoreCapsuleError(f"pack source is symlinked: {source_path}")
+        source = unresolved.resolve()
         try:
             source.relative_to(source_root)
         except ValueError as exc:
             raise RestoreCapsuleError("pack source escapes the declared source root") from exc
-        if source.is_symlink() or not source.is_file():
-            raise RestoreCapsuleError(f"pack source is missing or symlinked: {source_path}")
+        if not source.is_file():
+            raise RestoreCapsuleError(f"pack source is missing: {source_path}")
         prepared.append(
             {
                 "logical_path": entry.get("logical_path"),
@@ -158,7 +195,10 @@ def command_unpack(args: argparse.Namespace) -> int:
     capsule = path.read_bytes()
     report = verify_capsule(capsule)
     _, entries = parse_capsule(capsule)
-    destination = Path(args.output_dir).resolve()
+    destination_arg = Path(args.output_dir)
+    if destination_arg.is_symlink():
+        raise RestoreCapsuleError("unpack output directory must not be a symlink")
+    destination = destination_arg.resolve()
     destination.mkdir(parents=True, exist_ok=True)
 
     written = []
@@ -198,6 +238,7 @@ def command_dna_export(args: argparse.Namespace) -> int:
         raise RestoreCapsuleError("RESTRICTED restore capsule DNA export requires explicit --actor")
 
     projection = encode_capsule_dna(capsule)
+    projection_id, restore_capsule_sha256 = projection_receipt_fields(projection)
     if args.dry_run:
         emit(
             {
@@ -205,8 +246,8 @@ def command_dna_export(args: argparse.Namespace) -> int:
                 "status": "preview",
                 "dry_run": True,
                 "restricted": restricted,
-                "projection_id": projection["projection_id"],
-                "restore_capsule_sha256": projection["restore_capsule_sha256"],
+                "projection_id": projection_id,
+                "restore_capsule_sha256": restore_capsule_sha256,
                 "would_write": args.output,
                 "would_audit": False,
             }
@@ -220,13 +261,12 @@ def command_dna_export(args: argparse.Namespace) -> int:
         encoding="utf-8",
     )
 
-    audit_log = Path(args.audit_log)
+    audit_log = Path(args.audit_log).expanduser()
     event = append_audit_event(
         audit_log,
         actor=args.actor.strip() if isinstance(args.actor, str) and args.actor.strip() else "local-operator",
         action="restore-dna-export",
         details={
-            "capsule": str(path),
             "capsule_sha256": capsule_report["capsule_sha256"],
             "manifest_id": capsule_report["manifest_id"],
             "restricted": restricted,
@@ -234,8 +274,7 @@ def command_dna_export(args: argparse.Namespace) -> int:
             "reversible_sensitive_export_acknowledged": bool(
                 args.acknowledge_reversible_sensitive_export
             ),
-            "projection_id": projection["projection_id"],
-            "output": str(output),
+            "projection_id": projection_id,
         },
     )
     emit(
@@ -243,8 +282,8 @@ def command_dna_export(args: argparse.Namespace) -> int:
             "status": "written",
             "output": str(output),
             "restricted": restricted,
-            "projection_id": projection["projection_id"],
-            "restore_capsule_sha256": projection["restore_capsule_sha256"],
+            "projection_id": projection_id,
+            "restore_capsule_sha256": restore_capsule_sha256,
             "audit_event_id": event["event_id"],
             "audit_log": str(audit_log),
         }
