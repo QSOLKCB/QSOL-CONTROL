@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, BinaryIO
 
 from storage.restore_capsule import (
     PACK_SPEC_PROTOCOL,
@@ -35,6 +36,10 @@ CONCAP_ID = re.compile(r"^concap\.[a-z0-9_.-]+/[1-9][0-9]*$")
 SHA256 = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 PRIVACY_RANK = {"PUBLIC": 0, "INTERNAL": 1, "RESTRICTED": 2}
+MAX_BOOTSTRAP_BYTES = 1 * 1024 * 1024
+MAX_OBJECT_INDEX_BYTES = 16 * 1024 * 1024
+MAX_OBJECT_COUNT = 10_000
+MAX_ROLE_COUNT = 100_000
 
 EXPORT_BOUNDARIES = (
     "PRIVATE_SOURCE != PORTABLE_BUNDLE",
@@ -92,13 +97,24 @@ def reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return out
 
 
-def load_json(path: Path) -> dict[str, Any]:
+def _reject_nonfinite(value: str) -> None:
+    raise ConcapBundleError(f"non-finite JSON number rejected: {value}")
+
+
+def load_json(path: Path, *, max_bytes: int | None = None) -> dict[str, Any]:
     if path.is_symlink():
         raise ConcapBundleError(f"refusing symlink JSON input: {path}")
     try:
+        size = path.stat().st_size
+        if max_bytes is not None and size > max_bytes:
+            raise ConcapBundleError(
+                f"JSON metadata too large: {path} is {size} bytes, limit is {max_bytes}"
+            )
+        raw = path.read_bytes()
         value = json.loads(
-            path.read_text(encoding="utf-8"),
+            raw.decode("utf-8"),
             object_pairs_hook=reject_duplicate_pairs,
+            parse_constant=_reject_nonfinite,
         )
     except ConcapBundleError:
         raise
@@ -115,6 +131,12 @@ def require_keys(value: dict[str, Any], expected: set[str], where: str) -> None:
         raise ConcapBundleError(
             f"{where}: fields mismatch: expected {sorted(expected)!r}, found {sorted(found)!r}"
         )
+
+
+def privacy_rank(value: Any, where: str) -> int:
+    if not isinstance(value, str) or value not in PRIVACY_RANK:
+        raise ConcapBundleError(f"{where} privacy class is invalid")
+    return PRIVACY_RANK[value]
 
 
 def canonical_relative_path(value: Any, where: str) -> str:
@@ -167,8 +189,7 @@ def validate_export_spec(spec: dict[str, Any]) -> list[dict[str, str]]:
     if not isinstance(spec["bundle_id"], str) or TOKEN.fullmatch(spec["bundle_id"]) is None:
         raise ConcapBundleError("bundle_id must be a canonical token")
     export_class = spec["export_class"]
-    if export_class not in PRIVACY_RANK:
-        raise ConcapBundleError("export_class is invalid")
+    privacy_rank(export_class, "export_class")
     acknowledged = spec["sensitive_export_acknowledged"]
     if type(acknowledged) is not bool:
         raise ConcapBundleError("sensitive_export_acknowledged must be boolean")
@@ -187,6 +208,8 @@ def validate_export_spec(spec: dict[str, Any]) -> list[dict[str, str]]:
     bindings = spec["bindings"]
     if not isinstance(bindings, list) or not bindings:
         raise ConcapBundleError("export bindings must be a non-empty array")
+    if len(bindings) > MAX_ROLE_COUNT:
+        raise ConcapBundleError("export binding count exceeds portable limit")
     normalized: list[dict[str, str]] = []
     seen: set[str] = set()
     previous: bytes | None = None
@@ -250,8 +273,7 @@ def _validate_pack_spec(spec: dict[str, Any], label: str) -> list[dict[str, Any]
         seen.add(logical_path)
         if not isinstance(entry["kind"], str) or not entry["kind"]:
             raise ConcapBundleError(f"{label}: {logical_path}.kind is invalid")
-        if entry["privacy_class"] not in PRIVACY_RANK:
-            raise ConcapBundleError(f"{label}: {logical_path}.privacy_class is invalid")
+        privacy_rank(entry["privacy_class"], f"{label}: {logical_path}")
         if entry["recovery_class"] != spec["recovery_class"]:
             raise ConcapBundleError(f"{label}: {logical_path}.recovery_class drift")
         if not isinstance(entry["source_ref"], str) or not entry["source_ref"]:
@@ -275,10 +297,11 @@ def _portable_capsule_from_pack(
     pack_path = resolve_under(source_root, pack_spec_relative, "pack_spec")
     pack = load_json(pack_path)
     entries = _validate_pack_spec(pack, pack_spec_relative)
+    export_rank = privacy_rank(export_class, "export_class")
     prepared: list[dict[str, Any]] = []
     for index, entry in enumerate(entries):
         privacy = entry["privacy_class"]
-        if PRIVACY_RANK[privacy] > PRIVACY_RANK[export_class]:
+        if privacy_rank(privacy, f"{pack_spec_relative}: entry {index}") > export_rank:
             raise ConcapBundleError(
                 f"{pack_spec_relative}: entry {index} privacy {privacy} exceeds export class {export_class}"
             )
@@ -294,7 +317,6 @@ def _portable_capsule_from_pack(
                 "kind": entry["kind"],
                 "privacy_class": privacy,
                 "recovery_class": entry["recovery_class"],
-                # Deliberately omit private repository/path reference metadata.
                 "source_ref": None,
             }
         )
@@ -330,6 +352,29 @@ def _index_body(
     }
 
 
+def _ensure_private_parent(path: Path, root: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    current = path.parent
+    root = root.resolve()
+    while True:
+        current.chmod(0o700)
+        if current.resolve() == root:
+            break
+        current = current.parent
+
+
+def _write_bundle_bytes(path: Path, data: bytes, *, root: Path, restricted: bool) -> None:
+    if restricted:
+        _ensure_private_parent(path, root)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        path.chmod(0o600)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+
 def build_bundle(
     *,
     source_root: Path,
@@ -341,11 +386,6 @@ def build_bundle(
     source_root = source_root.resolve()
     if not source_root.is_dir():
         raise ConcapBundleError("source root must be a directory")
-    if output_dir.is_symlink():
-        raise ConcapBundleError("output directory must not be a symlink")
-    if output_dir.exists() and any(output_dir.iterdir()):
-        raise ConcapBundleError("output directory must be absent or empty")
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     export_spec_path = export_spec_path.resolve()
     try:
@@ -354,6 +394,15 @@ def build_bundle(
         raise ConcapBundleError("export spec must be inside source root") from exc
     spec = load_json(export_spec_path)
     bindings = validate_export_spec(spec)
+    restricted = spec["export_class"] == "RESTRICTED"
+
+    if output_dir.is_symlink():
+        raise ConcapBundleError("output directory must not be a symlink")
+    if output_dir.exists() and any(output_dir.iterdir()):
+        raise ConcapBundleError("output directory must be absent or empty")
+    output_dir.mkdir(parents=True, exist_ok=True, mode=0o700 if restricted else 0o777)
+    if restricted:
+        output_dir.chmod(0o700)
 
     capsule_cache: dict[str, tuple[str, bytes]] = {}
     role_bindings: list[dict[str, str]] = []
@@ -375,13 +424,15 @@ def build_bundle(
         object_id, _ = cached
         role_bindings.append({"role_id": binding["role_id"], "object_id": object_id})
 
+    if len(object_bytes) > MAX_OBJECT_COUNT:
+        raise ConcapBundleError("portable object count exceeds verifier limit")
+
     objects = []
     for object_id in sorted(object_bytes, key=lambda value: value.encode("utf-8")):
         capsule = object_bytes[object_id]
         relative = object_path_for(object_id)
         target = output_dir / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(capsule)
+        _write_bundle_bytes(target, capsule, root=output_dir, restricted=restricted)
         objects.append(
             {
                 "object_id": object_id,
@@ -396,7 +447,12 @@ def build_bundle(
     index_body = _index_body(spec=spec, objects=objects, role_bindings=role_bindings)
     index = {**index_body, "index_id": digest(index_body)}
     index_bytes = canonical_json_bytes(index) + b"\n"
-    (output_dir / "OBJECTS.json").write_bytes(index_bytes)
+    _write_bundle_bytes(
+        output_dir / "OBJECTS.json",
+        index_bytes,
+        root=output_dir,
+        restricted=restricted,
+    )
 
     bootstrap = {
         "protocol": BOOTSTRAP_PROTOCOL,
@@ -410,7 +466,12 @@ def build_bundle(
         "role_count": len(role_bindings),
         "boundaries": list(BOOTSTRAP_BOUNDARIES),
     }
-    (output_dir / "BOOTSTRAP.json").write_bytes(canonical_json_bytes(bootstrap) + b"\n")
+    _write_bundle_bytes(
+        output_dir / "BOOTSTRAP.json",
+        canonical_json_bytes(bootstrap) + b"\n",
+        root=output_dir,
+        restricted=restricted,
+    )
     return verify_bundle(output_dir)
 
 
@@ -435,8 +496,7 @@ def _validate_index(index: dict[str, Any]) -> tuple[list[dict[str, Any]], list[d
         raise ConcapBundleError("OBJECTS.json protocol/version mismatch")
     if not isinstance(index["bundle_id"], str) or TOKEN.fullmatch(index["bundle_id"]) is None:
         raise ConcapBundleError("OBJECTS.json bundle_id invalid")
-    if index["bundle_class"] not in PRIVACY_RANK:
-        raise ConcapBundleError("OBJECTS.json bundle_class invalid")
+    privacy_rank(index["bundle_class"], "OBJECTS.json bundle_class")
     for field in ("index_id", "export_spec_sha256", "projection_sha256"):
         if not isinstance(index[field], str) or SHA256.fullmatch(index[field]) is None:
             raise ConcapBundleError(f"OBJECTS.json {field} invalid")
@@ -450,6 +510,8 @@ def _validate_index(index: dict[str, Any]) -> tuple[list[dict[str, Any]], list[d
     objects = index["objects"]
     if not isinstance(objects, list) or not objects:
         raise ConcapBundleError("OBJECTS.json objects must be non-empty")
+    if len(objects) > MAX_OBJECT_COUNT:
+        raise ConcapBundleError("OBJECTS.json object count exceeds portable limit")
     seen_objects: set[str] = set()
     prior_object: bytes | None = None
     for item in objects:
@@ -476,6 +538,8 @@ def _validate_index(index: dict[str, Any]) -> tuple[list[dict[str, Any]], list[d
     role_bindings = index["role_bindings"]
     if not isinstance(role_bindings, list) or not role_bindings:
         raise ConcapBundleError("OBJECTS.json role_bindings must be non-empty")
+    if len(role_bindings) > MAX_ROLE_COUNT:
+        raise ConcapBundleError("OBJECTS.json role binding count exceeds portable limit")
     seen_roles: set[str] = set()
     prior_role: bytes | None = None
     for item in role_bindings:
@@ -510,8 +574,8 @@ def verify_bundle(bundle_dir: Path) -> dict[str, Any]:
         raise ConcapBundleError("bundle directory is missing")
     bootstrap_path = bundle_dir / "BOOTSTRAP.json"
     index_path = bundle_dir / "OBJECTS.json"
-    bootstrap = load_json(bootstrap_path)
-    index = load_json(index_path)
+    bootstrap = load_json(bootstrap_path, max_bytes=MAX_BOOTSTRAP_BYTES)
+    index = load_json(index_path, max_bytes=MAX_OBJECT_INDEX_BYTES)
 
     require_keys(
         bootstrap,
@@ -535,16 +599,15 @@ def verify_bundle(bundle_dir: Path) -> dict[str, Any]:
         raise ConcapBundleError("BOOTSTRAP.json object_index_path drift")
     if bootstrap["boundaries"] != list(BOOTSTRAP_BOUNDARIES):
         raise ConcapBundleError("BOOTSTRAP.json boundaries drift")
-    if bootstrap["bundle_class"] not in PRIVACY_RANK:
-        raise ConcapBundleError("BOOTSTRAP.json bundle_class invalid")
+    privacy_rank(bootstrap["bundle_class"], "BOOTSTRAP.json bundle_class")
     if not isinstance(bootstrap["bundle_id"], str) or TOKEN.fullmatch(bootstrap["bundle_id"]) is None:
         raise ConcapBundleError("BOOTSTRAP.json bundle_id invalid")
     for field in ("object_index_id", "object_index_sha256"):
         if not isinstance(bootstrap[field], str) or SHA256.fullmatch(bootstrap[field]) is None:
             raise ConcapBundleError(f"BOOTSTRAP.json {field} invalid")
-    if not isinstance(bootstrap["object_count"], int) or isinstance(bootstrap["object_count"], bool) or bootstrap["object_count"] < 1:
+    if not isinstance(bootstrap["object_count"], int) or isinstance(bootstrap["object_count"], bool) or not (1 <= bootstrap["object_count"] <= MAX_OBJECT_COUNT):
         raise ConcapBundleError("BOOTSTRAP.json object_count invalid")
-    if not isinstance(bootstrap["role_count"], int) or isinstance(bootstrap["role_count"], bool) or bootstrap["role_count"] < 1:
+    if not isinstance(bootstrap["role_count"], int) or isinstance(bootstrap["role_count"], bool) or not (1 <= bootstrap["role_count"] <= MAX_ROLE_COUNT):
         raise ConcapBundleError("BOOTSTRAP.json role_count invalid")
 
     index_bytes = index_path.read_bytes()
@@ -577,9 +640,12 @@ def verify_bundle(bundle_dir: Path) -> dict[str, Any]:
         for entry in manifest["entries"]:
             if "source_ref" in entry:
                 raise ConcapBundleError(f"{relative}: portable object contains source_ref")
-            privacy_max = max(privacy_max, PRIVACY_RANK[entry["privacy_class"]])
+            privacy_max = max(
+                privacy_max,
+                privacy_rank(entry.get("privacy_class"), f"{relative}: manifest entry"),
+            )
 
-    if privacy_max > PRIVACY_RANK[index["bundle_class"]]:
+    if privacy_max > privacy_rank(index["bundle_class"], "OBJECTS.json bundle_class"):
         raise ConcapBundleError("bundle_class is weaker than contained object privacy")
 
     present_files = set()
@@ -604,26 +670,57 @@ def verify_bundle(bundle_dir: Path) -> dict[str, Any]:
     }
 
 
+def _output_is_inside_bundle(bundle_dir: Path, output: Path) -> bool:
+    bundle = bundle_dir.resolve()
+    candidate = output.resolve(strict=False)
+    try:
+        candidate.relative_to(bundle)
+    except ValueError:
+        return False
+    return True
+
+
 def write_deterministic_zip(bundle_dir: Path, output: Path) -> str:
     if output.is_symlink():
         raise ConcapBundleError("ZIP output must not be a symlink")
     if output.exists():
         raise ConcapBundleError("ZIP output already exists")
-    verify_bundle(bundle_dir)
+    if _output_is_inside_bundle(bundle_dir, output):
+        raise ConcapBundleError("ZIP output must be outside the portable bundle tree")
+
+    report = verify_bundle(bundle_dir)
+    restricted = report["bundle_class"] == "RESTRICTED"
     bundle_dir = bundle_dir.resolve()
     files = sorted(
         (path for path in bundle_dir.rglob("*") if path.is_file()),
         key=lambda path: path.relative_to(bundle_dir).as_posix().encode("utf-8"),
     )
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
-        archive.comment = b""
-        for path in files:
-            relative = path.relative_to(bundle_dir).as_posix()
-            info = zipfile.ZipInfo(relative, date_time=(1980, 1, 1, 0, 0, 0))
-            info.create_system = 3
-            info.compress_type = zipfile.ZIP_STORED
-            info.external_attr = (0o100644 & 0xFFFF) << 16
-            info.extra = b""
-            info.comment = b""
-            archive.writestr(info, path.read_bytes())
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(output, flags, 0o600 if restricted else 0o666)
+    try:
+        with os.fdopen(fd, "w+b") as raw_output:
+            with zipfile.ZipFile(
+                raw_output,
+                "w",
+                compression=zipfile.ZIP_STORED,
+                allowZip64=True,
+            ) as archive:
+                archive.comment = b""
+                member_mode = 0o100600 if restricted else 0o100644
+                for path in files:
+                    relative = path.relative_to(bundle_dir).as_posix()
+                    info = zipfile.ZipInfo(relative, date_time=(1980, 1, 1, 0, 0, 0))
+                    info.create_system = 3
+                    info.compress_type = zipfile.ZIP_STORED
+                    info.external_attr = (member_mode & 0xFFFF) << 16
+                    info.extra = b""
+                    info.comment = b""
+                    archive.writestr(info, path.read_bytes())
+    except Exception:
+        if output.exists():
+            output.unlink()
+        raise
+    if restricted:
+        output.chmod(0o600)
     return sha256_ref(output.read_bytes())
