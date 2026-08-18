@@ -314,9 +314,28 @@ RUNTIME_METADATA != CONSCIOUSNESS
 
 See [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md).
 
-## Storage CLI
+## Phase 1B interaction persistence
 
-The current Phase-1 reference runtime is standard-library-only.
+Phase 1B now implements the offline interaction-memory core. Persistent run records use the versioned `qsol-control-interaction/2` contract; the earlier `qsol-control-interaction/1` schema remains available as the legacy contract rather than being silently redefined.
+
+Each run is content-addressed, binds to exact File IDs and an exact Collection snapshot when supplied, and has an append-only event history with an atomic `HEAD`. Questions, responses and evidence receive deterministic top-level lattice addresses from the recorded information/epistemic/temporal roles.
+
+```text
+RUN_ID = sha256(canonical run payload)
+LATTICE_ADDRESS != TRUTH
+HASH_INTEGRITY != EVIDENCE_AUTHORITY
+RUN_RECORD != MODEL_MIND
+```
+
+Non-`unknown` evidence states require an explicit ORACLE reference. Derived events require explicit input lineage. Runtime validation rejects obvious credential material and model-state payloads that claim hidden chain-of-thought capture.
+
+Run verification checks immutable record identities, event lineage, exact Collection snapshot membership and the bytes behind referenced File records. Record-set imports are bounded to 16 MiB and 100,000 events. RESTRICTED record-set exports require explicit acknowledgement and are written owner-only (`0600`).
+
+The minimum ARK recovery bundle is still deliberately open; the Phase 1B record-set is an interaction round-trip format, not a claim that the complete CONTROL recovery package already exists.
+
+## Storage and interaction CLIs
+
+The current Phase-1 reference runtimes are standard-library-only.
 
 ```bash
 python3 tools/storage_cli.py --root .store put-file notes.txt
@@ -328,13 +347,24 @@ python3 tools/storage_cli.py --root .store dna-export <file_id> --output file.dn
 python3 tools/storage_cli.py dna-decode file.dna.json --output recovered.bin
 python3 tools/storage_cli.py --root .store verify
 python3 tools/storage_cli.py --root .store fingerprint
+
+python3 tools/interaction_cli.py --root .store create \
+  --question "What survives?" \
+  --mode evidence_only \
+  --requester-kind human \
+  --created-at 2026-08-19T08:00:00+09:30 \
+  --replayability R3
+python3 tools/interaction_cli.py --root .store verify <run_id>
+python3 tools/interaction_cli.py --root .store fingerprint <run_id>
 ```
+
+Replayability classification is explicit at the CLI boundary; omission never silently becomes an exact-replay claim.
 
 Semantic vectors can be registered with `register-semantic` and searched with `search-semantic`; embedding generation itself is intentionally outside the canonical storage core.
 
 ## Portable CONCAP delivery
 
-CONTROL now contains the packing and verification side of the portable-context bridge used with QSOL-THOTH.
+CONTROL contains the packing and verification side of the portable-context bridge used with QSOL-THOTH.
 
 ```text
 QSOL-CONTEXT / approved source
@@ -397,6 +427,8 @@ CONFIDENCE != PROBABILITY
 STORED != TRUE
 PERSISTED != CANONICAL
 MEMORY != AUTHORITY
+HASH_INTEGRITY != EVIDENCE_AUTHORITY
+RUN_RECORD != MODEL_MIND
 SEARCH_SCORE != TRUTH
 SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
 INDEX != CANONICAL_MEMORY
@@ -411,9 +443,9 @@ CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
 
 ## Replay instead of chat amnesia
 
-Future interaction persistence will bind each run to the exact File refs, Collection snapshot, evidence state, Council roster/model state, receipts and lattice refs used at that time.
+Phase 1B now preserves an immutable offline run history bound to exact File refs, an exact Collection snapshot, explicit evidence/model references and deterministic lattice addresses. This does not yet execute a live replay through ORACLE or NEXUS; it establishes the deterministic storage substrate that later replay uses.
 
-That makes these operations possible without rewriting history:
+That supports future operations without rewriting the original history:
 
 ```text
 REPLAY ORIGINAL RUN
@@ -431,7 +463,7 @@ python3 tools/validate_control.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
-The manifest registers the portable CONCAP schema, runtime, CLI, documentation and machine contract alongside the existing storage schemas. Portable bundle behavior is additionally covered by `tests/test_concap_bundle.py`.
+The manifest registers the Phase 1B interaction runtime/CLI, legacy and persistent interaction schemas, run-event and run-record-set schemas, plus the existing storage/portable-CONCAP contracts. Runtime adversarial coverage is in `tests/test_interaction_store.py`; portable bundle behavior remains covered by `tests/test_concap_bundle.py`.
 
 All public schemas use **JSON Schema draft 2020-12**.
 
@@ -463,9 +495,10 @@ QSOL-CONTROL is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. See
 
 - **PR #1:** Phase-0 architecture/contracts bootstrap — merged.
 - **PR #2:** Phase-1A persistent Files/Collections, retrieval indexes, and DNA/lattice recovery projection — merged/integrated baseline.
-- **Portable CONCAP delivery:** implemented experimentally in the current PR with deterministic verification and transport-neutral object identity.
+- **PR #4:** portable CONCAP delivery — merged.
+- **PR #5:** Phase-1B interaction/lattice persistence — implemented in this branch; minimum ARK CONTROL bundle remains open.
 
-Live ORACLE/NEXUS adapters, full interaction persistence, WebUI and network AI API remain sequenced in the ROADMAP.
+Live ORACLE/NEXUS adapters, the minimum ARK CONTROL recovery bundle, WebUI and network AI API remain sequenced in the ROADMAP.
 
 ---
 
