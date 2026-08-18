@@ -1,4 +1,6 @@
 import json
+import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -70,7 +72,7 @@ class RestoreCliTests(unittest.TestCase):
             )
 
             dna = root / "identity.dna.json"
-            audit = root / "restore-audit.jsonl"
+            audit = root / "private" / "restore-audit.jsonl"
             rejected = self.run_cli("dna-export", capsule, "--output", dna, check=False)
             self.assertNotEqual(rejected.returncode, 0)
             self.assertIn("--allow-restricted", rejected.stderr)
@@ -120,6 +122,8 @@ class RestoreCliTests(unittest.TestCase):
             exported_report = json.loads(exported.stdout)
             self.assertTrue(dna.is_file())
             self.assertTrue(audit.is_file())
+            mode = stat.S_IMODE(os.stat(audit).st_mode)
+            self.assertEqual(mode, 0o600)
             rows = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines() if line]
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["protocol"], "qsol-control-restore-audit-event/1")
@@ -128,6 +132,8 @@ class RestoreCliTests(unittest.TestCase):
             self.assertEqual(rows[0]["details"]["projection_id"], exported_report["projection_id"])
             self.assertTrue(rows[0]["details"]["restricted"])
             self.assertTrue(rows[0]["details"]["reversible_sensitive_export_acknowledged"])
+            self.assertNotIn("capsule", rows[0]["details"])
+            self.assertNotIn("output", rows[0]["details"])
 
             rebuilt = root / "identity.rebuilt.dat"
             self.run_cli("dna-decode", dna, "--output", rebuilt)
@@ -169,6 +175,45 @@ class RestoreCliTests(unittest.TestCase):
             )
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("escapes the declared source root", result.stderr)
+
+    def test_pack_symlink_source_fails_closed(self):
+        if not hasattr(os, "symlink"):
+            self.skipTest("symlink unsupported")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / "real.txt"
+            target.write_text("secret", encoding="utf-8")
+            link = root / "linked.txt"
+            link.symlink_to(target)
+            spec = {
+                "protocol": "qsol-control-restore-pack-spec/1",
+                "capsule": "symlink.dat",
+                "recovery_class": "NEAR_SHELL",
+                "entries": [
+                    {
+                        "logical_path": "linked.txt",
+                        "source_path": "linked.txt",
+                        "kind": "text",
+                        "privacy_class": "INTERNAL",
+                        "recovery_class": "NEAR_SHELL",
+                        "source_ref": "synthetic:test",
+                    }
+                ],
+            }
+            spec_path = root / "symlink.pack.json"
+            spec_path.write_text(json.dumps(spec), encoding="utf-8")
+            result = self.run_cli(
+                "pack",
+                "--spec",
+                spec_path,
+                "--source-root",
+                root,
+                "--output",
+                root / "symlink.dat",
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symlinked", result.stderr)
 
 
 if __name__ == "__main__":
