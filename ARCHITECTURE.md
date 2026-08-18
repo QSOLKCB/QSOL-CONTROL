@@ -25,11 +25,12 @@ The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the
 | Public epistemic state / provenance | QSOL-SUBSTRATE | display/query |
 | Recovery / reconstruction | QSOL-ARK | request/display/export |
 | Composition / drift | QSOL-INT | display/query |
-| Witness observations / temporal contracts | QSOL-ORACLE | request/display/store refs |
+| Witness observations / temporal contracts | QSOL-ORACLE | read/query/store refs only |
 | Council reasoning / vote mechanics / world state | QSOL-NEXUS | invoke/display |
 | Human + AI orchestration | QSOL-CONTROL | owner |
 | Persistent File/Collection mechanics | QSOL-CONTROL | owner of storage mechanics only |
 | Interaction/model-state lattice placement | CONTROL lattice layer | owner of storage mechanics only |
+| Minimum CONTROL recovery packaging | QSOL-CONTROL | packaging/verifier only; ARK retains recovery authority |
 | Lexical/vector indexes | CONTROL derived storage | zero semantic authority |
 | DNA/codon projection | CONTROL recovery projection | zero semantic authority |
 
@@ -63,7 +64,7 @@ The UI should make uncertainty and provenance visible rather than hiding them be
 
 ### Machine surface
 
-The planned AI/agent interface should provide structured operations such as:
+The planned network AI/agent interface should provide structured operations such as:
 
 ```text
 control.health
@@ -84,7 +85,7 @@ control.memory.trace
 control.replay
 ```
 
-Phase 1 currently provides a local standard-library storage runtime and CLI, not a network service.
+The implemented local standard-library layer now includes File/Collection storage, interaction persistence, minimum offline ARK recovery packaging, and a read-only ORACLE adapter. It is still not a network service.
 
 ## Query lifecycle
 
@@ -174,15 +175,63 @@ INDEX != CANONICAL_MEMORY
 
 ## ORACLE boundary
 
-ORACLE is the evidence/witness path around NEXUS. CONTROL may ask ORACLE for current evidence or receipts and may display ORACLE's `known`, `conflict`, or `unknown` state.
+ORACLE is the evidence/witness path around NEXUS. CONTROL implements a **read-only** `qsol-control-oracle-adapter/1` for stable parent protocol `QSOL-ORACLE/1`.
+
+Before evidence queries, CONTROL discovers the parent manifest at runtime and verifies the append-only ledger hash chain. Evidence queries return exact `known`, `conflict`, or `unknown` states while preserving ORACLE event hashes, source references, provenance class, timestamps and payload identities.
+
+The adapter also reports availability/freshness and the QSOL-CONTEXT 2056 timelock view. Search suggestions remain explicitly non-evidence.
+
+CONTROL may store exact verified ORACLE payload bytes in its own store as `reference-only` material, but that storage root must not overlap the ORACLE repository.
 
 CONTROL may not:
 
 - manufacture an ORACLE event;
-- rewrite the ORACLE ledger;
+- append, correct, supersede, rewrite or relabel the ORACLE ledger;
+- upgrade a CONTROL receipt copy into ORACLE authority;
 - upgrade a NEXUS answer into a primary observation;
 - treat a suggested search as evidence;
-- interpret hash integrity as semantic truth.
+- interpret freshness or hash integrity as semantic truth;
+- treat timelock eligibility as execution authorization.
+
+```text
+ORACLE_REFERENCE != CONTROL_AUTHORITY
+ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND
+FRESH != TRUE
+STALE != FALSE
+SUGGESTED_SEARCH != EVIDENCE
+ELIGIBLE != EXECUTED
+```
+
+The adapter exposes no ORACLE write operation. Unknown ORACLE protocol majors fail closed.
+
+## Minimum ARK recovery gate
+
+`qsol-control-ark-minimum-bundle/1` closes the Phase 1B offline persistence gate by reusing `QSOL-RESTORE-DAT/1` as the deterministic container for one interaction run and the canonical storage records required to verify it.
+
+The minimum package includes:
+
+```text
+CONTROL-RECOVERY.json
+lattice/profile.json
+run record
+complete append-only event chain
+referenced File records
+referenced raw objects
+exact bound Collection descriptor + snapshot lineage to revision 0, when applicable
+```
+
+Derived search indexes, optional DNA projections, WebUI state and live service connections are not part of the minimum proof.
+
+Verification reconstructs a fresh local CONTROL store and requires the recovered run fingerprint to match the source run fingerprint. If the source Collection has advanced since the run, the recovery store's local `HEAD` points to the **exact historical snapshot used by the run**, not the source store's newer `HEAD`.
+
+```text
+RECOVERY_BUNDLE != SEMANTIC_AUTHORITY
+RECOVERY_HEAD != SOURCE_CURRENT_HEAD
+HASH_INTEGRITY != EVIDENCE_AUTHORITY
+RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
+```
+
+CONTROL owns this packaging/verifier mechanism. QSOL-ARK remains the recovery-semantics authority.
 
 ## Lattice memory placement
 
@@ -287,32 +336,26 @@ PHI_TRAVERSAL != PHYSICAL_TRUTH
 
 ## Interaction record
 
-A future persistent interaction record binds:
+The implemented Phase 1B interaction core binds:
 
 ```text
 run_id
-question_id
+question payload/hash
 requester_kind
-question_payload/hash
 requested_mode
 file_refs
-collection_snapshot_refs
-search_index_refs
-admitted_evidence_refs
-oracle_snapshot/receipts
-nexus_run/receipts
-council_roster
-visible outputs
-sealed votes
-consensus result
-minority reports
-model_state_refs
+exact collection_snapshot_ref
+oracle/nexus external refs when supplied
+visible event payloads
+model_state_refs when supplied
 lattice_addresses
 timestamps
 replayability classification
 ```
 
-This is Phase 1B work; Phase 1A implements the File/Collection substrate it will reference.
+The immutable run record is content-addressed. Its separate event chain is append-only with an atomic `HEAD`, explicit parent lineage, and stable event identities.
+
+CONTROL does not yet claim that all later Council/replay/model-registry fields from future phases are implemented merely because the run container can carry references to them.
 
 ## Model-state record
 
@@ -348,10 +391,15 @@ CONTROL should fail closed for authority-sensitive or ambiguous state and fail v
 
 Examples:
 
-- missing ORACLE evidence -> `unknown/unavailable`, not invented evidence;
+- unavailable/tampered ORACLE parent -> evidence adapter unavailable, not invented evidence;
+- unknown ORACLE major -> fail closed, do not guess semantics;
+- stale ORACLE evidence -> stale indicator, not automatically false;
+- future-dated ORACLE evidence -> explicit future-dated indicator, not silently fresh;
+- missing ORACLE evidence -> `unknown`, not invented evidence;
 - stale semantic index -> unavailable until rebuilt, not silently searched against wrong membership;
 - Collection privacy mismatch -> membership update rejected;
 - corrupt raw object -> verification failure;
+- incomplete minimum ARK bundle -> offline reconstruction failure even if the outer container hashes correctly;
 - malformed DNA projection -> decode failure, not partial reconstruction;
 - NEXUS unavailable -> Council run unavailable unless explicitly simulated/labelled;
 - model metadata missing -> `unknown`, not guessed from model name;
@@ -362,8 +410,9 @@ Examples:
 QSOL-CONTROL is not:
 
 - another AI Council;
-- another ORACLE;
+- another ORACLE or an ORACLE ledger writer;
 - a replacement for SUBSTRATE;
+- a replacement for ARK recovery authority;
 - a truth-scoring engine;
 - a hidden chain-of-thought recorder;
 - a blockchain;
