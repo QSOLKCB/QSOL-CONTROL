@@ -1,0 +1,26 @@
+{
+  "protocol": "qsol-control-interaction/2",
+  "run_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "question_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+  "question": {
+    "text": "fixture question",
+    "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "lattice_address": "L[0,1,0]",
+    "epistemic_role": "derived",
+    "temporal_role": "current"
+  },
+  "mode": "evidence_only",
+  "requester_kind": "human",
+  "created_at": "2026-08-19T07:27:00+09:30",
+  "evidence_state": "known",
+  "oracle_refs": [],
+  "nexus_refs": [],
+  "record_refs": ["question:sha256:2222222222222222222222222222222222222222222222222222222222222222"],
+  "file_ids": [],
+  "collection_ref": null,
+  "model_state_refs": [],
+  "lattice_refs": ["L[0,1,0]"],
+  "lattice_profile": "qsol-3x3x3-sierpinski-derived-memory/1",
+  "replayability": "R3",
+  "authority": "truth"
+}
