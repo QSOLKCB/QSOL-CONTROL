@@ -48,7 +48,10 @@ def command_pack(args: argparse.Namespace) -> int:
     if not isinstance(entries, list) or not entries:
         raise RestoreCapsuleError("restore pack spec requires a non-empty entries list")
 
-    base = spec_path.parent
+    source_root = Path(args.source_root).resolve() if args.source_root else spec_path.parent
+    if source_root.is_symlink() or not source_root.is_dir():
+        raise RestoreCapsuleError("restore pack source root must be a real directory")
+
     prepared = []
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
@@ -63,11 +66,11 @@ def command_pack(args: argparse.Namespace) -> int:
         source_path = entry.get("source_path")
         if not isinstance(source_path, str) or not source_path:
             raise RestoreCapsuleError(f"pack entry {index} source_path is invalid")
-        source = (base / source_path).resolve()
+        source = (source_root / source_path).resolve()
         try:
-            source.relative_to(base.resolve())
+            source.relative_to(source_root)
         except ValueError as exc:
-            raise RestoreCapsuleError("pack source escapes the spec directory") from exc
+            raise RestoreCapsuleError("pack source escapes the declared source root") from exc
         if source.is_symlink() or not source.is_file():
             raise RestoreCapsuleError(f"pack source is missing or symlinked: {source_path}")
         prepared.append(
@@ -87,6 +90,7 @@ def command_pack(args: argparse.Namespace) -> int:
     output.write_bytes(capsule)
     report = verify_capsule(capsule)
     report["output"] = str(output)
+    report["source_root"] = str(source_root)
     emit(report)
     return 0
 
@@ -190,6 +194,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     pack = sub.add_parser("pack", help="build one QSOL-RESTORE-DAT/1 capsule")
     pack.add_argument("--spec", required=True)
+    pack.add_argument(
+        "--source-root",
+        help="root directory for source_path entries; defaults to the pack-spec directory",
+    )
     pack.add_argument("--output", required=True)
     pack.set_defaults(func=command_pack)
 
