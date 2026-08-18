@@ -1,5 +1,12 @@
 """QSOL-CONTROL persistent storage primitives."""
 
+from .ark_recovery_bundle import (
+    ArkBundleError,
+    build_ark_bundle,
+    bundle_privacy_class,
+    restore_ark_bundle,
+    verify_ark_bundle,
+)
 from .control_store import ControlStore, StorageError
 from .dna_lattice import (
     DnaLatticeError,
@@ -13,7 +20,12 @@ __all__ = [
     "InteractionStore",
     "StorageError",
     "DnaLatticeError",
+    "ArkBundleError",
     "lattice_address",
     "encode_projection",
     "decode_projection",
+    "build_ark_bundle",
+    "verify_ark_bundle",
+    "restore_ark_bundle",
+    "bundle_privacy_class",
 ]
