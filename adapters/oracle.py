@@ -497,6 +497,24 @@ class OracleAdapter:
     def validate_feed_receipt(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(payload, dict) or payload.get("protocol") != FEED_PROTOCOL:
             raise OracleAdapterError("feed receipt protocol mismatch")
+        collector = payload.get("collector")
+        subject = payload.get("subject")
+        if not isinstance(collector, str) or not collector.strip():
+            raise OracleAdapterError("feed receipt collector must be non-empty")
+        if not isinstance(subject, str) or not subject.strip():
+            raise OracleAdapterError("feed receipt subject must be non-empty")
+        source = payload.get("source")
+        if not isinstance(source, dict):
+            raise OracleAdapterError("feed receipt source must be an object")
+        locator = source.get("locator")
+        payload_sha = source.get("payload_sha256")
+        if not isinstance(locator, str) or not locator.strip():
+            raise OracleAdapterError("feed receipt source locator must be non-empty")
+        if not isinstance(payload_sha, str) or SHA256_RE.fullmatch(payload_sha) is None:
+            raise OracleAdapterError("feed receipt source payload SHA-256 is invalid")
+        acquisition = payload.get("acquisition")
+        if not isinstance(acquisition, dict) or acquisition.get("mode") not in {"fixture", "network"}:
+            raise OracleAdapterError("feed receipt acquisition mode is invalid")
         if payload.get("authority") != "observation-only":
             raise OracleAdapterError("feed receipt authority must remain observation-only")
         if payload.get("truth_claim") is not False:
@@ -509,6 +527,12 @@ class OracleAdapter:
             or freshness.get("fresh_means_true") is not False
         ):
             raise OracleAdapterError("feed receipt freshness semantics are invalid")
+        evaluated_at = freshness.get("evaluated_at")
+        if evaluated_at is not None:
+            _parse_time(evaluated_at)
+        source_time = freshness.get("source_time")
+        if source_time is not None:
+            _parse_time(source_time)
         observation = payload.get("observation")
         if not isinstance(observation, dict):
             raise OracleAdapterError("feed receipt observation must be an object")
@@ -524,14 +548,82 @@ class OracleAdapter:
         return {
             "protocol": RECEIPT_REF_PROTOCOL,
             "oracle_protocol": FEED_PROTOCOL,
-            "collector": payload.get("collector"),
-            "subject": payload.get("subject"),
+            "collector": collector,
+            "subject": subject,
             "source_ref": f"oracle-feed:sha256:{supplied}",
             "payload_sha256": _canonical_hash(payload),
             "oracle_receipt_sha256": supplied,
             "freshness": freshness,
             "authority": "reference-only",
         }
+
+    def _verify_cached_query_response(self, payload: dict[str, Any]) -> str:
+        supplied = payload.get("response_sha256")
+        if not isinstance(supplied, str) or SHA256_RE.fullmatch(supplied) is None:
+            raise OracleAdapterError("CONTROL ORACLE response identity is invalid")
+        basis = dict(payload)
+        basis.pop("response_sha256", None)
+        if supplied != _canonical_hash(basis):
+            raise OracleAdapterError("CONTROL ORACLE response identity mismatch")
+
+        ledger = self._verified_ledger()
+        ledger_head = payload.get("ledger_head")
+        head_index = next(
+            (index for index, event in enumerate(ledger) if event["event_hash"] == ledger_head),
+            None,
+        )
+        if head_index is None:
+            raise OracleAdapterError("CONTROL ORACLE response ledger head is not in verified history")
+        historical = ledger[: head_index + 1]
+        subject = payload.get("subject")
+        if not isinstance(subject, str) or not subject:
+            raise OracleAdapterError("CONTROL ORACLE response subject is invalid")
+        relevant = [event for event in historical if event.get("subject") == subject]
+        expected_refs = [self._event_ref(event) for event in relevant]
+        if payload.get("evidence_refs") != expected_refs:
+            raise OracleAdapterError("CONTROL ORACLE response evidence references do not match verified history")
+        if payload.get("state") != self._response_state(relevant):
+            raise OracleAdapterError("CONTROL ORACLE response state does not match verified history")
+        return supplied
+
+    def _verify_cached_timelock_status(self, payload: dict[str, Any]) -> str:
+        supplied = payload.get("status_sha256")
+        if not isinstance(supplied, str) or SHA256_RE.fullmatch(supplied) is None:
+            raise OracleAdapterError("ORACLE adapter status identity is invalid")
+        basis = dict(payload)
+        basis.pop("status_sha256", None)
+        if supplied != _canonical_hash(basis):
+            raise OracleAdapterError("ORACLE adapter status identity mismatch")
+        evaluated_at = payload.get("evaluated_at")
+        expected = self.timelock_status(evaluated_at=evaluated_at)
+        if expected != payload:
+            raise OracleAdapterError("ORACLE timelock status does not match verified parent state")
+        return supplied
+
+    def _verify_parent_timelock_contract(self, payload: dict[str, Any]) -> str:
+        manifest, _ = self._manifest()
+        relative = manifest.get("founding_timelock")
+        if not isinstance(relative, str):
+            raise OracleAdapterError("ORACLE manifest has no founding timelock")
+        path = _safe_relative(self.root, relative, "ORACLE timelock path")
+        canonical = _json_object(
+            _read_bounded(path, MAX_CONTRACT_BYTES, "ORACLE timelock"),
+            "ORACLE timelock",
+        )
+        if canonical != payload:
+            raise OracleAdapterError("timelock receipt does not match the parent contract")
+        if payload.get("protocol") != TIMELOCK_PROTOCOL or payload.get("fail_closed") is not True:
+            raise OracleAdapterError("timelock receipt contract is invalid")
+        digest = _canonical_hash(payload)
+        ledger = self._verified_ledger()
+        witnessed = any(
+            event.get("subject") == payload.get("subject")
+            and event.get("evidence", {}).get("payload_sha256") == digest
+            for event in ledger
+        )
+        if not witnessed:
+            raise OracleAdapterError("timelock receipt is not witnessed by verified ORACLE history")
+        return digest
 
     def persist_receipt(
         self,
@@ -574,27 +666,20 @@ class OracleAdapter:
                 raise OracleAdapterError("ORACLE event receipt hash mismatch")
             if payload.get("authority") != "observation-only":
                 raise OracleAdapterError("ORACLE event receipt authority escalation")
+            ledger = self._verified_ledger()
+            canonical_event = next(
+                (event for event in ledger if event["event_hash"] == supplied),
+                None,
+            )
+            if canonical_event is None or canonical_json_bytes(canonical_event) != raw:
+                raise OracleAdapterError("ORACLE event receipt is not present in verified parent history")
             oracle_identity = supplied
         elif protocol == QUERY_PROTOCOL:
-            supplied = payload.get("response_sha256")
-            if not isinstance(supplied, str) or SHA256_RE.fullmatch(supplied) is None:
-                raise OracleAdapterError("CONTROL ORACLE response identity is invalid")
-            basis = dict(payload)
-            basis.pop("response_sha256", None)
-            if supplied != _canonical_hash(basis):
-                raise OracleAdapterError("CONTROL ORACLE response identity mismatch")
-            oracle_identity = supplied
+            oracle_identity = self._verify_cached_query_response(payload)
         elif protocol == ADAPTER_PROTOCOL and "status_sha256" in payload:
-            supplied = payload.get("status_sha256")
-            if not isinstance(supplied, str) or SHA256_RE.fullmatch(supplied) is None:
-                raise OracleAdapterError("ORACLE adapter status identity is invalid")
-            basis = dict(payload)
-            basis.pop("status_sha256", None)
-            if supplied != _canonical_hash(basis):
-                raise OracleAdapterError("ORACLE adapter status identity mismatch")
-            oracle_identity = supplied
+            oracle_identity = self._verify_cached_timelock_status(payload)
         elif protocol == TIMELOCK_PROTOCOL:
-            oracle_identity = _canonical_hash(payload)
+            oracle_identity = self._verify_parent_timelock_contract(payload)
         else:
             raise OracleAdapterError("unsupported ORACLE receipt payload protocol")
 
