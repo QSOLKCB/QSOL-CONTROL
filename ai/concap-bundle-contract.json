@@ -1,0 +1,42 @@
+{
+  "protocol": "QSOL-CONTROL/CONCAP-BUNDLE-CONTRACT/1",
+  "schema_version": "1.0.0",
+  "runtime": "storage/concap_bundle.py",
+  "cli": "tools/concap_bundle.py",
+  "export_spec_schema": "schema/concap-export-spec.schema.json",
+  "documentation": "docs/PORTABLE-CONCAP-BUNDLES.md",
+  "object_container": "qsol-restore-dat/1",
+  "object_identity": "sha256(exact_object_bytes)",
+  "bundle_files": [
+    "BOOTSTRAP.json",
+    "OBJECTS.json",
+    "objects/sha256/<prefix>/<digest>.dat"
+  ],
+  "privacy_classes": [
+    "PUBLIC",
+    "INTERNAL",
+    "RESTRICTED"
+  ],
+  "restricted_local_permissions": {
+    "directories": "0700",
+    "files": "0600",
+    "zip": "0600"
+  },
+  "import_limits": {
+    "bootstrap_bytes": 1048576,
+    "object_index_bytes": 16777216,
+    "object_count": 10000,
+    "role_count": 100000
+  },
+  "boundaries": [
+    "PRIVATE_SOURCE != PORTABLE_BUNDLE",
+    "PORTABLE_BUNDLE != PUBLICATION",
+    "RESTRICTED_BUNDLE != ENCRYPTED_BUNDLE",
+    "SOURCE_REF_STRIPPED != SOURCE_BYTES_ANONYMIZED",
+    "OBJECT_IDENTITY != TRANSPORT_LOCATION",
+    "MODEL_CAN_LOAD_OBJECT != MODEL_CAN_ACCESS_SOURCE_REPOSITORY",
+    "ROUTING != RESOLUTION",
+    "RESOLUTION != TRANSPORT",
+    "TRANSPORT != AUTHORITY"
+  ]
+}
