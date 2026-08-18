@@ -34,7 +34,7 @@ class NexusCouncilAdapterTests(unittest.TestCase):
             command += ["--log", str(log)]
         return NexusCouncilAdapter.from_command(command, timeout_seconds=10)
 
-    def run(self, adapter, **kwargs):
+    def run_council(self, adapter, **kwargs):
         return adapter.run_council(
             question="Does the admitted evidence support the proposition?",
             members=self.members,
@@ -59,7 +59,7 @@ class NexusCouncilAdapterTests(unittest.TestCase):
 
     def test_council_render_preserves_roster_phases_sealed_ballot_and_minority(self):
         with self.adapter() as adapter:
-            result = self.run(adapter)
+            result = self.run_council(adapter)
         self.assertEqual([row["member_id"] for row in result["roster"]], ["A", "B", "C"])
         self.assertEqual(
             result["phase_order"],
@@ -94,7 +94,7 @@ class NexusCouncilAdapterTests(unittest.TestCase):
     def test_adapter_never_uses_world_create_or_stenographer_operations(self):
         log = self.root / "operations.log"
         with self.adapter(log=log) as adapter:
-            self.run(adapter)
+            self.run_council(adapter)
         operations = log.read_text(encoding="utf-8").splitlines()
         self.assertIn("council.run", operations)
         self.assertIn("world.inspect", operations)
@@ -134,32 +134,32 @@ class NexusCouncilAdapterTests(unittest.TestCase):
     def test_tampered_threshold_fails_closed(self):
         with self.adapter(tamper="threshold") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "consensus threshold"):
-                self.run(adapter)
+                self.run_council(adapter)
 
     def test_tampered_ballot_commitment_fails_closed(self):
         with self.adapter(tamper="commitment") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "commitment"):
-                self.run(adapter)
+                self.run_council(adapter)
 
     def test_phase_join_order_tampering_fails_closed(self):
         with self.adapter(tamper="phase_order") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "canonical roster join order"):
-                self.run(adapter)
+                self.run_council(adapter)
 
     def test_hidden_reasoning_field_is_rejected(self):
         with self.adapter(tamper="hidden_reasoning") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "hidden-reasoning"):
-                self.run(adapter)
+                self.run_council(adapter)
 
     def test_additional_vote_creation_is_rejected(self):
         with self.adapter(tamper="extra_votes") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "additional votes"):
-                self.run(adapter)
+                self.run_council(adapter)
 
     def test_failed_receipt_verification_is_rejected(self):
         with self.adapter(tamper="receipt_missing") as adapter:
             with self.assertRaises(NexusAdapterError):
-                self.run(adapter)
+                self.run_council(adapter)
 
     def test_verified_artifacts_persist_to_control_and_link_interaction(self):
         control_root = self.root / "control"
@@ -173,7 +173,7 @@ class NexusCouncilAdapterTests(unittest.TestCase):
             replayability="R3",
         )
         with self.adapter() as adapter:
-            result = self.run(
+            result = self.run_council(
                 adapter,
                 control_root=control_root,
                 control_run_id=run["run_id"],
