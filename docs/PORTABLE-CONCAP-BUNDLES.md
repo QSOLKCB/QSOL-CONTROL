@@ -52,7 +52,7 @@ A private export spec explicitly binds versioned CONCAP role ids to existing CON
 }
 ```
 
-Bindings must be strictly sorted by UTF-8 role id. Unknown fields fail closed. The export class must be at least as restrictive as every included source entry. A RESTRICTED export requires explicit acknowledgement.
+Bindings must be strictly sorted by UTF-8 role id. Unknown fields fail closed. The export class must be at least as restrictive as every included source entry. A RESTRICTED export requires explicit acknowledgement in both the runtime validator and the published JSON Schema.
 
 ## Private metadata stripping
 
@@ -100,13 +100,40 @@ objects/
 
 It does not need a Git checkout.
 
+## Local security defaults
+
+A RESTRICTED bundle is created private-by-default on POSIX hosts:
+
+```text
+bundle directories  0700
+bundle files        0600
+deterministic ZIP   0600
+```
+
+These permissions reduce accidental local disclosure on multi-user systems. They are **not encryption** and do not replace an encrypted or otherwise access-controlled transport.
+
+The verifier also bounds untrusted metadata before JSON parsing:
+
+```text
+BOOTSTRAP.json       <= 1 MiB
+OBJECTS.json         <= 16 MiB
+objects              <= 10,000
+role bindings        <= 100,000
+```
+
+These are parser/resource boundaries, not claims about how much payload data a deployment should retain.
+
 ## Build
 
+Prefer an explicitly protected destination for restricted exports:
+
 ```bash
+mkdir -m 700 /secure/path/qsol-export
+
 python3 tools/concap_bundle.py build \
   --source-root /private/source/checkout \
   --export-spec /private/source/checkout/restore/CONCAP-EXPORT.spec.json \
-  --output-dir /tmp/qsol-portable
+  --output-dir /secure/path/qsol-export/bundle
 ```
 
 Optional deterministic ZIP:
@@ -115,20 +142,24 @@ Optional deterministic ZIP:
 python3 tools/concap_bundle.py build \
   --source-root /private/source/checkout \
   --export-spec /private/source/checkout/restore/CONCAP-EXPORT.spec.json \
-  --output-dir /tmp/qsol-portable \
-  --zip-output /tmp/qsol-portable.zip
+  --output-dir /secure/path/qsol-export/bundle \
+  --zip-output /secure/path/qsol-export/bundle.zip
 ```
 
-The ZIP uses sorted entries, stored bytes, fixed timestamps, fixed permissions, and no comments. Byte-identical bundle inputs therefore produce byte-identical ZIP bytes.
+The ZIP output **must be outside** the verified bundle directory. Otherwise the act of creating the ZIP would mutate the bundle after verification and make later verification fail on the unexpected archive member.
+
+The ZIP uses sorted entries, stored bytes, fixed timestamps, fixed member permissions, and no comments. Byte-identical bundle inputs therefore produce byte-identical ZIP bytes for the same export class.
 
 ## Verify
 
 ```bash
-python3 tools/concap_bundle.py verify --bundle /tmp/qsol-portable
+python3 tools/concap_bundle.py verify --bundle /secure/path/qsol-export/bundle
 ```
 
 Verification checks:
 
+- bounded bootstrap/index size before parse;
+- bounded object and role counts;
 - exact bootstrap/index shape;
 - exact index byte hash;
 - acyclic index identity;
@@ -136,9 +167,12 @@ Verification checks:
 - content-derived object paths;
 - object byte size and SHA-256;
 - `QSOL-RESTORE-DAT/1` fixed-point verification;
+- valid string privacy classes;
 - absence of `source_ref` in portable object manifests;
 - bundle privacy class versus contained entry privacy;
 - absence of unexpected files and symlinks.
+
+Malformed privacy-class fields fail with the controlled `ConcapBundleError` path instead of leaking implementation exceptions.
 
 ## Transport neutrality
 
@@ -156,9 +190,22 @@ Transport URLs, bearer tokens, signed-URL expiries and network state are not can
 ```text
 OBJECT_IDENTITY != TRANSPORT_LOCATION
 PORTABLE_BUNDLE != PUBLICATION
+ROUTING != RESOLUTION
+RESOLUTION != TRANSPORT
+TRANSPORT != AUTHORITY
 ```
 
 A RESTRICTED bundle requires a restricted transport or an appropriate encrypted outer channel. The `.dat` format itself is not encryption.
+
+## Machine contract
+
+The machine-readable registration lives at:
+
+```text
+ai/concap-bundle-contract.json
+```
+
+The repository manifest registers the runtime, CLI, schema, documentation, import limits and status so automated consumers do not have to infer this capability from implementation files.
 
 ## Trust boundary
 
