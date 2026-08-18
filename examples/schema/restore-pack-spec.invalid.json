@@ -1,0 +1,15 @@
+{
+  "protocol": "qsol-control-restore-pack-spec/1",
+  "capsule": "identity.dat",
+  "recovery_class": "NEAR_SHELL",
+  "entries": [
+    {
+      "logical_path": "../identity/context.json",
+      "source_path": "../identity/context.json",
+      "kind": "json",
+      "privacy_class": "RESTRICTED",
+      "recovery_class": "WIGGLE_ZONE",
+      "source_ref": "QSOL-CONTEXT:identity/context.json"
+    }
+  ]
+}
