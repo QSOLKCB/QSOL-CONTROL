@@ -1,0 +1,67 @@
+{
+  "type": "qsol-control-oracle-adapter-contract",
+  "protocol": "qsol-control-oracle-adapter/1",
+  "runtime": "adapters/oracle.py",
+  "cli": "tools/oracle_adapter.py",
+  "parent_protocol": "QSOL-ORACLE/1",
+  "parent_protocol_major": 1,
+  "authority": "none",
+  "mode": "read-only",
+  "discovery": {
+    "runtime_manifest_required": true,
+    "compatible_parent_major": 1,
+    "compatible_parent_minor_additions": true,
+    "unknown_major_policy": "fail-closed",
+    "required_ledger_model": "single-writer-append-only"
+  },
+  "operations": [
+    "discover",
+    "availability",
+    "query_evidence",
+    "timelock_status",
+    "validate_feed_receipt",
+    "persist_verified_receipt_in_separate_control_store"
+  ],
+  "oracle_write_operations": [],
+  "evidence_query": {
+    "states": ["known", "conflict", "unknown"],
+    "exact_subject_matching": true,
+    "ledger_integrity_verified_before_query": true,
+    "provenance_and_event_hashes_preserved": true,
+    "copied_authority": false,
+    "suggested_searches_are_evidence": false
+  },
+  "receipt_storage": {
+    "payload_bytes_preserved_exactly": true,
+    "payload_sha256_required": true,
+    "oracle_identity_preserved": true,
+    "authority": "reference-only",
+    "control_store_must_not_overlap_oracle_repository": true
+  },
+  "freshness": {
+    "states": ["fresh", "stale", "undated", "future-dated"],
+    "fresh_means_true": false,
+    "stale_means_false": false
+  },
+  "timelock": {
+    "contract_protocol": "QSOL-TIMELOCK/1",
+    "states_exposed": ["locked", "eligible"],
+    "execution_authorized": false,
+    "eligibility_is_execution": false,
+    "witness_reference_preserved": true
+  },
+  "security_gate": {
+    "control_can_append_oracle_history": false,
+    "control_can_rewrite_oracle_history": false,
+    "control_can_relabel_oracle_history": false,
+    "write_capabilities": []
+  },
+  "boundaries": [
+    "ORACLE_REFERENCE != CONTROL_AUTHORITY",
+    "ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND",
+    "FRESH != TRUE",
+    "STALE != FALSE",
+    "SUGGESTED_SEARCH != EVIDENCE",
+    "ELIGIBLE != EXECUTED"
+  ]
+}
