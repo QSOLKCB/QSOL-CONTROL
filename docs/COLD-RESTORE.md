@@ -31,12 +31,31 @@ Entries are sorted by UTF-8 bytes of `logical_path` before packing. Each entry r
 - kind;
 - privacy class;
 - recovery class;
-- fixed integer φ-shell value;
+- fixed integer phi-shell value;
 - byte length;
 - SHA-256;
 - optional source reference.
 
 The container itself carries a content-derived `manifest_id`, payload SHA-256, exact restore schedule and epistemic boundaries. Repacking verified entries must reproduce byte-identical capsule bytes.
+
+The `boundaries` array order is canonical because it participates in `manifest_id`; it is not an unordered prose set.
+
+## Resource model
+
+The v1 reference implementation is deliberately in-memory: pack, verify and DNA projection operate on complete capsule bytes. It therefore enforces:
+
+```text
+maximum manifest bytes = 4 MiB
+maximum payload bytes  = 256 MiB
+maximum entries        = 4096
+```
+
+If a recovery substrate is larger, split it into purpose-specific capsules. The personal-continuity design already follows that pattern. Streaming pack/verify is a future extension and must receive a new/versioned contract if it changes canonical byte construction.
+
+```text
+LARGE_SUBSTRATE != ONE_GIANT_CAPSULE
+STREAMING_IMPLEMENTATION != SILENT_FORMAT_CHANGE
+```
 
 ## Recovery classes
 
@@ -60,7 +79,7 @@ The golden recurrence is pinned as:
 2618 + 4236 = 6854
 ```
 
-This ordering is a software recovery convention. It is **not** evidence that φ is physically optimal storage.
+This ordering is a software recovery convention. It is **not** evidence that phi is physically optimal storage.
 
 `QSOL-E8-INV-005` contributes the fixed five-class naming contract. The three primary classes are NEAR/MID/OUTER; RESONANCE_NODE and WIGGLE_ZONE are boundary/optional classes.
 
@@ -75,6 +94,8 @@ qsol.dna-2bit-codon64/1
 qsol-3x3x3-sierpinski-derived-memory/1
 qsol.phi-stride-27/1
 ```
+
+The restore adapter verifies the DNA codec result before wrapping it. It requires the expected protocol, codec, LATTICE profile, phi traversal, projection identity, and content hash. Decode failures from the underlying DNA codec are converted into `RestoreCapsuleError` so callers receive one deterministic restore error boundary.
 
 The DNA form is redundant and reversible:
 
@@ -93,9 +114,9 @@ Personal continuity should normally be split into small purpose-specific capsule
 ```text
 restore/capsules/identity.dat
 restore/capsules/working-style.dat
-restore/capsules/projects.dat
-restore/capsules/research.dat
-restore/capsules/continuity.dat
+restore/capsules/projects-research.dat
+restore/capsules/receipts.dat
+restore/capsules/culture.dat
 ```
 
 A small `RESTORE-BOOTSTRAP.json` in the source repository points to each capsule by repository, exact commit, path and SHA-256. This makes the model-ingestion surface inspectable while keeping the capsule bytes independently verifiable.
@@ -131,15 +152,14 @@ python3 tools/restore_cli.py inspect identity.dat
 python3 tools/restore_cli.py unpack identity.dat --output-dir restored/
 ```
 
-A RESTRICTED capsule may only be exported into reversible DNA form after two explicit acknowledgements **and** actor attribution. A successful export appends a non-canonical local JSONL audit event:
+A RESTRICTED capsule may only be exported into reversible DNA form after two explicit acknowledgements **and** actor attribution.
 
 ```bash
 python3 tools/restore_cli.py dna-export identity.dat \
   --output identity.dna.json \
   --allow-restricted \
   --acknowledge-reversible-sensitive-export \
-  --actor trent \
-  --audit-log .qsol-control-restore-audit.jsonl
+  --actor trent
 
 python3 tools/restore_cli.py dna-decode identity.dna.json --output identity-restored.dat
 ```
@@ -154,6 +174,18 @@ python3 tools/restore_cli.py dna-export identity.dat \
   --actor trent \
   --dry-run
 ```
+
+### Audit safety
+
+The default restore audit log is outside the repository:
+
+```text
+~/.local/state/qsol-control/restore-audit.jsonl
+```
+
+New audit files are created with mode `0600`. Audit events intentionally omit local capsule/output paths and record hashes, policy acknowledgements, actor, manifest ID and projection ID instead. Repository `.gitignore` also rejects common restore-audit filenames as a second guard.
+
+If `--audit-log` is supplied, prefer a private operator-state directory rather than a Git worktree.
 
 Audit records are operational receipts, not canonical restore data and not evidence that the exported content is true.
 
