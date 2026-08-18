@@ -4,10 +4,11 @@
   "title": "QSOL-CONTROL Run Record Set",
   "type": "object",
   "additionalProperties": false,
-  "required": ["protocol", "run", "events"],
+  "required": ["protocol", "privacy_class", "run", "events"],
   "properties": {
     "protocol": {"const": "qsol-control-run-record-set/1"},
-    "run": {"$ref": "interaction-record.schema.json"},
+    "privacy_class": {"enum": ["PUBLIC", "INTERNAL", "RESTRICTED"]},
+    "run": {"$ref": "interaction-record-v2.schema.json"},
     "events": {
       "type": "array",
       "maxItems": 100000,
