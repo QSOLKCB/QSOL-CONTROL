@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/ark-minimum-bundle.schema.json",
+  "title": "QSOL-CONTROL Minimum ARK Recovery Bootstrap",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "run_id",
+    "run_fingerprint",
+    "privacy_class",
+    "collection_ref",
+    "lattice_profile",
+    "required_entry_paths",
+    "event_paths",
+    "file_paths",
+    "object_paths",
+    "collection_paths",
+    "recovery_head_semantics",
+    "authority",
+    "boundaries"
+  ],
+  "properties": {
+    "protocol": {"const": "qsol-control-ark-minimum-bundle/1"},
+    "run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "run_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "privacy_class": {"enum": ["INTERNAL", "RESTRICTED"]},
+    "collection_ref": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["collection_id", "snapshot_id"],
+          "properties": {
+            "collection_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "snapshot_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+          }
+        }
+      ]
+    },
+    "lattice_profile": {"const": "qsol-3x3x3-sierpinski-derived-memory/1"},
+    "required_entry_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 512}
+    },
+    "event_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^events/[0-9]{8}-[0-9a-f]{64}\\.json$"}
+    },
+    "file_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^files/[0-9a-f]{64}\\.json$"}
+    },
+    "object_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^objects/sha256/[0-9a-f]{2}/[0-9a-f]{64}$"}
+    },
+    "collection_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 512}
+    },
+    "recovery_head_semantics": {
+      "const": "exact-run-snapshot-projection-not-source-current-head"
+    },
+    "authority": {"const": "none"},
+    "boundaries": {
+      "const": [
+        "RECOVERY_BUNDLE != SEMANTIC_AUTHORITY",
+        "RECOVERY_HEAD != SOURCE_CURRENT_HEAD",
+        "LATTICE_ADDRESS != TRUTH",
+        "HASH_INTEGRITY != EVIDENCE_AUTHORITY",
+        "RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE"
+      ]
+    }
+  }
+}

@@ -316,7 +316,7 @@ See [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md).
 
 ## Phase 1B interaction persistence
 
-Phase 1B now implements the offline interaction-memory core. Persistent run records use the versioned `qsol-control-interaction/2` contract; the earlier `qsol-control-interaction/1` schema remains available as the legacy contract rather than being silently redefined.
+Persistent run records use the versioned `qsol-control-interaction/2` contract; the earlier `qsol-control-interaction/1` schema remains available as the legacy contract rather than being silently redefined.
 
 Each run is content-addressed, binds to exact File IDs and an exact Collection snapshot when supplied, and has an append-only event history with an atomic `HEAD`. Questions, responses and evidence receive deterministic top-level lattice addresses from the recorded information/epistemic/temporal roles.
 
@@ -331,11 +331,48 @@ Non-`unknown` evidence states require an explicit ORACLE reference. Derived even
 
 Run verification checks immutable record identities, event lineage, exact Collection snapshot membership and the bytes behind referenced File records. Record-set imports are bounded to 16 MiB and 100,000 events. RESTRICTED record-set exports require explicit acknowledgement and are written owner-only (`0600`).
 
-The minimum ARK recovery bundle is still deliberately open; the Phase 1B record-set is an interaction round-trip format, not a claim that the complete CONTROL recovery package already exists.
+## Minimum ARK recovery bundle
 
-## Storage and interaction CLIs
+Phase 1B's offline gate is now closed by `qsol-control-ark-minimum-bundle/1`, carried inside the existing deterministic `QSOL-RESTORE-DAT/1` container.
 
-The current Phase-1 reference runtimes are standard-library-only.
+For one interaction run it packages the run record, complete event chain, referenced File records/raw objects, the exact bound Collection descriptor and snapshot lineage to revision 0 when applicable, and the lattice profile required to interpret addresses. Derived search indexes, WebUI state, and live service connections are excluded from the minimum set.
+
+Verification reconstructs a fresh temporary CONTROL store and requires the original run fingerprint to match after reconstruction.
+
+If the source Collection has moved on since the run, the recovered store deliberately points its local `HEAD` to the **historical snapshot used by the run**, not today's source `HEAD`.
+
+```text
+RECOVERY_BUNDLE != SEMANTIC_AUTHORITY
+RECOVERY_HEAD != SOURCE_CURRENT_HEAD
+RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
+```
+
+See [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md) and [`ai/ark-recovery-contract.json`](ai/ark-recovery-contract.json).
+
+## Phase 2 read-only ORACLE adapter
+
+CONTROL now implements `qsol-control-oracle-adapter/1` against the stable parent protocol `QSOL-ORACLE/1`.
+
+The adapter discovers the parent manifest at runtime, verifies the append-only ledger before evidence queries, returns exact `known` / `conflict` / `unknown` states, preserves event/provenance references, reports freshness separately from truth semantics, stores verified receipt payloads only as reference-only CONTROL Files, and exposes the QSOL-CONTEXT 2056 timelock state.
+
+The adapter has **no ORACLE write operation**. CONTROL receipt storage is forbidden from overlapping the ORACLE repository tree.
+
+```text
+ORACLE_REFERENCE != CONTROL_AUTHORITY
+ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND
+FRESH != TRUE
+STALE != FALSE
+SUGGESTED_SEARCH != EVIDENCE
+ELIGIBLE != EXECUTED
+```
+
+Unknown ORACLE protocol majors fail closed. Compatible ORACLE 1.x parents may optionally expose `QSOL-ORACLE-FEED/1` receipts; CONTROL can verify those receipts without making feed collectors a required dependency.
+
+See [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md) and [`ai/oracle-adapter-contract.json`](ai/oracle-adapter-contract.json).
+
+## Storage, recovery, and adapter CLIs
+
+The reference runtimes are standard-library-only.
 
 ```bash
 python3 tools/storage_cli.py --root .store put-file notes.txt
@@ -356,9 +393,20 @@ python3 tools/interaction_cli.py --root .store create \
   --replayability R3
 python3 tools/interaction_cli.py --root .store verify <run_id>
 python3 tools/interaction_cli.py --root .store fingerprint <run_id>
+
+python3 tools/ark_bundle.py export \
+  --root .store \
+  <run_id> \
+  --output control-run.dat
+python3 tools/ark_bundle.py verify control-run.dat
+python3 tools/ark_bundle.py restore control-run.dat --target recovered-store
+
+python3 tools/oracle_adapter.py --oracle-root /path/to/QSOL-ORACLE discover
+python3 tools/oracle_adapter.py --oracle-root /path/to/QSOL-ORACLE query "QSOLKCB/QSOL-CONTEXT"
+python3 tools/oracle_adapter.py --oracle-root /path/to/QSOL-ORACLE timelock
 ```
 
-Replayability classification is explicit at the CLI boundary; omission never silently becomes an exact-replay claim.
+Replayability classification is explicit at the interaction CLI boundary; omission never silently becomes an exact-replay claim.
 
 Semantic vectors can be registered with `register-semantic` and searched with `search-semantic`; embedding generation itself is intentionally outside the canonical storage core.
 
@@ -436,6 +484,14 @@ COLLECTION_MEMBERSHIP != ENDORSEMENT
 MODEL_STATE != MODEL_MIND
 DNA_ENCODING != BIOLOGICAL_CLAIM
 PHI_TRAVERSAL != PHYSICAL_TRUTH
+RECOVERY_BUNDLE != SEMANTIC_AUTHORITY
+RECOVERY_HEAD != SOURCE_CURRENT_HEAD
+ORACLE_REFERENCE != CONTROL_AUTHORITY
+ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND
+FRESH != TRUE
+STALE != FALSE
+SUGGESTED_SEARCH != EVIDENCE
+ELIGIBLE != EXECUTED
 HUMAN_CALLER == AI_CALLER_FOR_EPISTEMIC_AUTHORITY
 CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY
 CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
@@ -443,7 +499,7 @@ CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
 
 ## Replay instead of chat amnesia
 
-Phase 1B now preserves an immutable offline run history bound to exact File refs, an exact Collection snapshot, explicit evidence/model references and deterministic lattice addresses. This does not yet execute a live replay through ORACLE or NEXUS; it establishes the deterministic storage substrate that later replay uses.
+Phase 1B preserves an immutable offline run history bound to exact File refs, an exact Collection snapshot, explicit evidence/model references and deterministic lattice addresses. The minimum ARK bundle now proves that canonical storage can be reconstructed and verified offline. This still does not claim deterministic replay of live stochastic model inference.
 
 That supports future operations without rewriting the original history:
 
@@ -463,7 +519,7 @@ python3 tools/validate_control.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
-The manifest registers the Phase 1B interaction runtime/CLI, legacy and persistent interaction schemas, run-event and run-record-set schemas, plus the existing storage/portable-CONCAP contracts. Runtime adversarial coverage is in `tests/test_interaction_store.py`; portable bundle behavior remains covered by `tests/test_concap_bundle.py`.
+The manifest registers the Phase 1B interaction and ARK recovery runtimes/CLIs plus the Phase 2 ORACLE adapter, machine contracts, schemas and dedicated adversarial tests.
 
 All public schemas use **JSON Schema draft 2020-12**.
 
@@ -481,7 +537,11 @@ All public schemas use **JSON Schema draft 2020-12**.
 - [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md) — 27-cell interaction-memory model.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md) — future-AI model-state preservation.
 - [`docs/NEXUS-ORACLE.md`](docs/NEXUS-ORACLE.md) — orchestration boundary.
+- [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md) — one-run offline recovery gate.
+- [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md) — read-only evidence adapter and security boundary.
 - [`docs/PORTABLE-CONCAP-BUNDLES.md`](docs/PORTABLE-CONCAP-BUNDLES.md) — deterministic portable bundle format and transport boundary.
+- [`ai/ark-recovery-contract.json`](ai/ark-recovery-contract.json) — machine-readable minimum recovery contract.
+- [`ai/oracle-adapter-contract.json`](ai/oracle-adapter-contract.json) — machine-readable ORACLE read-only adapter contract.
 - [`ai/concap-bundle-contract.json`](ai/concap-bundle-contract.json) — machine-readable portable bundle contract.
 - [`docs/WEBUI.md`](docs/WEBUI.md) — planned human surface.
 - [`docs/AI-API.md`](docs/AI-API.md) — planned machine caller surface.
@@ -496,9 +556,10 @@ QSOL-CONTROL is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. See
 - **PR #1:** Phase-0 architecture/contracts bootstrap — merged.
 - **PR #2:** Phase-1A persistent Files/Collections, retrieval indexes, and DNA/lattice recovery projection — merged/integrated baseline.
 - **PR #4:** portable CONCAP delivery — merged.
-- **PR #5:** Phase-1B interaction/lattice persistence — implemented in this branch; minimum ARK CONTROL bundle remains open.
+- **PR #5:** Phase-1B interaction/lattice persistence — merged.
+- **PR #6:** minimum ARK recovery gate + Phase 2 read-only ORACLE adapter — current implementation.
 
-Live ORACLE/NEXUS adapters, the minimum ARK CONTROL recovery bundle, WebUI and network AI API remain sequenced in the ROADMAP.
+Phase 3 NEXUS integration, the broader Phase 8 repository-level ARK package, WebUI and network AI API remain sequenced in the ROADMAP.
 
 ---
 

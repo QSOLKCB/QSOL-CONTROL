@@ -1,0 +1,50 @@
+{
+  "type": "qsol-control-ark-recovery-contract",
+  "protocol": "qsol-control-ark-minimum-bundle/1",
+  "container": "qsol-restore-dat/1",
+  "runtime": "storage/ark_recovery_bundle.py",
+  "cli": "tools/ark_bundle.py",
+  "authority": "none",
+  "purpose": "minimum deterministic offline reconstruction of one CONTROL interaction run and its canonical storage dependencies",
+  "required_content": [
+    "CONTROL-RECOVERY.json",
+    "lattice/profile.json",
+    "interaction run record",
+    "complete append-only event chain",
+    "all File records and raw objects referenced directly by the run or events",
+    "all File records and raw objects required by the exported Collection snapshot lineage",
+    "Collection descriptor and immutable snapshot lineage from the run-bound snapshot to revision 0 when a Collection is bound"
+  ],
+  "excluded_by_default": [
+    "derived lexical indexes",
+    "derived semantic-vector indexes",
+    "DNA projections",
+    "current source Collection HEAD when it differs from the exact run-bound snapshot",
+    "WebUI state",
+    "live ORACLE or NEXUS connectivity"
+  ],
+  "reconstruction": {
+    "offline": true,
+    "network_required": false,
+    "webui_required": false,
+    "search_engine_required": false,
+    "container_fixed_point_required": true,
+    "run_fingerprint_must_match": true,
+    "collection_snapshot_lineage_must_reach_revision_zero": true,
+    "reconstructed_head": "exact run-bound Collection snapshot, not the source store's later HEAD"
+  },
+  "privacy": {
+    "minimum_bundle_class": "INTERNAL",
+    "strictest_referenced_class_wins": true,
+    "restricted_export_requires_acknowledgement": true,
+    "restricted_export_requires_actor": true,
+    "local_output_mode": "0600"
+  },
+  "boundaries": [
+    "RECOVERY_BUNDLE != SEMANTIC_AUTHORITY",
+    "RECOVERY_HEAD != SOURCE_CURRENT_HEAD",
+    "LATTICE_ADDRESS != TRUTH",
+    "HASH_INTEGRITY != EVIDENCE_AUTHORITY",
+    "RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE"
+  ]
+}

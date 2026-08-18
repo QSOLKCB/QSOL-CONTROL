@@ -70,25 +70,34 @@ The persistent document layer must round-trip canonical fixtures offline, detect
 - [x] Implement append-only run/event persistence with atomic writes.
 - [x] Add run-level storage integrity/fingerprint command.
 - [x] Add adversarial tests for path traversal, duplicate identities, lineage loops, and malformed imports.
-- [ ] Define the minimum storage export bundle for ARK recovery.
+- [x] Define the minimum storage export bundle for ARK recovery.
 
 ### Phase 1B gate
 
-No live ORACLE/model integration until interaction records, referenced Files/Collection snapshots, and lattice lineage can round-trip and verify deterministically offline.
+**Satisfied by `qsol-control-ark-minimum-bundle/1`.** A run, its append-only event lineage, referenced File records/raw objects, exact Collection snapshot lineage, and lattice profile can now be reconstructed into a fresh CONTROL store and verified deterministically offline. The reconstructed Collection `HEAD` is the exact snapshot the run used, not a later source `HEAD`.
+
+No live model integration is permitted merely because the storage gate is satisfied. Live adapters must independently preserve their parent authority boundaries.
 
 ## Phase 2 — ORACLE adapter
 
-- [ ] Discover ORACLE protocol/version at runtime.
-- [ ] Query evidence-only state: `known`, `conflict`, `unknown`.
-- [ ] Preserve ORACLE provenance/event references without copying authority.
-- [ ] Store ORACLE receipts by reference + verified payload identity.
-- [ ] Surface suggested searches as non-evidence.
-- [ ] Add ORACLE availability/freshness indicators.
-- [ ] Add timelock status view for QSOL-CONTEXT 2056 publication contract.
+- [x] Discover ORACLE protocol/version at runtime.
+- [x] Query evidence-only state: `known`, `conflict`, `unknown`.
+- [x] Preserve ORACLE provenance/event references without copying authority.
+- [x] Store ORACLE receipts by reference + verified payload identity.
+- [x] Surface suggested searches as non-evidence.
+- [x] Add ORACLE availability/freshness indicators.
+- [x] Add timelock status view for QSOL-CONTEXT 2056 publication contract.
 
 ### Security gate
 
-CONTROL must be unable to append, rewrite, or relabel ORACLE history through the read/query adapter.
+**Satisfied by a read-only adapter surface.** `qsol-control-oracle-adapter/1` exposes no ORACLE write operations, verifies the parent append-only ledger before evidence queries, and forbids CONTROL receipt storage from overlapping the ORACLE repository tree.
+
+```text
+CONTROL_CAN_APPEND_ORACLE_HISTORY = false
+CONTROL_CAN_REWRITE_ORACLE_HISTORY = false
+CONTROL_CAN_RELABEL_ORACLE_HISTORY = false
+ORACLE_REFERENCE != CONTROL_AUTHORITY
+```
 
 ## Phase 3 — NEXUS Council adapter
 
@@ -170,13 +179,15 @@ Never display a synthetic `truth percentage` derived from votes, confidence, ent
 
 - [x] Define a reversible DNA/lattice projection for individual File bytes.
 - [x] Define deterministic portable CONCAP bundle machinery over `QSOL-RESTORE-DAT/1`.
-- [ ] Define minimum recoverable CONTROL bundle.
-- [ ] Export raw objects, File records, Collection descriptors/snapshots, schemas, run records, model states, and lattice addressing rules.
+- [x] Define minimum recoverable CONTROL bundle.
+- [ ] Export raw objects, File records, Collection descriptors/snapshots, schemas, run records, model states, and lattice addressing rules as a broader repository-level recovery package.
 - [ ] Include optional DNA/lattice projections and search-index descriptors without requiring them as canonical source.
 - [ ] Add plain-text recovery map.
-- [ ] Add standard-library validator/reconstructor.
-- [ ] Test reconstruction without CONTROL WebUI or original search engine.
+- [ ] Add standard-library validator/reconstructor for the broader recovery package.
+- [ ] Test reconstruction of the broader package without CONTROL WebUI or original search engine.
 - [ ] Add constrained-environment recovery fixtures.
+
+The Phase 1B minimum bundle already provides a standard-library validator/reconstructor for one run and excludes the WebUI/search engine. The remaining Phase 8 items describe a wider repository/system recovery package and are deliberately not marked complete by that narrower proof.
 
 ## Phase 9 — INT composition batteries
 

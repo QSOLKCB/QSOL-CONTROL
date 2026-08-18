@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/oracle-adapter-response.schema.json",
+  "title": "QSOL-CONTROL ORACLE Evidence Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "oracle_protocol",
+    "oracle_schema_version",
+    "availability",
+    "subject",
+    "state",
+    "evidence_refs",
+    "ledger_head",
+    "freshness",
+    "suggested_searches",
+    "search_suggestions_are_evidence",
+    "authority",
+    "missing_evidence",
+    "response_sha256"
+  ],
+  "properties": {
+    "protocol": {"const": "qsol-control-oracle-evidence-response/1"},
+    "oracle_protocol": {"const": "QSOL-ORACLE/1"},
+    "oracle_schema_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "availability": {"const": "available"},
+    "subject": {"type": "string", "minLength": 1, "maxLength": 2048},
+    "state": {"enum": ["known", "conflict", "unknown"]},
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "event_hash",
+          "event_type",
+          "subject",
+          "observed_at",
+          "source",
+          "provenance_kind",
+          "evidence_state",
+          "payload_sha256",
+          "authority"
+        ],
+        "properties": {
+          "event_id": {"type": "string", "minLength": 1},
+          "event_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "event_type": {"type": "string", "minLength": 1},
+          "subject": {"type": "string", "minLength": 1},
+          "observed_at": {"type": "string"},
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "locator"],
+            "properties": {
+              "kind": {"type": "string", "minLength": 1},
+              "locator": {"type": "string", "minLength": 1}
+            }
+          },
+          "provenance_kind": {"type": "string", "minLength": 1},
+          "evidence_state": {"enum": ["observed", "conflict", "unknown"]},
+          "payload_sha256": {
+            "oneOf": [
+              {"type": "null"},
+              {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+            ]
+          },
+          "authority": {"const": "oracle-observation-reference"}
+        }
+      }
+    },
+    "ledger_head": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "source_time",
+        "evaluated_at",
+        "max_age_seconds",
+        "age_seconds",
+        "stale_means_false",
+        "fresh_means_true"
+      ],
+      "properties": {
+        "state": {"enum": ["fresh", "stale", "undated", "future-dated"]},
+        "source_time": {"oneOf": [{"type": "null"}, {"type": "string"}]},
+        "evaluated_at": {"type": "string"},
+        "max_age_seconds": {"type": "integer", "minimum": 0},
+        "age_seconds": {"oneOf": [{"type": "null"}, {"type": "integer"}]},
+        "stale_means_false": {"const": false},
+        "fresh_means_true": {"const": false}
+      }
+    },
+    "suggested_searches": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 2048}
+    },
+    "search_suggestions_are_evidence": {"const": false},
+    "authority": {"const": "none"},
+    "missing_evidence": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "response_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
