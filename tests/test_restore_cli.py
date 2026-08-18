@@ -70,18 +70,65 @@ class RestoreCliTests(unittest.TestCase):
             )
 
             dna = root / "identity.dna.json"
+            audit = root / "restore-audit.jsonl"
             rejected = self.run_cli("dna-export", capsule, "--output", dna, check=False)
             self.assertNotEqual(rejected.returncode, 0)
             self.assertIn("--allow-restricted", rejected.stderr)
 
-            self.run_cli(
+            missing_actor = self.run_cli(
                 "dna-export",
                 capsule,
                 "--output",
                 dna,
                 "--allow-restricted",
                 "--acknowledge-reversible-sensitive-export",
+                check=False,
             )
+            self.assertNotEqual(missing_actor.returncode, 0)
+            self.assertIn("--actor", missing_actor.stderr)
+
+            preview = self.run_cli(
+                "dna-export",
+                capsule,
+                "--output",
+                dna,
+                "--allow-restricted",
+                "--acknowledge-reversible-sensitive-export",
+                "--actor",
+                "test-operator",
+                "--audit-log",
+                audit,
+                "--dry-run",
+            )
+            preview_report = json.loads(preview.stdout)
+            self.assertTrue(preview_report["dry_run"])
+            self.assertFalse(dna.exists())
+            self.assertFalse(audit.exists())
+
+            exported = self.run_cli(
+                "dna-export",
+                capsule,
+                "--output",
+                dna,
+                "--allow-restricted",
+                "--acknowledge-reversible-sensitive-export",
+                "--actor",
+                "test-operator",
+                "--audit-log",
+                audit,
+            )
+            exported_report = json.loads(exported.stdout)
+            self.assertTrue(dna.is_file())
+            self.assertTrue(audit.is_file())
+            rows = [json.loads(line) for line in audit.read_text(encoding="utf-8").splitlines() if line]
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["protocol"], "qsol-control-restore-audit-event/1")
+            self.assertEqual(rows[0]["actor"], "test-operator")
+            self.assertEqual(rows[0]["action"], "restore-dna-export")
+            self.assertEqual(rows[0]["details"]["projection_id"], exported_report["projection_id"])
+            self.assertTrue(rows[0]["details"]["restricted"])
+            self.assertTrue(rows[0]["details"]["reversible_sensitive_export_acknowledged"])
+
             rebuilt = root / "identity.rebuilt.dat"
             self.run_cli("dna-decode", dna, "--output", rebuilt)
             self.assertEqual(rebuilt.read_bytes(), capsule.read_bytes())
