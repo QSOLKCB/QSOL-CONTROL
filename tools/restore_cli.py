@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,9 +25,22 @@ from storage.restore_capsule import (
     verify_capsule,
 )
 
+AUDIT_PROTOCOL = "qsol-control-restore-audit-event/1"
+DEFAULT_AUDIT_LOG = ".qsol-control-restore-audit.jsonl"
+
 
 def emit(value) -> None:
     print(json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False))
+
+
+def canonical_json_bytes(value) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
 
 
 def load_json(path: Path):
@@ -37,6 +52,30 @@ def load_json(path: Path):
 def refuse_symlink_output(path: Path) -> None:
     if path.is_symlink():
         raise RestoreCapsuleError(f"refusing symlink output: {path}")
+
+
+def append_audit_event(path: Path, *, actor: str, action: str, details: dict) -> dict:
+    if path.is_symlink():
+        raise RestoreCapsuleError("restore audit log must not be a symlink")
+    if not isinstance(actor, str) or not actor.strip():
+        raise RestoreCapsuleError("restore audit actor must be non-empty")
+    base = {
+        "protocol": AUDIT_PROTOCOL,
+        "recorded_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "actor": actor.strip(),
+        "action": action,
+        "details": details,
+        "canonical": False,
+        "authority": "none",
+    }
+    event = {
+        "event_id": "sha256:" + hashlib.sha256(canonical_json_bytes(base)).hexdigest(),
+        **base,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, sort_keys=True, separators=(",", ":"), ensure_ascii=False) + "\n")
+    return event
 
 
 def command_pack(args: argparse.Namespace) -> int:
@@ -147,6 +186,7 @@ def command_dna_export(args: argparse.Namespace) -> int:
     if path.is_symlink():
         raise RestoreCapsuleError("dna-export refuses symlink capsule inputs")
     capsule = path.read_bytes()
+    capsule_report = verify_capsule(capsule)
     restricted = capsule_contains_restricted(capsule)
     if restricted and not args.allow_restricted:
         raise RestoreCapsuleError("RESTRICTED restore capsule DNA export requires --allow-restricted")
@@ -154,12 +194,49 @@ def command_dna_export(args: argparse.Namespace) -> int:
         raise RestoreCapsuleError(
             "RESTRICTED restore capsule DNA export also requires --acknowledge-reversible-sensitive-export"
         )
+    if restricted and (not isinstance(args.actor, str) or not args.actor.strip()):
+        raise RestoreCapsuleError("RESTRICTED restore capsule DNA export requires explicit --actor")
+
     projection = encode_capsule_dna(capsule)
+    if args.dry_run:
+        emit(
+            {
+                "protocol": "qsol-control-restore-dna-export-preview/1",
+                "status": "preview",
+                "dry_run": True,
+                "restricted": restricted,
+                "projection_id": projection["projection_id"],
+                "restore_capsule_sha256": projection["restore_capsule_sha256"],
+                "would_write": args.output,
+                "would_audit": False,
+            }
+        )
+        return 0
+
     output = Path(args.output)
     refuse_symlink_output(output)
     output.write_text(
         json.dumps(projection, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
+    )
+
+    audit_log = Path(args.audit_log)
+    event = append_audit_event(
+        audit_log,
+        actor=args.actor.strip() if isinstance(args.actor, str) and args.actor.strip() else "local-operator",
+        action="restore-dna-export",
+        details={
+            "capsule": str(path),
+            "capsule_sha256": capsule_report["capsule_sha256"],
+            "manifest_id": capsule_report["manifest_id"],
+            "restricted": restricted,
+            "allow_restricted": bool(args.allow_restricted),
+            "reversible_sensitive_export_acknowledged": bool(
+                args.acknowledge_reversible_sensitive_export
+            ),
+            "projection_id": projection["projection_id"],
+            "output": str(output),
+        },
     )
     emit(
         {
@@ -168,6 +245,8 @@ def command_dna_export(args: argparse.Namespace) -> int:
             "restricted": restricted,
             "projection_id": projection["projection_id"],
             "restore_capsule_sha256": projection["restore_capsule_sha256"],
+            "audit_event_id": event["event_id"],
+            "audit_log": str(audit_log),
         }
     )
     return 0
@@ -220,6 +299,17 @@ def build_parser() -> argparse.ArgumentParser:
     dna_export.add_argument("--output", required=True)
     dna_export.add_argument("--allow-restricted", action="store_true")
     dna_export.add_argument("--acknowledge-reversible-sensitive-export", action="store_true")
+    dna_export.add_argument("--actor", help="audit actor; required for RESTRICTED capsule export")
+    dna_export.add_argument(
+        "--audit-log",
+        default=DEFAULT_AUDIT_LOG,
+        help=f"local non-canonical JSONL audit log (default: {DEFAULT_AUDIT_LOG})",
+    )
+    dna_export.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="validate and preview without writing projection or audit event",
+    )
     dna_export.set_defaults(func=command_dna_export)
 
     dna_decode = sub.add_parser("dna-decode", help="decode and verify a restore capsule DNA projection")
