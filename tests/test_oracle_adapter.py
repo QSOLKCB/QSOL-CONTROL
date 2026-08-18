@@ -299,6 +299,53 @@ class OracleAdapterTests(unittest.TestCase):
             hashlib.sha256(canonical_json_bytes(response)).hexdigest(),
         )
 
+    def test_hash_valid_fabricated_oracle_event_cannot_be_cached(self):
+        fabricated = make_event(
+            4,
+            event_id="fabricated.fixture",
+            subject="fixture:fabricated",
+            state="observed",
+            observed_at="2026-08-19T08:02:00+09:30",
+            previous_hash=self.events[-1]["event_hash"],
+            payload_sha256="e" * 64,
+        )
+        with self.assertRaisesRegex(OracleAdapterError, "not present in verified parent history"):
+            self.adapter.persist_receipt(
+                self.root / "control-fabricated",
+                fabricated,
+                source_ref=f"oracle:event:{fabricated['event_hash']}",
+                created_at="2026-08-19T08:06:00+09:30",
+            )
+
+    def test_cached_query_response_must_match_verified_historical_ledger(self):
+        response = self.adapter.query_evidence(
+            "fixture:known",
+            evaluated_at="2026-08-19T08:05:00+09:30",
+        )
+        forged = dict(response)
+        forged["state"] = "unknown"
+        forged["response_sha256"] = canonical_hash(
+            {key: value for key, value in forged.items() if key != "response_sha256"}
+        )
+        with self.assertRaisesRegex(OracleAdapterError, "state does not match verified history"):
+            self.adapter.persist_receipt(
+                self.root / "control-forged-query",
+                forged,
+                source_ref="oracle-query:forged",
+                created_at="2026-08-19T08:06:00+09:30",
+            )
+
+    def test_raw_timelock_receipt_must_match_witnessed_parent_contract(self):
+        altered = dict(self.contract)
+        altered["not_before"] = "2057-08-18T00:00:00+09:30"
+        with self.assertRaisesRegex(OracleAdapterError, "does not match the parent contract"):
+            self.adapter.persist_receipt(
+                self.root / "control-forged-timelock",
+                altered,
+                source_ref="oracle:timelock:forged",
+                created_at="2026-08-19T08:06:00+09:30",
+            )
+
     def test_receipt_storage_cannot_overlap_oracle_repository(self):
         response = self.adapter.query_evidence(
             "fixture:known", evaluated_at=BASE_TIME
