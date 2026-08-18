@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/nexus-council-response.schema.json",
+  "title": "QSOL-CONTROL Verified NEXUS Council Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "availability",
+    "nexus_protocol",
+    "nexus_runtime_version",
+    "session_id",
+    "session_ref",
+    "receipt_ref",
+    "epoch_admission_receipt_ref",
+    "execution_replayable",
+    "mode_id",
+    "evidence_snapshot_ref",
+    "world_presence_ref",
+    "admitted_evidence_refs",
+    "roster",
+    "phase_order",
+    "phases",
+    "sealed_ballot",
+    "consensus",
+    "minority_reports",
+    "telemetry",
+    "failsafe",
+    "council_chair",
+    "citizenship",
+    "receipt_verification",
+    "epoch_admission_verification",
+    "governance",
+    "hidden_chain_of_thought_captured",
+    "authority",
+    "response_sha256"
+  ],
+  "properties": {
+    "protocol": {"const": "qsol-control-nexus-council-response/1"},
+    "availability": {"const": "available"},
+    "nexus_protocol": {"type": "string", "pattern": "^nexus/[0-9]+\\.[0-9]+$"},
+    "nexus_runtime_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "session_id": {"type": "string", "minLength": 1},
+    "session_ref": {"type": "string", "pattern": "^object:[0-9a-f]{64}$"},
+    "receipt_ref": {"type": "string", "pattern": "^object:[0-9a-f]{64}$"},
+    "epoch_admission_receipt_ref": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^object:[0-9a-f]{64}$"}
+      ]
+    },
+    "execution_replayable": {"type": "boolean"},
+    "mode_id": {"type": ["string", "null"]},
+    "evidence_snapshot_ref": {"type": "string", "pattern": "^object:[0-9a-f]{64}$"},
+    "world_presence_ref": {
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^object:[0-9a-f]{64}$"}
+      ]
+    },
+    "admitted_evidence_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^object:[0-9a-f]{64}$"}
+    },
+    "roster": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["member_id", "model_id", "adapter_id", "vote_weight", "epistemic_privilege"],
+        "properties": {
+          "member_id": {"type": "string", "minLength": 1},
+          "model_id": {"type": "string", "minLength": 1},
+          "adapter_id": {"type": "string", "minLength": 1},
+          "vote_weight": {"const": 1},
+          "epistemic_privilege": {"const": "none"}
+        }
+      }
+    },
+    "phase_order": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "phases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase", "submissions"],
+        "properties": {
+          "phase": {"type": "string", "minLength": 1},
+          "submissions": {"type": "array", "items": {"type": "object"}}
+        }
+      }
+    },
+    "sealed_ballot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stage", "sealed_before_reveal", "commitments", "revealed_ballots", "commitments_verified"],
+      "properties": {
+        "stage": {"const": "SEALED_BALLOT"},
+        "sealed_before_reveal": {"const": true},
+        "commitments": {"type": "array", "items": {"type": "object"}},
+        "revealed_ballots": {"type": "array", "items": {"type": "object"}},
+        "commitments_verified": {"const": true}
+      }
+    },
+    "consensus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["disposition", "tally", "consensus_label", "consensus_threshold", "evidence_state"],
+      "properties": {
+        "disposition": {"type": ["string", "null"]},
+        "tally": {"type": "object"},
+        "consensus_label": {"type": ["string", "null"]},
+        "consensus_threshold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["numerator", "denominator"],
+          "properties": {
+            "numerator": {"type": "integer", "minimum": 1},
+            "denominator": {"type": "integer", "minimum": 1}
+          }
+        },
+        "evidence_state": {"type": ["string", "null"]}
+      }
+    },
+    "minority_reports": {"type": "array", "items": {"type": "object"}},
+    "telemetry": {},
+    "failsafe": {},
+    "council_chair": {},
+    "citizenship": {},
+    "receipt_verification": {"type": "object"},
+    "epoch_admission_verification": {},
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "vote_weight_source",
+        "ballot_source",
+        "roster_source",
+        "phase_order_source",
+        "consensus_threshold_source",
+        "worldstore_history_owner",
+        "control_direct_worldstore_mutation",
+        "control_ballot_override",
+        "control_threshold_override",
+        "control_vote_weight_override"
+      ],
+      "properties": {
+        "vote_weight_source": {"const": "nexus_session_roster_and_policy"},
+        "ballot_source": {"const": "nexus_committed_council_session"},
+        "roster_source": {"const": "nexus_committed_council_session"},
+        "phase_order_source": {"const": "nexus_committed_council_session"},
+        "consensus_threshold_source": {"const": "nexus_committed_council_session"},
+        "worldstore_history_owner": {"const": "QSOL-NEXUS"},
+        "control_direct_worldstore_mutation": {"const": false},
+        "control_ballot_override": {"const": false},
+        "control_threshold_override": {"const": false},
+        "control_vote_weight_override": {"const": false}
+      }
+    },
+    "hidden_chain_of_thought_captured": {"const": false},
+    "authority": {"const": "reference-and-render-only"},
+    "storage": {"type": "object"},
+    "response_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
