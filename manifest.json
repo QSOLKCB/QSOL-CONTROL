@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-manifest",
   "protocol": "QSOL-CONTROL/0.1",
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "snapshot_date": "2026-08-18",
   "role": "human-and-ai-control-plane",
   "verb": "OPERATES",
@@ -17,6 +17,7 @@
   "security": "SECURITY.md",
   "persistent_storage_document": "docs/PERSISTENT-STORAGE.md",
   "storage_hardening_document": "docs/STORAGE-HARDENING.md",
+  "cold_restore_document": "docs/COLD-RESTORE.md",
   "json_schema": {
     "draft": "https://json-schema.org/draft/2020-12/schema",
     "compatibility_policy": "semantic-versioning",
@@ -27,13 +28,16 @@
   "validation": {
     "python_minimum": "3.11",
     "command": "python3 tools/validate_control.py",
+    "restore_command": "python3 tools/restore_cli.py",
+    "restore_validation_command": "python3 tools/validate_restore_contracts.py",
     "test_command": "python3 -W default -m unittest discover -s tests -v",
     "workflow": ".github/workflows/validate.yml"
   },
   "interfaces": {
     "human": "webui-planned",
     "ai": "structured-api-planned",
-    "storage_cli": "tools/storage_cli.py"
+    "storage_cli": "tools/storage_cli.py",
+    "restore_cli": "tools/restore_cli.py"
   },
   "roles": {
     "QSOL-SUBSTRATE": "KNOWS",
@@ -47,8 +51,14 @@
   "repository_boundaries": {
     "QSOL-CONTROL": {
       "visibility": "public",
-      "role": "storage/control machinery",
-      "private_corpus_home": false
+      "role": "storage/control/reconstruction machinery",
+      "private_corpus_home": false,
+      "recovery_authority": false
+    },
+    "QSOL-CONTEXT": {
+      "visibility": "private",
+      "role": "curated private working context and personal continuity source profiles",
+      "canonical_raw_export_home": false
     },
     "QSOL-CORPUS": {
       "visibility": "private",
@@ -59,6 +69,11 @@
       "visibility": "public",
       "role": "reusable lattice-memory implementation/profile",
       "evidence_authority": "none"
+    },
+    "QSOL-ARK": {
+      "visibility": "public",
+      "role": "recovery semantics, Minimum Recoverable Substrate and cold-start evaluation",
+      "recovery_authority": true
     }
   },
   "query_modes": ["evidence_only", "council"],
@@ -71,11 +86,15 @@
   "persistent_storage": {
     "runtime": "storage/control_store.py",
     "dna_lattice_codec": "storage/dna_lattice.py",
+    "restore_capsule_runtime": "storage/restore_capsule.py",
     "file_protocol": "qsol-control-file/1",
     "collection_protocol": "qsol-control-collection/1",
     "collection_snapshot_protocol": "qsol-control-collection-snapshot/1",
     "search_index_protocol": "qsol-control-search-index/1",
     "dna_lattice_protocol": "qsol-control-dna-lattice/1",
+    "restore_capsule_protocol": "qsol-control-restore-capsule/1",
+    "restore_container": "qsol-restore-dat/1",
+    "restore_pack_spec_protocol": "qsol-control-restore-pack-spec/1",
     "audit_event_protocol": "qsol-control-audit-event/1",
     "canonical_object_identity": "sha256(raw_bytes)",
     "canonical_record_serialization": "utf-8 canonical JSON with sorted keys and compact separators",
@@ -126,7 +145,27 @@
       "derived": true,
       "rebuildable": true,
       "compression_claim": false
+    },
+    "cold_restore": {
+      "container": "qsol-restore-dat/1",
+      "magic": "QSOL-RESTORE-DAT/1\\0",
+      "manifest_serialization": "canonical-json",
+      "entry_order": "utf8-byte-lexicographic-logical-path",
+      "identity": "sha256 manifest id + per-entry SHA-256 + payload SHA-256",
+      "fixed_point_required": true,
+      "dna_projection_optional": true,
+      "recovery_classes": ["NEAR_SHELL", "MID_SHELL", "OUTER_SHELL", "RESONANCE_NODE", "WIGGLE_ZONE"],
+      "phi_shell_milli": [1000, 1618, 2618, 4236, 6854],
+      "qec_lineage_semantics": "deterministic recovery scheduling lineage only",
+      "recovery_authority": "QSOL-ARK",
+      "model_instance_reconstruction_claim": false
     }
+  },
+  "restore_contracts": {
+    "pack_spec_schema": "schema/restore-pack-spec.schema.json",
+    "valid_fixture": "examples/schema/restore-pack-spec.valid.json",
+    "invalid_fixture": "examples/schema/restore-pack-spec.invalid.json",
+    "runtime_tests": ["tests/test_restore_capsule.py", "tests/test_restore_cli.py"]
   },
   "schemas": {
     "query": "schema/control-query.schema.json",
@@ -189,7 +228,8 @@
     "docs/NEXUS-ORACLE.md",
     "docs/PERSISTENT-STORAGE.md",
     "docs/STORAGE-HARDENING.md",
-    "docs/STORAGE-LINEAGE.md"
+    "docs/STORAGE-LINEAGE.md",
+    "docs/COLD-RESTORE.md"
   ],
   "status": {
     "phase": 1,
@@ -202,6 +242,9 @@
     "deterministic_lexical_retrieval": "implemented",
     "semantic_vector_index_registration_and_search": "implemented",
     "dna_lattice_recovery_projection": "implemented",
+    "cold_restore_dat_container": "implemented-experimental",
+    "cold_restore_fixed_point_verification": "implemented-experimental",
+    "cold_restore_dna_roundtrip": "implemented-experimental",
     "operator_audit_records": "implemented-local",
     "collection_compare_and_swap": "implemented-local",
     "embedding_generation_adapter": "not-yet-implemented",
