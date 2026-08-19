@@ -6,6 +6,7 @@
     "discovery": ["system.health", "system.operations"],
     "transport": "jsonl_stdio",
     "supported_protocol_major": 0,
+    "runtime_version_format": "semantic-versioning-2.0.0-including-prerelease-and-build-metadata",
     "required_operations": [
       "system.health",
       "system.operations",
@@ -34,6 +35,9 @@
     "evidence_refs": "ordered unique NEXUS WorldStore object references",
     "evidence_state": "explicit caller-supplied evidence classification",
     "mode": "NEXUS mode id",
+    "hidden_reasoning_fields_rejected_recursively_before_submission": true,
+    "credential_labelled_fields_rejected_recursively_before_submission": true,
+    "credential_value_markers_rejected_before_submission": true,
     "forbidden_control_fields": [
       "vote_weight",
       "epistemic_privilege",
@@ -53,23 +57,35 @@
   "post_commit_verification": [
     "resolve session_ref through world.inspect",
     "verify WorldStore content address",
+    "resolve committed question_ref and require exact submitted question text",
+    "require committed world_mode and world_presence mode to equal submitted mode",
+    "require receipt input refs to bind committed question evidence snapshot and world presence",
     "preserve canonical roster order from committed council_session",
+    "require roster member_id model_id and adapter_id to be non-empty strings",
     "preserve phase_order from committed council_session policy",
     "require each phase join order to equal committed roster order",
     "verify each revealed ballot against its NEXUS ballot commitment",
     "require result tally to equal revealed ballots",
+    "require result disposition to equal the revealed-ballot plurality/tie result",
+    "recompute threshold satisfaction from committed numerator denominator and revealed ballots",
+    "require consensus_label to match NEXUS tally semantics",
+    "render consensus_outcome as NO_CONSENSUS whenever the committed threshold is not met",
     "require result consensus_threshold to equal committed session policy",
     "preserve minority_reports exactly from committed result",
     "resolve and verify receipt_ref through receipt.verify",
     "verify receipt result_ref and replayability against committed session",
     "verify optional Compute Epoch admission receipt when advertised",
-    "preserve Council Chair vote_weight_per_seat=1 and epistemic_privilege_per_seat=none when present"
+    "preserve Council Chair vote_weight_per_seat=1 and epistemic_privilege_per_seat=none when present",
+    "reject credential-labelled fields in accepted parent artifacts",
+    "reject hidden reasoning fields in accepted parent artifacts"
   ],
   "render": {
     "phase_order_source": "nexus_committed_council_session",
     "sealed_ballot_stage": "SEALED_BALLOT",
     "ballot_contents_source": "nexus_committed_council_session",
     "consensus_threshold_source": "nexus_committed_council_session",
+    "threshold_met": "recomputed_from_revealed_ballots_and_committed_threshold",
+    "consensus_outcome": "winning_disposition_only_when_threshold_met_else_NO_CONSENSUS",
     "minority_reports_source": "nexus_committed_council_session",
     "telemetry_authority": "observational_only",
     "truth_score_generated": false
@@ -86,6 +102,12 @@
       "optional epoch admission receipt and verification"
     ],
     "interaction_linking": ["receipt event", "response event"],
+    "target_run_must_match": [
+      "question text",
+      "CONTROL mode=council",
+      "evidence_state"
+    ],
+    "target_run_validation_happens_before_artifact_writes": true,
     "copies_nexus_governance_authority": false,
     "mutates_nexus_worldstore_directly": false
   },
@@ -106,6 +128,25 @@
     "visible_phase_submissions_are_hidden_reasoning": false,
     "visible_ballot_rationales_are_hidden_reasoning": false
   },
+  "credential_boundary": {
+    "known_value_markers_rejected": true,
+    "credential_labelled_keys_rejected_recursively": [
+      "api_key",
+      "apikey",
+      "access_token",
+      "refresh_token",
+      "auth_token",
+      "bearer_token",
+      "authorization",
+      "client_secret",
+      "private_key",
+      "credential",
+      "credentials",
+      "password",
+      "passwd"
+    ],
+    "credential_env_reference_field_is_secret_value": false
+  },
   "governance_gate": {
     "control_can_alter_vote_weight": false,
     "control_can_alter_ballot_contents": false,
@@ -118,6 +159,8 @@
   "invariants": [
     "CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL",
     "NEXUS_SESSION != CONTROL_REINTERPRETATION",
+    "SELF_CONSISTENT_SESSION != SUBMITTED_REQUEST_BINDING",
+    "PLURALITY_DISPOSITION != CONSENSUS_THRESHOLD_MET",
     "CONSENSUS != EVIDENCE",
     "CONSENSUS != TRUTH",
     "VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
