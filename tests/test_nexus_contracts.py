@@ -1,8 +1,10 @@
 import json
+import re
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 
 
 class NexusAdapterContractTests(unittest.TestCase):
@@ -11,7 +13,10 @@ class NexusAdapterContractTests(unittest.TestCase):
 
     def test_manifest_registers_phase3_surfaces(self):
         manifest = self.load("manifest.json")
-        self.assertEqual(manifest["schema_version"], "1.6.0")
+        # Phase-specific tests pin the NEXUS surfaces, not the repository's
+        # forever-global schema version. Later phases may legitimately advance
+        # that version under the manifest semantic-versioning policy.
+        self.assertRegex(manifest["schema_version"], SEMVER_RE)
         self.assertEqual(
             manifest["nexus_adapter_contract"], "ai/nexus-adapter-contract.json"
         )
@@ -29,7 +34,9 @@ class NexusAdapterContractTests(unittest.TestCase):
             manifest["schemas"]["nexus_council_response"],
             "schema/nexus-council-response.schema.json",
         )
-        self.assertEqual(manifest["status"]["completed_through_roadmap_phase"], 3)
+        self.assertGreaterEqual(
+            manifest["status"]["completed_through_roadmap_phase"], 3
+        )
         self.assertEqual(
             manifest["status"]["live_nexus_adapter"],
             "implemented-phase-3-local-jsonl",
