@@ -14,7 +14,7 @@ from .dna_lattice import (
     encode_projection,
 )
 from .interaction_store import InteractionStore, lattice_address
-from .model_state_registry import (
+from .model_state import (
     ModelStateError,
     ModelStateRegistry,
     hash_local_artifact,
