@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from storage.control_store import StorageError
 from storage.model_state_registry import ModelStateError, ModelStateRegistry
 
 MAX_DESCRIPTOR_BYTES = 4 * 1024 * 1024
@@ -143,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
             _emit(export)
             return 0
         parser.error("unknown command")
-    except ModelStateError as exc:
+    except (ModelStateError, StorageError) as exc:
         parser.error(str(exc))
     return 2
 
