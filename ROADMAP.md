@@ -137,9 +137,9 @@ VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 
 ### Epistemic gate
 
-**Satisfied at the storage, schema, export, documentation, and UI-label-contract layers.** `qsol-control-model-state/1` records are immutable reproducibility metadata with explicit per-field provenance. The runtime and schemas require `MODEL_STATE != MODEL_MIND`, `hidden_chain_of_thought_captured = false`, and `model_mind_captured = false`. Archaeology exports preserve the same boundary, contain no model artifact bytes or local artifact paths, and require explicit acknowledgement for RESTRICTED material.
+**Satisfied at the storage, schema, export, documentation, and WebUI layers.** `qsol-control-model-state/1` records are immutable reproducibility metadata with explicit per-field provenance. The runtime and schemas require `MODEL_STATE != MODEL_MIND`, `hidden_chain_of_thought_captured = false`, and `model_mind_captured = false`. Archaeology exports preserve the same boundary, contain no model artifact bytes or local artifact paths, and require explicit acknowledgement for RESTRICTED material.
 
-The Phase 5 WebUI is **not** implemented yet. Its model-state inspector labels are already pinned in `ai/model-state-contract.json` and `docs/MODEL-STATE.md`, including `Model-state reproducibility metadata` and the `Not model mind` boundary badge, so a future UI cannot silently relabel this material as cognition.
+Phase 5 consumes the pinned labels directly in the implemented model-state inspector:
 
 ```text
 MODEL_STATE != MODEL_MIND
@@ -151,27 +151,43 @@ MODEL_STATE_COMPARISON != MIND_COMPARISON
 
 ## Phase 5 — Human WebUI
 
-- [ ] Build question composer with explicit `Evidence only` / `Ask Council` modes.
-- [ ] Build File attachment flow for immediate context.
-- [ ] Build persistent Collection create/browse/search interface.
-- [ ] Show exact Collection snapshot used by a run.
-- [ ] Build evidence panel.
-- [ ] Build Council phase + sealed-vote panel.
-- [ ] Build minority-report panel.
-- [ ] Build sources/provenance panel.
-- [ ] Build ORACLE timeline/receipt view.
-- [ ] Build model-state inspector.
-- [ ] Build lattice-memory browser.
-- [ ] Build DNA/lattice recovery projection inspector/export control.
-- [ ] Build replay/compare view.
-- [ ] Build health/status page for connected QSOL services.
-- [ ] Add accessible keyboard-first interface and mobile fallback.
+- [x] Build question composer with explicit `Evidence only` / `Ask Council` modes.
+- [x] Build File attachment flow for immediate context.
+- [x] Build persistent Collection create/browse/search interface.
+- [x] Show exact Collection snapshot used by a run.
+- [x] Build evidence panel.
+- [x] Build Council phase + sealed-vote panel.
+- [x] Build minority-report panel.
+- [x] Build sources/provenance panel.
+- [x] Build ORACLE timeline/receipt view.
+- [x] Build model-state inspector.
+- [x] Build lattice-memory browser.
+- [x] Build DNA/lattice recovery projection inspector/export control.
+- [x] Build replay/compare view.
+- [x] Build health/status page for connected QSOL services.
+- [x] Add accessible keyboard-first interface and mobile fallback.
 
 ### UI invariant
 
 Never display a synthetic `truth percentage` derived from votes, confidence, entropy, model count, consensus, retrieval score, embedding similarity, codon frequency, or lattice position.
 
-The future model-state inspector must also preserve the Phase 4 label contract: reproducibility metadata is not a model mind, provider-reported metadata is not locally verified metadata, and inferred values must remain visibly inferred.
+**Satisfied by `qsol-control-webui/1`.** The implemented local WebUI is loopback-only, requires a same-origin session token for API access, reuses the existing CONTROL/ORACLE/NEXUS runtimes, and keeps every displayed quantity in its original semantic lane. It does not expose generic parent mutation operations or invent a new authority-bearing API.
+
+The model-state inspector preserves the Phase 4 label contract exactly: reproducibility metadata is not a model mind, provider-reported metadata is not locally verified metadata, inferred values remain visibly inferred, and unknown stays unknown.
+
+```text
+CONTROL_DISPLAY != AUTHORITY
+VOTE != EVIDENCE
+CONSENSUS != TRUTH
+SEARCH_SCORE != TRUTH
+SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
+MODEL_STATE != MODEL_MIND
+PROVIDER_REPORTED != LOCALLY_VERIFIED
+LATTICE_ADDRESS != TRUTH
+CODON_FREQUENCY != EVIDENCE
+```
+
+Phase 5's replay/compare surface compares immutable stored runs only. Actual replay execution remains Phase 7.
 
 ## Phase 6 — AI / agent API
 
@@ -228,14 +244,16 @@ The Phase 1B minimum bundle already provides a standard-library validator/recons
 
 - [ ] Threat-model network and browser boundaries.
 - [ ] Expand secret-scrubbing tests for File metadata/imports.
-- [ ] CSRF/CORS/session protection as applicable to chosen runtime.
-- [ ] Strict local-bind default for operator service.
+- [x] Add same-origin session-token / no-CORS baseline for the local WebUI.
+- [x] Strict local-bind default for operator service.
 - [x] Add portable CONCAP metadata/count limits and hostile-input guards.
 - [ ] Import/export decompression-bomb defenses where compressed untrusted inputs are accepted.
 - [ ] Fuzz/adversarial storage tests.
 - [ ] Reproducible release bundle.
 - [ ] Versioned migration policy.
 - [ ] Release checklist and changelog discipline.
+
+The broader Phase 10 browser/network threat model remains open even though Phase 5 implements a concrete local-only/session-token baseline.
 
 ## Deferred / explicitly not promised yet
 
