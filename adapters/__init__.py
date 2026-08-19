@@ -1,5 +1,11 @@
-"""QSOL-CONTROL external read/query adapters."""
+"""QSOL-CONTROL external authority-preserving adapters."""
 
+from .nexus import NexusAdapterError, NexusCouncilAdapter
 from .oracle import OracleAdapter, OracleAdapterError
 
-__all__ = ["OracleAdapter", "OracleAdapterError"]
+__all__ = [
+    "NexusAdapterError",
+    "NexusCouncilAdapter",
+    "OracleAdapter",
+    "OracleAdapterError",
+]

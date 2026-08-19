@@ -333,7 +333,7 @@ Run verification checks immutable record identities, event lineage, exact Collec
 
 ## Minimum ARK recovery bundle
 
-Phase 1B's offline gate is now closed by `qsol-control-ark-minimum-bundle/1`, carried inside the existing deterministic `QSOL-RESTORE-DAT/1` container.
+Phase 1B's offline gate is closed by `qsol-control-ark-minimum-bundle/1`, carried inside the existing deterministic `QSOL-RESTORE-DAT/1` container.
 
 For one interaction run it packages the run record, complete event chain, referenced File records/raw objects, the exact bound Collection descriptor and snapshot lineage to revision 0 when applicable, and the lattice profile required to interpret addresses. Derived search indexes, WebUI state, and live service connections are excluded from the minimum set.
 
@@ -351,7 +351,7 @@ See [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md) and [`ai/ark-reco
 
 ## Phase 2 read-only ORACLE adapter
 
-CONTROL now implements `qsol-control-oracle-adapter/1` against the stable parent protocol `QSOL-ORACLE/1`.
+CONTROL implements `qsol-control-oracle-adapter/1` against the stable parent protocol `QSOL-ORACLE/1`.
 
 The adapter discovers the parent manifest at runtime, verifies the append-only ledger before evidence queries, returns exact `known` / `conflict` / `unknown` states, preserves event/provenance references, reports freshness separately from truth semantics, stores verified receipt payloads only as reference-only CONTROL Files, and exposes the QSOL-CONTEXT 2056 timelock state.
 
@@ -366,9 +366,34 @@ SUGGESTED_SEARCH != EVIDENCE
 ELIGIBLE != EXECUTED
 ```
 
-Unknown ORACLE protocol majors fail closed. Compatible ORACLE 1.x parents may optionally expose `QSOL-ORACLE-FEED/1` receipts; CONTROL can verify those receipts without making feed collectors a required dependency.
-
 See [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md) and [`ai/oracle-adapter-contract.json`](ai/oracle-adapter-contract.json).
+
+## Phase 3 NEXUS Council adapter
+
+CONTROL now implements `qsol-control-nexus-adapter/1` over NEXUS's local JSONL/stdio control plane.
+
+Every adapter session discovers `system.health` and `system.operations`; CONTROL does not freeze the entire NEXUS operation catalog into its own code. The adapter requires the live parent to advertise `council.run`, `world.inspect` and `receipt.verify`, with `council.epoch.verify` used only when advertised and returned by NEXUS.
+
+After Council execution, CONTROL resolves the committed `council_session` and receipt from NEXUS WorldStore, verifies their content-addressed identities, preserves the canonical roster and phase order, verifies each revealed ballot against its sealed commitment, renders the exact consensus threshold from the committed session policy, and preserves minority reports.
+
+The six deliberation phases are preserved from the NEXUS session policy. The subsequent commitment/reveal stage is rendered separately as `SEALED_BALLOT`; CONTROL does not rewrite the parent phase array to make a diagram look tidier.
+
+```text
+CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
+NEXUS_SESSION != CONTROL_REINTERPRETATION
+CONTROL_CAN_WORLD_CREATE = false
+CONTROL_CAN_OVERRIDE_VOTE_WEIGHT = false
+CONTROL_CAN_OVERRIDE_BALLOTS = false
+CONTROL_CAN_OVERRIDE_CONSENSUS_THRESHOLD = false
+NEXUS_OWNS_WORLDSTORE_HISTORY = true
+VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+```
+
+CONTROL never calls NEXUS Stenographer operations through this adapter and fails closed if parent output exposes fields labelled as hidden/private reasoning, chain-of-thought, scratchpad, or reasoning trace. Visible phase submissions and visible ballot rationales remain externally visible NEXUS outputs, not hidden chain-of-thought.
+
+Verified NEXUS session/receipt/output artifacts may be copied into CONTROL only as `reference-only` Files. When linked to an existing CONTROL interaction, the adapter appends receipt and derived response events without copying NEXUS governance authority.
+
+See [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md) and [`ai/nexus-adapter-contract.json`](ai/nexus-adapter-contract.json).
 
 ## Storage, recovery, and adapter CLIs
 
@@ -380,62 +405,31 @@ python3 tools/storage_cli.py --root .store create-collection "Research"
 python3 tools/storage_cli.py --root .store update-collection <collection_id> --add <file_id>
 python3 tools/storage_cli.py --root .store build-lexical <collection_id>
 python3 tools/storage_cli.py --root .store search <collection_id> "quantum evidence"
-python3 tools/storage_cli.py --root .store dna-export <file_id> --output file.dna.json
-python3 tools/storage_cli.py dna-decode file.dna.json --output recovered.bin
 python3 tools/storage_cli.py --root .store verify
 python3 tools/storage_cli.py --root .store fingerprint
 
-python3 tools/interaction_cli.py --root .store create \
-  --question "What survives?" \
-  --mode evidence_only \
-  --requester-kind human \
-  --created-at 2026-08-19T08:00:00+09:30 \
-  --replayability R3
 python3 tools/interaction_cli.py --root .store verify <run_id>
 python3 tools/interaction_cli.py --root .store fingerprint <run_id>
 
-python3 tools/ark_bundle.py export \
-  --root .store \
-  <run_id> \
-  --output control-run.dat
+python3 tools/ark_bundle.py export --root .store <run_id> --output control-run.dat
 python3 tools/ark_bundle.py verify control-run.dat
 python3 tools/ark_bundle.py restore control-run.dat --target recovered-store
 
 python3 tools/oracle_adapter.py --oracle-root /path/to/QSOL-ORACLE discover
 python3 tools/oracle_adapter.py --oracle-root /path/to/QSOL-ORACLE query "QSOLKCB/QSOL-CONTEXT"
 python3 tools/oracle_adapter.py --oracle-root /path/to/QSOL-ORACLE timelock
+
+python3 tools/nexus_adapter.py \
+  --nexus-command-json '["python3","-m","nexus_runtime","--world","/secure/nexus-world"]' \
+  discover
+python3 tools/nexus_adapter.py \
+  --nexus-command-json '["python3","-m","nexus_runtime","--world","/secure/nexus-world"]' \
+  run --question "What follows?" --members council-members.json --evidence-ref object:<sha256>
 ```
-
-Replayability classification is explicit at the interaction CLI boundary; omission never silently becomes an exact-replay claim.
-
-Semantic vectors can be registered with `register-semantic` and searched with `search-semantic`; embedding generation itself is intentionally outside the canonical storage core.
 
 ## Portable CONCAP delivery
 
-CONTROL contains the packing and verification side of the portable-context bridge used with QSOL-THOTH.
-
-```text
-QSOL-CONTEXT / approved source
-          |
-          v
-      QSOL-CONTROL
-          |
-          | qsol-control-concap-export-spec/1
-          v
-  QSOL-RESTORE-DAT/1 objects
-          |
-          +--> BOOTSTRAP.json
-          +--> OBJECTS.json
-          +--> objects/sha256/<prefix>/<digest>.dat
-          |
-          v
-  local disk / USB / archive / LAN / HTTPS
-          |
-          v
-      QSOL-THOTH
-```
-
-The immutable object identity is `sha256(exact object bytes)`. Transport location is not part of object identity, and CONTROL does not acquire THOTH's semantic-routing authority.
+CONTROL contains the packing and verification side of the portable-context bridge used with QSOL-THOTH. Immutable object identity is `sha256(exact object bytes)` and transport location is not part of object identity.
 
 ```text
 PRIVATE_SOURCE != PORTABLE_BUNDLE
@@ -448,20 +442,6 @@ RESOLUTION != TRANSPORT
 TRANSPORT != AUTHORITY
 ```
 
-RESTRICTED export requires explicit acknowledgement. Locally built RESTRICTED bundle directories are owner-only (`0700`), files are owner-only (`0600`), and deterministic ZIP output is `0600`. This is local file protection, **not encryption**.
-
-Imported bundle metadata is bounded before JSON parsing: `BOOTSTRAP.json` is capped at 1 MiB, `OBJECTS.json` at 16 MiB, with 10,000 objects and 100,000 role bindings maximum. Deterministic ZIP output must be outside the verified bundle tree.
-
-```bash
-python3 tools/concap_bundle.py build \
-  --source-root /path/to/source \
-  --export-spec restore/CONCAP-EXPORT.spec.json \
-  --output-dir /secure/path/qsol-portable \
-  --zip-output /secure/path/qsol-portable.zip
-
-python3 tools/concap_bundle.py verify --bundle /secure/path/qsol-portable
-```
-
 See [`docs/PORTABLE-CONCAP-BUNDLES.md`](docs/PORTABLE-CONCAP-BUNDLES.md) and [`ai/concap-bundle-contract.json`](ai/concap-bundle-contract.json).
 
 ## Constitutional invariants
@@ -471,7 +451,6 @@ CONTROL_DISPLAY != AUTHORITY
 CONTROL_OPERATION != TRUTH
 VOTE != EVIDENCE
 CONSENSUS != TRUTH
-CONFIDENCE != PROBABILITY
 STORED != TRUE
 PERSISTED != CANONICAL
 MEMORY != AUTHORITY
@@ -492,6 +471,9 @@ FRESH != TRUE
 STALE != FALSE
 SUGGESTED_SEARCH != EVIDENCE
 ELIGIBLE != EXECUTED
+CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
+CONTROL_RECEIPT_COPY != NEXUS_WORLDSTORE_WRITE
+VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 HUMAN_CALLER == AI_CALLER_FOR_EPISTEMIC_AUTHORITY
 CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY
 CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
@@ -499,16 +481,7 @@ CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
 
 ## Replay instead of chat amnesia
 
-Phase 1B preserves an immutable offline run history bound to exact File refs, an exact Collection snapshot, explicit evidence/model references and deterministic lattice addresses. The minimum ARK bundle now proves that canonical storage can be reconstructed and verified offline. This still does not claim deterministic replay of live stochastic model inference.
-
-That supports future operations without rewriting the original history:
-
-```text
-REPLAY ORIGINAL RUN
-RE-RUN WITH CURRENT COLLECTION
-COMPARE RESULTS
-EXPLAIN WHAT CHANGED
-```
+Phase 1B preserves an immutable offline run history bound to exact File refs, an exact Collection snapshot, explicit evidence/model references and deterministic lattice addresses. The minimum ARK bundle proves canonical storage reconstruction offline. Phase 3 adds verified references to committed NEXUS Council sessions and receipts without claiming deterministic replay of live stochastic inference.
 
 ## Validation
 
@@ -519,7 +492,7 @@ python3 tools/validate_control.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
-The manifest registers the Phase 1B interaction and ARK recovery runtimes/CLIs plus the Phase 2 ORACLE adapter, machine contracts, schemas and dedicated adversarial tests.
+The manifest registers the Phase 1B storage/recovery layer, Phase 2 ORACLE adapter, and Phase 3 NEXUS Council adapter with their machine contracts, schemas, CLIs, and adversarial tests.
 
 All public schemas use **JSON Schema draft 2020-12**.
 
@@ -530,21 +503,15 @@ All public schemas use **JSON Schema draft 2020-12**.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — authority boundaries and system design.
 - [`ROADMAP.md`](ROADMAP.md) — implementation sequence.
 - [`SECURITY.md`](SECURITY.md) — privacy, redaction and control/storage threat boundaries.
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — contribution/validation contract.
-- [`CHANGELOG.md`](CHANGELOG.md) — contract evolution.
 - [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md) — Files, Collections, snapshots and search.
-- [`docs/STORAGE-LINEAGE.md`](docs/STORAGE-LINEAGE.md) — conceptual lineage for lexicographic, codon and φ-gated design.
 - [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md) — 27-cell interaction-memory model.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md) — future-AI model-state preservation.
 - [`docs/NEXUS-ORACLE.md`](docs/NEXUS-ORACLE.md) — orchestration boundary.
 - [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md) — one-run offline recovery gate.
-- [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md) — read-only evidence adapter and security boundary.
-- [`docs/PORTABLE-CONCAP-BUNDLES.md`](docs/PORTABLE-CONCAP-BUNDLES.md) — deterministic portable bundle format and transport boundary.
-- [`ai/ark-recovery-contract.json`](ai/ark-recovery-contract.json) — machine-readable minimum recovery contract.
-- [`ai/oracle-adapter-contract.json`](ai/oracle-adapter-contract.json) — machine-readable ORACLE read-only adapter contract.
-- [`ai/concap-bundle-contract.json`](ai/concap-bundle-contract.json) — machine-readable portable bundle contract.
-- [`docs/WEBUI.md`](docs/WEBUI.md) — planned human surface.
-- [`docs/AI-API.md`](docs/AI-API.md) — planned machine caller surface.
+- [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md) — read-only evidence adapter.
+- [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md) — verified local Council adapter and governance gate.
+- [`docs/PORTABLE-CONCAP-BUNDLES.md`](docs/PORTABLE-CONCAP-BUNDLES.md) — deterministic portable context bundles.
+- [`ai/nexus-adapter-contract.json`](ai/nexus-adapter-contract.json) — machine-readable NEXUS governance boundary.
 - [`manifest.json`](manifest.json) — canonical machine map.
 
 ## License
@@ -557,9 +524,10 @@ QSOL-CONTROL is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. See
 - **PR #2:** Phase-1A persistent Files/Collections, retrieval indexes, and DNA/lattice recovery projection — merged/integrated baseline.
 - **PR #4:** portable CONCAP delivery — merged.
 - **PR #5:** Phase-1B interaction/lattice persistence — merged.
-- **PR #6:** minimum ARK recovery gate + Phase 2 read-only ORACLE adapter — current implementation.
+- **PR #6:** minimum ARK recovery gate + Phase 2 read-only ORACLE adapter — merged.
+- **PR #7:** Phase 3 NEXUS Council adapter — current implementation.
 
-Phase 3 NEXUS integration, the broader Phase 8 repository-level ARK package, WebUI and network AI API remain sequenced in the ROADMAP.
+Phase 4 model-state registry, the broader Phase 8 repository-level ARK package, WebUI and network AI API remain sequenced in the ROADMAP.
 
 ---
 
