@@ -26,7 +26,7 @@ The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the
 | Recovery / reconstruction | QSOL-ARK | request/display/export |
 | Composition / drift | QSOL-INT | display/query |
 | Witness observations / temporal contracts | QSOL-ORACLE | read/query/store refs only |
-| Council reasoning / vote mechanics / world state | QSOL-NEXUS | invoke/display |
+| Council reasoning / vote mechanics / WorldStore history | QSOL-NEXUS | discover/invoke/verify/render/store refs only |
 | Human + AI orchestration | QSOL-CONTROL | owner |
 | Persistent File/Collection mechanics | QSOL-CONTROL | owner of storage mechanics only |
 | Interaction/model-state lattice placement | CONTROL lattice layer | owner of storage mechanics only |
@@ -34,7 +34,7 @@ The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the
 | Lexical/vector indexes | CONTROL derived storage | zero semantic authority |
 | DNA/codon projection | CONTROL recovery projection | zero semantic authority |
 
-Ownership of storage mechanics does not confer authority over the truth of stored content.
+Ownership of storage mechanics does not confer authority over the truth of stored content. Invocation authority does not confer authority to rewrite the invoked system's governance.
 
 ## Control surfaces
 
@@ -85,11 +85,11 @@ control.memory.trace
 control.replay
 ```
 
-The implemented local standard-library layer now includes File/Collection storage, interaction persistence, minimum offline ARK recovery packaging, and a read-only ORACLE adapter. It is still not a network service.
+The implemented local standard-library layer now includes File/Collection storage, interaction persistence, minimum offline ARK recovery packaging, a read-only ORACLE adapter, and a governance-preserving NEXUS Council adapter over local JSONL/stdio. It is still not a network CONTROL service.
 
 ## Query lifecycle
 
-Target end-to-end lifecycle:
+Implemented storage/adaptor lifecycle:
 
 ```text
 1. caller submits bounded question
@@ -98,17 +98,17 @@ Target end-to-end lifecycle:
 4. retrieval proposes candidate context
 5. ORACLE evidence path is queried or supplied
 6. evidence state and provenance remain explicit
-7. if mode=council, CONTROL requests NEXUS Council execution
-8. NEXUS owns roster, phases, ballots, consensus mechanics, world/receipt behavior
-9. CONTROL receives externally visible outputs and receipts
-10. ORACLE may witness the run boundary according to its own contract
-11. CONTROL creates an interaction record
-12. interaction + model states receive lattice addresses
-13. run references exact File IDs / Collection snapshot IDs
+7. if mode=council, CONTROL discovers live NEXUS health/operations
+8. CONTROL submits question + admitted evidence refs through council.run
+9. NEXUS owns roster, phases, ballots, consensus mechanics, WorldStore and receipts
+10. CONTROL resolves committed session/receipt refs and verifies their identities/linkage
+11. CONTROL renders canonical roster, phases, sealed ballot, exact threshold and minority reports
+12. CONTROL may persist verified external artifacts as reference-only Files/events
+13. interaction records retain external references without copying ORACLE/NEXUS authority
 14. UI/API renders dimensions without authority collapse
 ```
 
-Retrieval occurs before reasoning only as context selection. Retrieval rank is not evidence status.
+Retrieval occurs before reasoning only as context selection. Retrieval rank is not evidence status. Council consensus is not evidence status.
 
 ## Persistent Files and Collections
 
@@ -204,6 +204,59 @@ ELIGIBLE != EXECUTED
 
 The adapter exposes no ORACLE write operation. Unknown ORACLE protocol majors fail closed.
 
+## NEXUS governance boundary
+
+CONTROL implements `qsol-control-nexus-adapter/1` against NEXUS's local JSONL/stdio control plane.
+
+The adapter does not hard-code the full parent capability inventory. Every adapter session asks:
+
+```text
+system.health
+system.operations
+```
+
+and requires the live parent to advertise the Council operations CONTROL actually needs. An unknown NEXUS protocol major fails closed.
+
+CONTROL's public NEXUS mutation surface contains exactly:
+
+```text
+council.run
+```
+
+The adapter does **not** expose generic NEXUS operation passthrough or direct `world.create`. `council.run` may cause NEXUS itself to append its immutable WorldStore objects; that is NEXUS executing its own protocol, not CONTROL rewriting WorldStore history.
+
+After a run, CONTROL resolves `session_ref` and `receipt_ref`, verifies the content-addressed WorldStore objects, calls `receipt.verify`, and checks the committed Council state before rendering it. Verification includes:
+
+- canonical roster ordering and ordinary vote weight `1` / epistemic privilege `none`;
+- phase order from the committed session policy;
+- same roster join order at every committed phase;
+- ballot commitment/reveal integrity;
+- tally computed from revealed ballots;
+- exact consensus numerator/denominator from the committed policy;
+- minority reports preserved against the revealed ballot record;
+- exact admitted-evidence snapshot refs/state;
+- receipt result/ref/replayability linkage;
+- optional Council Chair / Compute Epoch admission evidence when the parent advertises it.
+
+The committed NEXUS policy currently exposes six deliberation phases. CONTROL preserves that exact `phase_order` and renders the subsequent commitment/reveal step separately as `SEALED_BALLOT`.
+
+Requested Council member descriptors are not governance override envelopes. CONTROL rejects fields such as `vote_weight`, `epistemic_privilege`, direct ballot data, consensus-threshold controls, roster authority, or WorldStore state before calling NEXUS.
+
+CONTROL may persist externally visible NEXUS artifacts into its own storage as `reference-only` Files and link them into interaction receipt/response events. Such copies explicitly do not acquire NEXUS governance authority.
+
+The adapter never calls NEXUS Stenographer operations and never requests hidden chain-of-thought. Visible phase submissions and ballot rationales are public/runtime-visible NEXUS outputs. If a parent response exposes fields labelled as hidden/private reasoning, scratchpad, reasoning trace, or chain-of-thought, CONTROL fails closed rather than persisting them.
+
+```text
+CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
+NEXUS_SESSION != CONTROL_REINTERPRETATION
+CONTROL_RECEIPT_COPY != NEXUS_WORLDSTORE_WRITE
+CONTROL_CAN_OVERRIDE_VOTE_WEIGHT = false
+CONTROL_CAN_OVERRIDE_BALLOTS = false
+CONTROL_CAN_OVERRIDE_CONSENSUS_THRESHOLD = false
+NEXUS_OWNS_WORLDSTORE_HISTORY = true
+VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+```
+
 ## Minimum ARK recovery gate
 
 `qsol-control-ark-minimum-bundle/1` closes the Phase 1B offline persistence gate by reusing `QSOL-RESTORE-DAT/1` as the deterministic container for one interaction run and the canonical storage records required to verify it.
@@ -247,7 +300,7 @@ ORACLE -----------+
 NEXUS -------------+
 ```
 
-CONTROL owns addressing and interaction packaging. ORACLE remains authoritative only for its own witnessed events; NEXUS remains authoritative only for its own world/governance mechanics.
+CONTROL owns addressing and interaction packaging. ORACLE remains authoritative only for its own witnessed events; NEXUS remains authoritative only for its own WorldStore/governance mechanics.
 
 ## 3×3×3 Sierpinski-derived addressing
 
@@ -353,9 +406,9 @@ timestamps
 replayability classification
 ```
 
-The immutable run record is content-addressed. Its separate event chain is append-only with an atomic `HEAD`, explicit parent lineage, and stable event identities.
+Phase 3 now supplies verified NEXUS session/receipt references and externally visible Council response artifacts that may be attached to an existing run through receipt and derived response events.
 
-CONTROL does not yet claim that all later Council/replay/model-registry fields from future phases are implemented merely because the run container can carry references to them.
+The immutable run record remains content-addressed. Its separate event chain is append-only with an atomic `HEAD`, explicit parent lineage, and stable event identities.
 
 ## Model-state record
 
@@ -383,7 +436,7 @@ R2 same declared configuration but stochastic/live inference
 R3 rerun with changed evidence/model/runtime state
 ```
 
-Future replay must bind to exact historical Collection snapshots rather than current `HEAD` state.
+Future replay must bind to exact historical Collection snapshots and verified external NEXUS/ORACLE references rather than current live state.
 
 ## Failure behavior
 
@@ -394,14 +447,16 @@ Examples:
 - unavailable/tampered ORACLE parent -> evidence adapter unavailable, not invented evidence;
 - unknown ORACLE major -> fail closed, do not guess semantics;
 - stale ORACLE evidence -> stale indicator, not automatically false;
-- future-dated ORACLE evidence -> explicit future-dated indicator, not silently fresh;
 - missing ORACLE evidence -> `unknown`, not invented evidence;
+- unknown NEXUS major or missing required operation -> Council adapter unavailable;
+- NEXUS session/receipt content-address mismatch -> reject the run render;
+- NEXUS threshold/tally/ballot-commitment/minority mismatch -> reject rather than normalize;
+- hidden-reasoning-labelled field from NEXUS -> reject rather than persist;
 - stale semantic index -> unavailable until rebuilt, not silently searched against wrong membership;
 - Collection privacy mismatch -> membership update rejected;
 - corrupt raw object -> verification failure;
 - incomplete minimum ARK bundle -> offline reconstruction failure even if the outer container hashes correctly;
 - malformed DNA projection -> decode failure, not partial reconstruction;
-- NEXUS unavailable -> Council run unavailable unless explicitly simulated/labelled;
 - model metadata missing -> `unknown`, not guessed from model name;
 - replay mismatch -> explain changed inputs rather than claiming exact replay.
 
@@ -413,6 +468,7 @@ QSOL-CONTROL is not:
 - another ORACLE or an ORACLE ledger writer;
 - a replacement for SUBSTRATE;
 - a replacement for ARK recovery authority;
+- a NEXUS governance fork or WorldStore editor;
 - a truth-scoring engine;
 - a hidden chain-of-thought recorder;
 - a blockchain;
