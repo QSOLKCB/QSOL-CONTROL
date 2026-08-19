@@ -38,6 +38,29 @@ system.control_run_id
 
 The registry validates that run before capture. Late model-state capture does **not** mutate the already immutable interaction run record merely to add a new array member.
 
+### Run-event lineage
+
+Phase 1B already defined a compact `model_state` event payload. Phase 4 deliberately does not redefine that old event shape in place.
+
+Instead:
+
+```text
+full Phase-4 registry record = canonical model state
+Phase-1B model_state event   = backward-compatible lineage projection
+record_refs                  = [canonical state_id]
+```
+
+The projection preserves the model/runtime identifiers, selected execution fields, system run binding, and the canonical `state_id`. The full field-level provenance remains in the registry record.
+
+The older event format has only one coarse `metadata_provenance` field. Phase 4 sets that projection field to `unknown` rather than collapsing many field-level provenance classes into a stronger claim.
+
+```text
+EVENT_PROJECTION != CANONICAL_MODEL_STATE
+COARSE_PROVENANCE != FIELD_LEVEL_PROVENANCE
+```
+
+Capture is idempotent: re-capturing the same canonical state does not append a duplicate run-event link.
+
 ## Canonical record
 
 The record captures four dimensions.
