@@ -1,6 +1,6 @@
 # QSOL-CONTROL
 
-**A human + AI control plane for the QSOL ecosystem, orchestrating NEXUS Council reasoning, ORACLE evidence, deterministic votes, replayable queries, persistent Collections, portable CONCAP delivery, and 3×3×3 lattice memory.**
+**A human + AI control plane for the QSOL ecosystem, orchestrating NEXUS Council reasoning, ORACLE evidence, deterministic votes, replayable queries, persistent Collections, portable CONCAP delivery, model-state archaeology, and 3×3×3 lattice memory.**
 
 > **CONTROL controls the machinery, not reality.**
 >
@@ -11,7 +11,7 @@ QSOL-CONTROL exposes the same governed system through two planned surfaces:
 - **Human control plane** — WebUI for questions, evidence, Council votes, minority reports, Files, Collections, search, model states, lattice memory and replay.
 - **AI control plane** — structured machine interface for equivalent operations without hidden epistemic privilege.
 
-CONTROL owns orchestration and storage mechanics. It does **not** own scientific truth, public epistemic authority, NEXUS governance, ORACLE history, or ARK recovery authority.
+CONTROL owns orchestration and storage mechanics. It does **not** own scientific truth, public epistemic authority, NEXUS governance, ORACLE history, ARK recovery authority, or anyone's secret model thoughts.
 
 ## Full architecture
 
@@ -75,6 +75,7 @@ CONTROL owns orchestration and storage mechanics. It does **not** own scientific
                     | immutable membership snapshots              |
                     | deterministic lexical retrieval             |
                     | semantic vector indexes (derived)           |
+                    | model-state registry + comparisons          |
                     | DNA/codon lattice projection (derived)      |
                     +----------------------+----------------------+
                                            |
@@ -288,31 +289,56 @@ Human or AI caller
 
 AI callers receive **no more epistemic authority than human callers**.
 
-## AI model-state preservation
+## Phase 4 model-state registry
 
-CONTROL's model-state contract preserves externally inspectable runtime metadata for future computational archaeology where available:
+CONTROL now implements persistent, immutable `qsol-control-model-state/1` records for **reproducibility and future computational archaeology**.
+
+A model-state record can preserve, where available:
 
 ```text
-provider / runtime / model identifier / revision
-weight or tokenizer identity where verifiable
+provider / runtime / runtime version / model identifier / revision
+model / weights / tokenizer hashes when locally verifiable
 quantization
 sampling configuration
+context limit
 seed where meaningful
-Council seat / mode
-NEXUS / ORACLE / SUBSTRATE identities
-CONTROL run identity
+Council seat / NEXUS mode
+tool permissions + filesystem/network/plugin envelope
+CONTROL / NEXUS / ORACLE / SUBSTRATE / ARK / INT identities
+exact Collection snapshot identity
 relevant runtime hardware metadata
 ```
 
-It does not claim to preserve a model's mind or hidden chain-of-thought.
+Every canonical field also carries one explicit provenance class:
+
+```text
+observed
+provider_reported
+locally_verified
+inferred
+unknown
+```
+
+Unclassified fields become `unknown`, not mysteriously upgraded to `observed` during the night shift.
+
+Local model/weight/tokenizer paths may be supplied solely for hashing. Regular files are identified by `sha256(exact bytes)`; sharded directories use an explicitly labelled canonical file-manifest identity. **Local paths and artifact bytes are never persisted in model-state records or archaeology exports.**
+
+The full registry record is canonical. Phase 1B's older compact `model_state` run-event format remains a backward-compatible lineage projection that points to the same canonical `state_id`.
 
 ```text
 MODEL_STATE != MODEL_MIND
 VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 RUNTIME_METADATA != CONSCIOUSNESS
+PROVIDER_REPORTED != LOCALLY_VERIFIED
+HASH_IDENTITY != ARTIFACT_BYTES
+MODEL_STATE_COMPARISON != MIND_COMPARISON
 ```
 
-See [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md).
+Cross-state and cross-run comparisons preserve both values and provenance. Future-AI archaeology exports are deterministic and self-describing, explicitly state that they contain neither hidden chain-of-thought nor model-mind data, and require explicit acknowledgement before exporting RESTRICTED records.
+
+The future Phase 5 model-state inspector is already contract-bound to labels such as **“Model-state reproducibility metadata”** and **“Not model mind”**. The WebUI itself remains unimplemented.
+
+See [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md) and [`ai/model-state-contract.json`](ai/model-state-contract.json).
 
 ## Phase 1B interaction persistence
 
@@ -327,7 +353,7 @@ HASH_INTEGRITY != EVIDENCE_AUTHORITY
 RUN_RECORD != MODEL_MIND
 ```
 
-Non-`unknown` evidence states require an explicit ORACLE reference. Derived events require explicit input lineage. Runtime validation rejects obvious credential material and model-state payloads that claim hidden chain-of-thought capture.
+Non-`unknown` evidence states require an explicit ORACLE reference. Derived events require explicit input lineage. Runtime validation rejects obvious credential material and model-state projections that claim hidden chain-of-thought capture.
 
 Run verification checks immutable record identities, event lineage, exact Collection snapshot membership and the bytes behind referenced File records. Record-set imports are bounded to 16 MiB and 100,000 events. RESTRICTED record-set exports require explicit acknowledgement and are written owner-only (`0600`).
 
@@ -370,7 +396,7 @@ See [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md) and [`ai/oracle-adapter-c
 
 ## Phase 3 NEXUS Council adapter
 
-CONTROL now implements `qsol-control-nexus-adapter/1` over NEXUS's local JSONL/stdio control plane.
+CONTROL implements `qsol-control-nexus-adapter/1` over NEXUS's local JSONL/stdio control plane.
 
 Every adapter session discovers `system.health` and `system.operations`; CONTROL does not freeze the entire NEXUS operation catalog into its own code. The adapter requires the live parent to advertise `council.run`, `world.inspect` and `receipt.verify`, with `council.epoch.verify` used only when advertised and returned by NEXUS.
 
@@ -395,7 +421,7 @@ Verified NEXUS session/receipt/output artifacts may be copied into CONTROL only 
 
 See [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md) and [`ai/nexus-adapter-contract.json`](ai/nexus-adapter-contract.json).
 
-## Storage, recovery, and adapter CLIs
+## Storage, recovery, adapter, and model-state CLIs
 
 The reference runtimes are standard-library-only.
 
@@ -410,6 +436,12 @@ python3 tools/storage_cli.py --root .store fingerprint
 
 python3 tools/interaction_cli.py --root .store verify <run_id>
 python3 tools/interaction_cli.py --root .store fingerprint <run_id>
+
+python3 tools/model_state.py --root .store capture --descriptor model-state-input.json
+python3 tools/model_state.py --root .store verify <state_id>
+python3 tools/model_state.py --root .store compare-states <left_state_id> <right_state_id>
+python3 tools/model_state.py --root .store compare-runs <left_run_id> <right_run_id>
+python3 tools/model_state.py --root .store export --run-id <run_id> --output model-state-archaeology.json
 
 python3 tools/ark_bundle.py export --root .store <run_id> --output control-run.dat
 python3 tools/ark_bundle.py verify control-run.dat
@@ -461,6 +493,10 @@ SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
 INDEX != CANONICAL_MEMORY
 COLLECTION_MEMBERSHIP != ENDORSEMENT
 MODEL_STATE != MODEL_MIND
+MODEL_STATE_COMPARISON != MIND_COMPARISON
+RUNTIME_METADATA != CONSCIOUSNESS
+PROVIDER_REPORTED != LOCALLY_VERIFIED
+HASH_IDENTITY != ARTIFACT_BYTES
 DNA_ENCODING != BIOLOGICAL_CLAIM
 PHI_TRAVERSAL != PHYSICAL_TRUTH
 RECOVERY_BUNDLE != SEMANTIC_AUTHORITY
@@ -474,6 +510,7 @@ ELIGIBLE != EXECUTED
 CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
 CONTROL_RECEIPT_COPY != NEXUS_WORLDSTORE_WRITE
 VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 HUMAN_CALLER == AI_CALLER_FOR_EPISTEMIC_AUTHORITY
 CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY
 CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
@@ -481,7 +518,7 @@ CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES
 
 ## Replay instead of chat amnesia
 
-Phase 1B preserves an immutable offline run history bound to exact File refs, an exact Collection snapshot, explicit evidence/model references and deterministic lattice addresses. The minimum ARK bundle proves canonical storage reconstruction offline. Phase 3 adds verified references to committed NEXUS Council sessions and receipts without claiming deterministic replay of live stochastic inference.
+Phase 1B preserves an immutable offline run history bound to exact File refs, an exact Collection snapshot, explicit evidence/model references and deterministic lattice addresses. The minimum ARK bundle proves canonical storage reconstruction offline. Phase 3 adds verified references to committed NEXUS Council sessions and receipts. Phase 4 adds immutable, provenance-classified model-state records and deterministic cross-run configuration comparison without claiming deterministic replay of live stochastic inference or reconstruction of hidden cognition.
 
 ## Validation
 
@@ -492,7 +529,9 @@ python3 tools/validate_control.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
-The manifest registers the Phase 1B storage/recovery layer, Phase 2 ORACLE adapter, and Phase 3 NEXUS Council adapter with their machine contracts, schemas, CLIs, and adversarial tests.
+The manifest registers the Phase 1B storage/recovery layer, Phase 2 ORACLE adapter, Phase 3 NEXUS Council adapter, and Phase 4 model-state registry with their machine contracts, schemas, CLIs, and adversarial tests.
+
+Phase 4 finalizes a previously provisional model-state schema with required persistent-registry, provenance, privacy, and epistemic-boundary fields; accordingly, the repository contract `schema_version` advances from `1.6.0` to `2.0.0` under the existing semantic-versioning policy.
 
 All public schemas use **JSON Schema draft 2020-12**.
 
@@ -505,12 +544,14 @@ All public schemas use **JSON Schema draft 2020-12**.
 - [`SECURITY.md`](SECURITY.md) — privacy, redaction and control/storage threat boundaries.
 - [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md) — Files, Collections, snapshots and search.
 - [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md) — 27-cell interaction-memory model.
-- [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md) — future-AI model-state preservation.
+- [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md) — implemented model-state registry, provenance, comparisons and archaeology export.
+- [`docs/WEBUI.md`](docs/WEBUI.md) — planned WebUI including the pinned Phase 4 model-state label contract.
 - [`docs/NEXUS-ORACLE.md`](docs/NEXUS-ORACLE.md) — orchestration boundary.
 - [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md) — one-run offline recovery gate.
 - [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md) — read-only evidence adapter.
 - [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md) — verified local Council adapter and governance gate.
 - [`docs/PORTABLE-CONCAP-BUNDLES.md`](docs/PORTABLE-CONCAP-BUNDLES.md) — deterministic portable context bundles.
+- [`ai/model-state-contract.json`](ai/model-state-contract.json) — machine-readable Phase 4 registry and UI-label contract.
 - [`ai/nexus-adapter-contract.json`](ai/nexus-adapter-contract.json) — machine-readable NEXUS governance boundary.
 - [`manifest.json`](manifest.json) — canonical machine map.
 
@@ -525,10 +566,11 @@ QSOL-CONTROL is licensed under the **Mozilla Public License 2.0 (MPL-2.0)**. See
 - **PR #4:** portable CONCAP delivery — merged.
 - **PR #5:** Phase-1B interaction/lattice persistence — merged.
 - **PR #6:** minimum ARK recovery gate + Phase 2 read-only ORACLE adapter — merged.
-- **PR #7:** Phase 3 NEXUS Council adapter — current implementation.
+- **PR #7:** Phase 3 NEXUS Council adapter — merged.
+- **PR #8:** Phase 4 AI model-state registry — current implementation.
 
-Phase 4 model-state registry, the broader Phase 8 repository-level ARK package, WebUI and network AI API remain sequenced in the ROADMAP.
+Phase 5 WebUI, the broader Phase 8 repository-level ARK package, and the network AI API remain sequenced in the ROADMAP.
 
 ---
 
-**QSOL-CONTROL controls the machinery, not reality. If the Council unanimously votes that the Moon is made of cheese and the semantic index returns it at 0.999 similarity, CONTROL's job is to preserve both facts about the system — not update astronomy.**
+**QSOL-CONTROL controls the machinery, not reality. If the Council unanimously votes that the Moon is made of cheese and the semantic index returns it at 0.999 similarity, CONTROL's job is to preserve both facts about the system — not update astronomy. A model-state hash is paperwork, not a séance.**
