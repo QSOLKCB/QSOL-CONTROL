@@ -4,6 +4,7 @@ from pathlib import Path
 
 from storage.interaction_store import InteractionStore
 from storage.model_state import ModelStateError, ModelStateRegistry
+from storage.model_state_registry import MAX_RECORD_BYTES
 
 TIME = "2026-08-19T10:25:00+09:30"
 
@@ -101,6 +102,21 @@ class ModelStateProvenanceGateTests(unittest.TestCase):
         self.assertEqual(provenance["model.weight_hash"], "locally_verified")
         self.assertEqual(provenance["model.artifacts.weights"], "locally_verified")
         self.assertEqual(provenance["model.model_id"], "provider_reported")
+
+    def test_oversized_persisted_record_is_rejected_before_json_parse(self):
+        descriptor = self.base()
+        record = self.registry.capture(
+            **descriptor,
+            field_provenance={
+                "model.provider": "observed",
+                "model.runtime": "observed",
+                "model.model_id": "provider_reported",
+            },
+        )
+        path = self.registry._path(record["state_id"])
+        path.write_bytes(b"{" + b" " * MAX_RECORD_BYTES + b"}")
+        with self.assertRaisesRegex(ModelStateError, "byte limit"):
+            self.registry.get_state(record["state_id"])
 
 
 if __name__ == "__main__":
