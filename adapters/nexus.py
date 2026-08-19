@@ -34,7 +34,14 @@ COUNCIL_RESPONSE_PROTOCOL = "qsol-control-nexus-council-response/1"
 RECEIPT_REF_PROTOCOL = "qsol-control-nexus-receipt-ref/1"
 SUPPORTED_NEXUS_PROTOCOL_MAJOR = 0
 NEXUS_PROTOCOL_RE = re.compile(r"^nexus/([0-9]+)\.([0-9]+)$")
-SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+SEMVER_RE = re.compile(
+    r"^(0|[1-9][0-9]*)\."
+    r"(0|[1-9][0-9]*)\."
+    r"(0|[1-9][0-9]*)"
+    r"(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
 OBJECT_REF_RE = re.compile(r"^object:[0-9a-f]{64}$")
 BALLOT_REF_RE = re.compile(r"^ballot:[0-9a-f]{64}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -96,6 +103,23 @@ FORBIDDEN_REASONING_KEYS = frozenset(
         "private_scratchpad",
     }
 )
+FORBIDDEN_SECRET_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "access_token",
+        "refresh_token",
+        "auth_token",
+        "bearer_token",
+        "authorization",
+        "client_secret",
+        "private_key",
+        "credential",
+        "credentials",
+        "password",
+        "passwd",
+    }
+)
 FORBIDDEN_SECRET_MARKERS = (
     "ghp_",
     "github_pat_",
@@ -138,7 +162,30 @@ def _validate_ref(value: Any, label: str) -> str:
     return value
 
 
+def _normalized_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_")
+
+
 def _reject_obvious_secrets(value: Any, label: str) -> None:
+    stack: list[Any] = [value]
+    visited = 0
+    while stack:
+        current = stack.pop()
+        visited += 1
+        if visited > 1_000_000:
+            raise NexusAdapterError(f"{label} exceeds credential-scan node limit")
+        if isinstance(current, dict):
+            for key, item in current.items():
+                if not isinstance(key, str):
+                    raise NexusAdapterError(f"{label} contains a non-string object key")
+                if _normalized_key(key) in FORBIDDEN_SECRET_KEYS:
+                    raise NexusAdapterError(
+                        f"{label} contains forbidden credential-labelled field {key!r}"
+                    )
+                stack.append(item)
+        elif isinstance(current, list):
+            stack.extend(current)
+
     try:
         text = json.dumps(value, sort_keys=True, ensure_ascii=False)
     except (TypeError, ValueError, RecursionError) as exc:
@@ -327,19 +374,28 @@ class _JsonlStdioTransport:
         if process is None:
             return
         try:
-            if process.stdin is not None and not process.stdin.closed:
-                process.stdin.close()
-        except OSError:
-            pass
-        try:
-            process.wait(timeout=2.0)
-        except subprocess.TimeoutExpired:
-            process.terminate()
+            try:
+                if process.stdin is not None and not process.stdin.closed:
+                    process.stdin.close()
+            except OSError:
+                pass
             try:
                 process.wait(timeout=2.0)
             except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=2.0)
+                process.terminate()
+                try:
+                    process.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=2.0)
+        finally:
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None and not stream.closed:
+                    try:
+                        stream.close()
+                    except OSError:
+                        pass
+            self._stdout_buffer.clear()
 
 
 class NexusCouncilAdapter:
@@ -505,6 +561,8 @@ class NexusCouncilAdapter:
 
         rendered = self._validate_and_render(
             discovery=discovery,
+            requested_question=question,
+            requested_mode=mode,
             requested_evidence_refs=admitted_evidence,
             requested_evidence_state=evidence_state,
             run_response=run_response,
@@ -521,6 +579,8 @@ class NexusCouncilAdapter:
             storage = self._persist_artifacts(
                 control_root=control_root,
                 control_run_id=control_run_id,
+                requested_question=question,
+                requested_evidence_state=evidence_state,
                 created_at=created_at,
                 privacy_class=privacy_class,
                 run_response=run_response,
@@ -557,7 +617,9 @@ class NexusCouncilAdapter:
         for index, item in enumerate(values):
             if not isinstance(item, dict):
                 raise NexusAdapterError(f"Council member {index} must be an object")
+            _reject_hidden_reasoning(item, f"Council member {index}")
             _reject_governance_controls(item, f"Council member {index}")
+            _reject_obvious_secrets(item, f"Council member {index}")
             member_id = item.get("member_id")
             model_id = item.get("model_id")
             if not isinstance(member_id, str) or not member_id or len(member_id) > 256:
@@ -590,6 +652,8 @@ class NexusCouncilAdapter:
         self,
         *,
         discovery: dict[str, Any],
+        requested_question: str,
+        requested_mode: str,
         requested_evidence_refs: list[str],
         requested_evidence_state: str,
         run_response: dict[str, Any],
@@ -606,6 +670,7 @@ class NexusCouncilAdapter:
             ("receipt verification", receipt_verification),
         ):
             _reject_hidden_reasoning(value, f"NEXUS {label}")
+            _reject_obvious_secrets(value, f"NEXUS {label}")
 
         session_ref = session_object["object_id"]
         receipt_ref = receipt_object["object_id"]
@@ -620,6 +685,35 @@ class NexusCouncilAdapter:
         if run_response.get("receipt_ref") != receipt_ref:
             raise NexusAdapterError("council.run/receipt_ref mismatch")
 
+        question_ref = _validate_ref(run_response.get("question_ref"), "question_ref")
+        if payload.get("question_ref") != question_ref:
+            raise NexusAdapterError("NEXUS session question_ref differs from council.run")
+        question_object = self._inspect_world(question_ref, "question")
+        _reject_hidden_reasoning(question_object, "NEXUS committed question")
+        _reject_obvious_secrets(question_object, "NEXUS committed question")
+        if question_object["payload"].get("text") != requested_question:
+            raise NexusAdapterError("NEXUS committed question differs from submitted question")
+
+        if run_response.get("mode_id") != requested_mode:
+            raise NexusAdapterError("NEXUS council.run mode differs from submitted mode")
+        world_mode = payload.get("world_mode")
+        if not isinstance(world_mode, dict) or world_mode.get("mode_id") != requested_mode:
+            raise NexusAdapterError("NEXUS committed world mode differs from submitted mode")
+
+        world_presence_ref = _validate_ref(
+            run_response.get("world_presence_ref"), "world_presence_ref"
+        )
+        if payload.get("world_presence_ref") != world_presence_ref:
+            raise NexusAdapterError("NEXUS session world_presence_ref differs from council.run")
+        world_presence = self._inspect_world(world_presence_ref, "world_presence")
+        _reject_hidden_reasoning(world_presence, "NEXUS world presence")
+        _reject_obvious_secrets(world_presence, "NEXUS world presence")
+        presence_payload = world_presence["payload"]
+        if presence_payload.get("mode_id") != requested_mode:
+            raise NexusAdapterError("NEXUS world presence mode differs from submitted mode")
+        if presence_payload.get("question_ref") != question_ref:
+            raise NexusAdapterError("NEXUS world presence question differs from submitted question")
+
         roster = payload.get("roster")
         policy = payload.get("policy")
         if not isinstance(roster, list) or not roster or not all(isinstance(row, dict) for row in roster):
@@ -629,8 +723,14 @@ class NexusCouncilAdapter:
         roster_ids: list[str] = []
         for row in roster:
             member_id = row.get("member_id")
+            model_id = row.get("model_id")
+            adapter_id = row.get("adapter_id")
             if not isinstance(member_id, str) or not member_id:
                 raise NexusAdapterError("NEXUS canonical roster member_id is invalid")
+            if not isinstance(model_id, str) or not model_id:
+                raise NexusAdapterError("NEXUS canonical roster model_id is invalid")
+            if not isinstance(adapter_id, str) or not adapter_id:
+                raise NexusAdapterError("NEXUS canonical roster adapter_id is invalid")
             if member_id in roster_ids:
                 raise NexusAdapterError("NEXUS canonical roster contains duplicate member_id")
             roster_ids.append(member_id)
@@ -638,6 +738,9 @@ class NexusCouncilAdapter:
                 raise NexusAdapterError("NEXUS canonical roster changed ordinary vote weight")
             if row.get("epistemic_privilege") != "none":
                 raise NexusAdapterError("NEXUS canonical roster changed epistemic privilege")
+
+        if presence_payload.get("member_ids") != roster_ids:
+            raise NexusAdapterError("NEXUS world presence roster differs from committed session")
 
         if type(policy.get("vote_weight")) is not int or policy.get("vote_weight") != 1:
             raise NexusAdapterError("NEXUS Council policy changed ordinary vote weight")
@@ -730,6 +833,37 @@ class NexusCouncilAdapter:
         if result.get("evidence_state") != requested_evidence_state:
             raise NexusAdapterError("NEXUS result evidence_state differs from submitted state")
 
+        total_votes = len(choices)
+        if total_votes < 1:
+            raise NexusAdapterError("NEXUS Council returned no revealed ballots")
+        top_count = max(expected_tally.values())
+        winners = sorted(
+            choice for choice, count in expected_tally.items() if count == top_count
+        )
+        single_winner = len(winners) == 1
+        expected_nexus_disposition = winners[0] if single_winner else "NO_SINGLE_DISPOSITION"
+        if result.get("disposition") != expected_nexus_disposition:
+            raise NexusAdapterError("NEXUS result disposition differs from revealed ballots")
+        threshold_met = (
+            single_winner
+            and top_count * denominator >= total_votes * numerator
+        )
+        if single_winner and top_count == total_votes:
+            expected_label = "UNANIMOUS"
+        elif threshold_met and top_count * 5 >= total_votes * 4:
+            expected_label = "STRONG_CONSENSUS"
+        elif threshold_met:
+            expected_label = "CONSENSUS"
+        elif single_winner and top_count * 2 > total_votes:
+            expected_label = "MAJORITY_NO_CONSENSUS"
+        else:
+            expected_label = "NO_CONSENSUS"
+        if result.get("consensus_label") != expected_label:
+            raise NexusAdapterError(
+                "NEXUS consensus label does not match revealed ballots and committed threshold"
+            )
+        consensus_outcome = expected_nexus_disposition if threshold_met else "NO_CONSENSUS"
+
         minority_reports = result.get("minority_reports")
         if not isinstance(minority_reports, list) or not all(
             isinstance(item, dict) for item in minority_reports
@@ -755,6 +889,10 @@ class NexusCouncilAdapter:
         if session_evidence_ref != evidence_snapshot_ref:
             raise NexusAdapterError("NEXUS session evidence snapshot reference mismatch")
         evidence_snapshot = self._inspect_world(evidence_snapshot_ref, "evidence_snapshot")
+        _reject_hidden_reasoning(evidence_snapshot, "NEXUS evidence snapshot")
+        _reject_obvious_secrets(evidence_snapshot, "NEXUS evidence snapshot")
+        if evidence_snapshot["payload"].get("question_ref") != question_ref:
+            raise NexusAdapterError("NEXUS evidence snapshot question differs from submitted question")
         included_refs = evidence_snapshot["payload"].get("included_object_refs")
         if included_refs != requested_evidence_refs:
             raise NexusAdapterError("NEXUS evidence snapshot changed admitted evidence references")
@@ -766,6 +904,13 @@ class NexusCouncilAdapter:
             raise NexusAdapterError("NEXUS receipt does not bind council.run")
         if receipt_payload.get("result_ref") != session_ref:
             raise NexusAdapterError("NEXUS receipt result_ref differs from council session")
+        input_refs = receipt_payload.get("input_refs")
+        if (
+            not isinstance(input_refs, list)
+            or len(input_refs) < 3
+            or input_refs[:3] != [question_ref, evidence_snapshot_ref, world_presence_ref]
+        ):
+            raise NexusAdapterError("NEXUS receipt inputs do not bind the submitted Council request")
         replayable = receipt_payload.get("replayable")
         if type(replayable) is not bool:
             raise NexusAdapterError("NEXUS receipt replayable field is invalid")
@@ -807,6 +952,7 @@ class NexusCouncilAdapter:
         epoch_ref: str | None = None
         if epoch_object is not None:
             _reject_hidden_reasoning(epoch_object, "NEXUS epoch admission receipt")
+            _reject_obvious_secrets(epoch_object, "NEXUS epoch admission receipt")
             epoch_ref = epoch_object["object_id"]
             if epoch_verification is None or epoch_verification.get("status") != "verified":
                 raise NexusAdapterError("NEXUS epoch admission receipt verification failed")
@@ -821,6 +967,8 @@ class NexusCouncilAdapter:
 
         consensus = {
             "disposition": result.get("disposition"),
+            "consensus_outcome": consensus_outcome,
+            "threshold_met": threshold_met,
             "tally": copy.deepcopy(result.get("tally")),
             "consensus_label": result.get("consensus_label"),
             "consensus_threshold": copy.deepcopy(threshold),
@@ -836,9 +984,9 @@ class NexusCouncilAdapter:
             "receipt_ref": receipt_ref,
             "epoch_admission_receipt_ref": epoch_ref,
             "execution_replayable": replayable,
-            "mode_id": run_response.get("mode_id"),
+            "mode_id": requested_mode,
             "evidence_snapshot_ref": evidence_snapshot_ref,
-            "world_presence_ref": run_response.get("world_presence_ref"),
+            "world_presence_ref": world_presence_ref,
             "admitted_evidence_refs": list(requested_evidence_refs),
             "roster": copy.deepcopy(roster),
             "phase_order": list(phase_order),
@@ -874,6 +1022,7 @@ class NexusCouncilAdapter:
             "authority": "reference-and-render-only",
         }
         _reject_hidden_reasoning(rendered, "CONTROL NEXUS Council render")
+        _reject_obvious_secrets(rendered, "CONTROL NEXUS Council render")
         rendered["response_sha256"] = _canonical_hash(rendered)
         return rendered
 
@@ -882,6 +1031,8 @@ class NexusCouncilAdapter:
         *,
         control_root: str | Path,
         control_run_id: str | None,
+        requested_question: str,
+        requested_evidence_state: str,
         created_at: str,
         privacy_class: str,
         run_response: dict[str, Any],
@@ -892,6 +1043,25 @@ class NexusCouncilAdapter:
         epoch_object: dict[str, Any] | None,
         epoch_verification: dict[str, Any] | None,
     ) -> dict[str, Any]:
+        interaction: InteractionStore | None = None
+        if control_run_id is not None:
+            interaction = InteractionStore(control_root)
+            target_run = interaction.get_run(control_run_id)
+            if target_run.get("mode") != "council":
+                raise NexusAdapterError("target CONTROL run is not a council-mode interaction")
+            question_record = target_run.get("question")
+            if (
+                not isinstance(question_record, dict)
+                or question_record.get("text") != requested_question
+            ):
+                raise NexusAdapterError(
+                    "target CONTROL run question does not match the Council invocation"
+                )
+            if target_run.get("evidence_state") != requested_evidence_state:
+                raise NexusAdapterError(
+                    "target CONTROL run evidence_state does not match the Council invocation"
+                )
+
         artifacts: list[tuple[str, str, dict[str, Any]]] = [
             ("council-run-response", f"nexus:session:{rendered['session_ref']}", run_response),
             ("council-session", f"nexus:session:{rendered['session_ref']}", session_object),
@@ -957,9 +1127,7 @@ class NexusCouncilAdapter:
             )
 
         event_refs: list[str] = []
-        if control_run_id is not None:
-            interaction = InteractionStore(control_root)
-            interaction.get_run(control_run_id)
+        if interaction is not None and control_run_id is not None:
             receipt_event = interaction.append_event(
                 control_run_id,
                 kind="receipt",
