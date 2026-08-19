@@ -40,13 +40,13 @@ The discovered `system.health` response must identify the local control transpor
 jsonl_stdio
 ```
 
-The adapter currently accepts NEXUS protocol major `0` and fails closed on an unknown major. Minor protocol changes are discovered at runtime and must still expose the required operations.
+The adapter currently accepts NEXUS protocol major `0` and fails closed on an unknown major. Runtime versions use full Semantic Versioning 2.0.0 syntax, including prerelease and build metadata such as `2.0.0-rc.1+build.7`.
 
 ## Local JSONL / stdio transport
 
 The reference transport starts one local process with `shell=False` and maintains a persistent stdin/stdout session.
 
-One canonical JSON object is written per line. One bounded JSON object is read per line.
+One canonical JSON object is written per line. One bounded JSON object is read per line. Owned stdin/stdout pipe handles are explicitly closed after the child is reaped so repeated adapter sessions do not leak descriptors.
 
 The CLI receives the executable argv as JSON so shell parsing never becomes part of the adapter contract:
 
@@ -111,6 +111,10 @@ roster_authority
 worldstore / world_store / world_state
 ```
 
+Hidden/private reasoning keys are also rejected recursively **before** `council.run` is submitted. This includes chain-of-thought, hidden/private reasoning, scratchpads and reasoning traces.
+
+Credential-labelled fields are rejected recursively before submission and before persistence, even when the value does not happen to contain a familiar token prefix. Examples include `api_key`, `access_token`, `refresh_token`, `client_secret`, `private_key`, `authorization`, `password`, and direct credential fields. Operational references such as a configured `credential_env` name are not themselves treated as secret values.
+
 NEXUS may expose provider, deployment, capability, authentication-profile, timeout, local-endpoint, or model-selection fields according to its own runtime contract. Those fields select execution resources; they do not grant CONTROL authority to alter Council governance.
 
 ## Post-commit verification
@@ -119,20 +123,28 @@ CONTROL does not render the initial `council.run` response without resolving the
 
 After a successful run it:
 
-1. resolves `session_ref` with `world.inspect`;
-2. verifies the WorldStore object's content address;
-3. reads the canonical roster and policy from the committed `council_session`;
-4. requires every phase's joined member order to equal that roster order;
-5. preserves the phase order exactly from the committed policy;
-6. verifies every revealed ballot against its NEXUS `ballot:<sha256>` commitment;
-7. recomputes the tally from revealed ballots;
-8. requires the result threshold to equal the committed policy's exact numerator/denominator;
-9. preserves the committed minority reports exactly;
-10. resolves `receipt_ref`, verifies its WorldStore identity, and calls `receipt.verify`;
-11. checks receipt result/replayability linkage to the committed session;
-12. validates the optional Council Chair / Compute Epoch admission evidence when returned.
+1. resolves `session_ref` with `world.inspect` and verifies its content address;
+2. resolves the committed `question_ref` and requires the exact submitted question text;
+3. requires the committed session `world_mode`, returned `mode_id`, and committed `world_presence` mode to equal the submitted mode;
+4. verifies that the committed World Presence binds the same question and roster;
+5. reads the canonical roster and policy from the committed `council_session`;
+6. requires non-empty `member_id`, `model_id`, and `adapter_id` fields plus ordinary vote weight `1` and epistemic privilege `none`;
+7. requires every phase's joined member order to equal that roster order;
+8. preserves the phase order exactly from the committed policy;
+9. verifies every revealed ballot against its NEXUS `ballot:<sha256>` commitment;
+10. recomputes the tally and the NEXUS disposition from revealed ballots;
+11. recomputes whether the winning disposition meets the committed numerator/denominator;
+12. validates the NEXUS consensus label against the revealed ballots and committed threshold;
+13. requires the result threshold to equal the committed policy's exact numerator/denominator;
+14. verifies the evidence snapshot binds the same committed question, requested evidence refs and requested evidence state;
+15. preserves and verifies committed minority reports against the revealed ballots;
+16. resolves `receipt_ref`, verifies its WorldStore identity, and calls `receipt.verify`;
+17. requires the receipt's leading input refs to bind the committed question, evidence snapshot and world presence;
+18. checks receipt result/replayability linkage to the committed session;
+19. validates the optional Council Chair / Compute Epoch admission evidence when returned;
+20. rejects credential-labelled or hidden-reasoning fields in accepted parent artifacts.
 
-A hash verifies integrity and linkage. It does not turn Council consensus into epistemic truth.
+A self-consistent content hash is therefore not enough by itself. The committed session must also bind to the request CONTROL actually submitted.
 
 ## Phases and sealed ballot
 
@@ -159,16 +171,29 @@ with both commitment records and the post-run revealed ballots. CONTROL verifies
 
 ## Consensus threshold
 
-CONTROL renders the exact threshold from the committed NEXUS session:
+CONTROL preserves NEXUS's canonical `disposition`, but it separately recomputes whether that disposition actually reaches the committed threshold.
+
+The verified render therefore includes:
 
 ```json
 {
-  "numerator": 2,
-  "denominator": 3
+  "disposition": "ACCEPT",
+  "threshold_met": false,
+  "consensus_outcome": "NO_CONSENSUS",
+  "consensus_threshold": {
+    "numerator": 2,
+    "denominator": 3
+  }
 }
 ```
 
-The values above describe the current reference policy. CONTROL does not hard-code them as its own governance rule. It verifies that the result's threshold matches the session policy returned by NEXUS.
+This distinction matters because NEXUS may record the single plurality disposition even when that plurality does not meet the consensus threshold. CONTROL must not turn a plurality into consensus merely because the disposition field is non-empty.
+
+```text
+PLURALITY_DISPOSITION != CONSENSUS_THRESHOLD_MET
+```
+
+CONTROL also recomputes the expected NEXUS consensus label (`UNANIMOUS`, `STRONG_CONSENSUS`, `CONSENSUS`, `MAJORITY_NO_CONSENSUS`, or `NO_CONSENSUS`) from the revealed ballots and committed threshold and fails closed if the committed label disagrees.
 
 ## Minority reports
 
@@ -194,7 +219,13 @@ copied_governance_authority = false
 hidden_chain_of_thought_captured = false
 ```
 
-If an existing `qsol-control-interaction/2` run is supplied with `--control-run-id`, CONTROL also appends a receipt event and a derived response event referencing the verified NEXUS artifacts.
+If an existing `qsol-control-interaction/2` run is supplied with `--control-run-id`, CONTROL first verifies **before writing any NEXUS artifact Files** that the target run:
+
+- is a `council` run;
+- has the exact same question text; and
+- has the exact same evidence state as the Council invocation.
+
+Only then are the verified NEXUS artifacts written and receipt/response events appended. This prevents a response for question A from being attached to unrelated run B.
 
 ## Hidden chain-of-thought boundary
 
@@ -202,7 +233,7 @@ CONTROL does not call NEXUS Stenographer operations and does not request hidden 
 
 Visible Council phase submissions and visible ballot rationales are treated as public/runtime outputs, not hidden chain-of-thought.
 
-If a future parent response exposes a field named like hidden/private reasoning, scratchpad, reasoning trace, or chain-of-thought, this adapter fails closed rather than persisting it.
+If a caller request or future parent response exposes a field named like hidden/private reasoning, scratchpad, reasoning trace, or chain-of-thought, this adapter fails closed rather than submitting or persisting it.
 
 ```text
 VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
