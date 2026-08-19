@@ -14,11 +14,18 @@ from .dna_lattice import (
     encode_projection,
 )
 from .interaction_store import InteractionStore, lattice_address
+from .model_state import (
+    ModelStateError,
+    ModelStateRegistry,
+    hash_local_artifact,
+)
 
 __all__ = [
     "ControlStore",
     "InteractionStore",
+    "ModelStateRegistry",
     "StorageError",
+    "ModelStateError",
     "DnaLatticeError",
     "ArkBundleError",
     "lattice_address",
@@ -28,4 +35,5 @@ __all__ = [
     "verify_ark_bundle",
     "restore_ark_bundle",
     "bundle_privacy_class",
+    "hash_local_artifact",
 ]

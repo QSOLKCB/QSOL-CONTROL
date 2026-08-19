@@ -16,7 +16,7 @@ CONTROL    — OPERATES
 LATTICE    — REMEMBERS
 ```
 
-The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the evidentiary/reasoning membrane. CONTROL is the operator surface. Lattice memory and persistent Files/Collections are storage mechanisms within CONTROL, not additional authority-bearing pillars.
+The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the evidentiary/reasoning membrane. CONTROL is the operator surface. Lattice memory, persistent Files/Collections, and the model-state registry are storage/reproducibility mechanisms within CONTROL, not additional authority-bearing pillars.
 
 ## Authority matrix
 
@@ -30,11 +30,12 @@ The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the
 | Human + AI orchestration | QSOL-CONTROL | owner |
 | Persistent File/Collection mechanics | QSOL-CONTROL | owner of storage mechanics only |
 | Interaction/model-state lattice placement | CONTROL lattice layer | owner of storage mechanics only |
+| Model-state reproducibility registry | QSOL-CONTROL | metadata storage/comparison only; zero mind/truth authority |
 | Minimum CONTROL recovery packaging | QSOL-CONTROL | packaging/verifier only; ARK retains recovery authority |
 | Lexical/vector indexes | CONTROL derived storage | zero semantic authority |
 | DNA/codon projection | CONTROL recovery projection | zero semantic authority |
 
-Ownership of storage mechanics does not confer authority over the truth of stored content. Invocation authority does not confer authority to rewrite the invoked system's governance.
+Ownership of storage mechanics does not confer authority over the truth of stored content. Invocation authority does not confer authority to rewrite the invoked system's governance. Recording model/runtime metadata does not confer access to hidden cognition.
 
 ## Control surfaces
 
@@ -60,7 +61,7 @@ Replay
 System health
 ```
 
-The UI should make uncertainty and provenance visible rather than hiding them behind a generic answer card.
+The UI should make uncertainty and provenance visible rather than hiding them behind a generic answer card. The Phase 4 model-state label contract is already fixed even though Phase 5 has not yet implemented the WebUI.
 
 ### Machine surface
 
@@ -85,7 +86,7 @@ control.memory.trace
 control.replay
 ```
 
-The implemented local standard-library layer now includes File/Collection storage, interaction persistence, minimum offline ARK recovery packaging, a read-only ORACLE adapter, and a governance-preserving NEXUS Council adapter over local JSONL/stdio. It is still not a network CONTROL service.
+The implemented local standard-library layer now includes File/Collection storage, interaction persistence, minimum offline ARK recovery packaging, a read-only ORACLE adapter, a governance-preserving NEXUS Council adapter over local JSONL/stdio, and a persistent model-state registry with comparisons/archaeology export. It is still not a network CONTROL service.
 
 ## Query lifecycle
 
@@ -104,11 +105,13 @@ Implemented storage/adaptor lifecycle:
 10. CONTROL resolves committed session/receipt refs and verifies their identities/linkage
 11. CONTROL renders canonical roster, phases, sealed ballot, exact threshold and minority reports
 12. CONTROL may persist verified external artifacts as reference-only Files/events
-13. interaction records retain external references without copying ORACLE/NEXUS authority
-14. UI/API renders dimensions without authority collapse
+13. participating model executions may receive immutable qsol-control-model-state/1 records
+14. each model-state field carries explicit provenance and the state binds to its CONTROL run
+15. interaction/model-state lineage is preserved without copying ORACLE/NEXUS authority or model cognition
+16. UI/API renders dimensions without authority collapse
 ```
 
-Retrieval occurs before reasoning only as context selection. Retrieval rank is not evidence status. Council consensus is not evidence status.
+Retrieval occurs before reasoning only as context selection. Retrieval rank is not evidence status. Council consensus is not evidence status. Model identity/configuration is not evidence status.
 
 ## Persistent Files and Collections
 
@@ -257,6 +260,90 @@ NEXUS_OWNS_WORLDSTORE_HISTORY = true
 VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 ```
 
+## Model-state reproducibility boundary
+
+Phase 4 implements an immutable `qsol-control-model-state/1` registry for externally inspectable computational circumstances.
+
+A canonical state may record:
+
+```text
+model provider/runtime/version/id/revision/quantization
+model/weight/tokenizer hashes when locally verifiable
+sampling/context/seed/stochastic metadata
+Council seat and NEXUS mode
+tool/filesystem/network/plugin permission envelope
+CONTROL/NEXUS/ORACLE/SUBSTRATE/ARK/INT identities
+exact Collection snapshot identity
+hardware/runtime metadata
+```
+
+Every canonical field has one provenance class:
+
+```text
+observed
+provider_reported
+locally_verified
+inferred
+unknown
+```
+
+Unclassified fields become `unknown`. A provider-reported identifier is not promoted to locally verified merely because CONTROL stored it.
+
+### Artifact identity boundary
+
+Local model, weights, or tokenizer paths may be inspected for hashing. The paths and bytes do not enter canonical records.
+
+```text
+regular file     -> sha256(exact file bytes)
+sharded directory -> sha256(canonical relative-path/file-hash/size manifest)
+```
+
+Directory identity is explicitly a manifest identity, not a fabricated byte-stream hash.
+
+```text
+HASH_IDENTITY != ARTIFACT_BYTES
+PROVIDER_REPORTED != LOCALLY_VERIFIED
+```
+
+### Run linkage
+
+The full Phase 4 registry record is canonical and is bound to `system.control_run_id`.
+
+Phase 1B already has a compact `model_state` event shape. The public Phase 4 runtime therefore appends a backward-compatible event **projection** with `record_refs=[state_id]`; it does not redefine the older event schema in place.
+
+```text
+CANONICAL_REGISTRY_RECORD != RUN_EVENT_PROJECTION
+COARSE_PROVENANCE != FIELD_LEVEL_PROVENANCE
+```
+
+The projection's legacy coarse provenance field is `unknown`, preventing a many-field provenance map from being collapsed into an unjustified stronger label.
+
+### Comparison and archaeology
+
+`qsol-control-model-state-comparison/1` and `qsol-control-model-state-run-comparison/1` compare recorded values and their provenance. They explicitly set model-mind inference to false.
+
+`qsol-control-model-state-archaeology/1` is a deterministic self-describing export. It declares that model artifact bytes and local paths are absent and that hidden chain-of-thought/model-mind capture are false. RESTRICTED exports require explicit acknowledgement.
+
+The future WebUI must use the pinned labels:
+
+```text
+Model-state reproducibility metadata
+Not model mind
+Metadata provenance
+Unknown / not established
+Provider reported
+Locally verified
+Inferred — not verified
+Observed
+```
+
+```text
+MODEL_STATE != MODEL_MIND
+VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+RUNTIME_METADATA != CONSCIOUSNESS
+MODEL_STATE_COMPARISON != MIND_COMPARISON
+```
+
 ## Minimum ARK recovery gate
 
 `qsol-control-ark-minimum-bundle/1` closes the Phase 1B offline persistence gate by reusing `QSOL-RESTORE-DAT/1` as the deterministic container for one interaction run and the canonical storage records required to verify it.
@@ -300,7 +387,7 @@ ORACLE -----------+
 NEXUS -------------+
 ```
 
-CONTROL owns addressing and interaction packaging. ORACLE remains authoritative only for its own witnessed events; NEXUS remains authoritative only for its own WorldStore/governance mechanics.
+CONTROL owns addressing and interaction packaging. ORACLE remains authoritative only for its own witnessed events; NEXUS remains authoritative only for its own WorldStore/governance mechanics. Model-state records provide reproducibility metadata and do not become evidence authority merely because they share run lineage.
 
 ## 3×3×3 Sierpinski-derived addressing
 
@@ -406,26 +493,19 @@ timestamps
 replayability classification
 ```
 
-Phase 3 now supplies verified NEXUS session/receipt references and externally visible Council response artifacts that may be attached to an existing run through receipt and derived response events.
+Phase 3 supplies verified NEXUS session/receipt references and externally visible Council response artifacts that may be attached to an existing run through receipt and derived response events. Phase 4 supplies canonical model-state records bound by `system.control_run_id` plus compact `model_state` event projections referencing their `state_id`.
 
 The immutable run record remains content-addressed. Its separate event chain is append-only with an atomic `HEAD`, explicit parent lineage, and stable event identities.
 
 ## Model-state record
 
-Model-state capture exists for future computational archaeology and comparison. It is a reproducibility envelope, not hidden cognition capture.
-
-The record should separate:
-
-- observed metadata;
-- provider-reported metadata;
-- locally hashable metadata;
-- inferred/unknown metadata.
+Model-state capture is now implemented as a persistent reproducibility registry. It separates values from how those values were established and refuses hidden-cognition claims.
 
 A future AI should be able to answer:
 
-> What models participated, under what externally recorded conditions, with what evidence and system versions, and what did they visibly return?
+> What models participated, under what externally recorded conditions, which fields were actually verified, with what evidence/system versions, and what changed between runs?
 
-It should **not** be told that CONTROL preserved private reasoning that was never exposed.
+It should **not** be told that CONTROL preserved private reasoning, consciousness, or an internal mind state that was never exposed.
 
 ## Replay classes
 
@@ -436,7 +516,7 @@ R2 same declared configuration but stochastic/live inference
 R3 rerun with changed evidence/model/runtime state
 ```
 
-Future replay must bind to exact historical Collection snapshots and verified external NEXUS/ORACLE references rather than current live state.
+Future replay must bind to exact historical Collection snapshots and verified external NEXUS/ORACLE references rather than current live state. Model-state metadata can explain configuration drift but does not upgrade stochastic execution into deterministic replay.
 
 ## Failure behavior
 
@@ -452,6 +532,10 @@ Examples:
 - NEXUS session/receipt content-address mismatch -> reject the run render;
 - NEXUS threshold/tally/ballot-commitment/minority mismatch -> reject rather than normalize;
 - hidden-reasoning-labelled field from NEXUS -> reject rather than persist;
+- model-state credential/hidden-reasoning-labelled field -> reject before persistence;
+- contradictory model-state Collection snapshot -> reject rather than detach state from its run;
+- local artifact symlink/unsafe entry -> reject rather than hash ambiguous content;
+- ambiguous cross-run model-state alignment key -> reject rather than guess correspondence;
 - stale semantic index -> unavailable until rebuilt, not silently searched against wrong membership;
 - Collection privacy mismatch -> membership update rejected;
 - corrupt raw object -> verification failure;
@@ -471,6 +555,8 @@ QSOL-CONTROL is not:
 - a NEXUS governance fork or WorldStore editor;
 - a truth-scoring engine;
 - a hidden chain-of-thought recorder;
+- a model-mind, consciousness, or sentience detector;
+- a model-weight archive merely because it can hash local model artifacts;
 - a blockchain;
 - a vector database promoted to epistemic authority;
 - a biological DNA storage claim;

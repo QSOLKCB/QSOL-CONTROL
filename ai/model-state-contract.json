@@ -1,0 +1,147 @@
+{
+  "type": "qsol-control-model-state-contract",
+  "protocol": "qsol-control-model-state/1",
+  "runtime": "storage/model_state_registry.py",
+  "public_runtime_facade": "storage/model_state.py",
+  "cli": "tools/model_state.py",
+  "purpose": "externally inspectable reproducibility metadata and future computational archaeology",
+  "epistemic_boundary": "MODEL_STATE != MODEL_MIND",
+  "authority": "reproducibility-metadata-only",
+  "identity": {
+    "state_id": "sha256(canonical record payload without state_id)",
+    "immutable": true,
+    "canonical_serialization": "utf-8 canonical JSON with sorted keys and compact separators",
+    "max_record_bytes": 4194304,
+    "bounded_before_parse": true
+  },
+  "run_linkage": {
+    "canonical_binding": "system.control_run_id",
+    "interaction_event_kind": "model_state",
+    "interaction_event_payload": "backward-compatible Phase-1B projection",
+    "interaction_event_record_ref": "canonical state_id",
+    "full_registry_record_is_canonical": true,
+    "event_projection_is_canonical_record": false,
+    "event_projection_coarse_metadata_provenance": "unknown",
+    "reason": "do not collapse field-level Phase-4 provenance into a stronger legacy single provenance label"
+  },
+  "capture": {
+    "model_identity": [
+      "provider",
+      "runtime",
+      "runtime_version",
+      "model_id",
+      "revision",
+      "quantization"
+    ],
+    "artifact_identities": [
+      "model_hash",
+      "weight_hash",
+      "tokenizer_identity",
+      "tokenizer_hash"
+    ],
+    "execution": [
+      "council_seat",
+      "mode",
+      "stochastic",
+      "seed",
+      "context_limit",
+      "sampling",
+      "tool_permissions",
+      "tool_permission_envelope"
+    ],
+    "system": [
+      "control_run_id",
+      "control_manifest_identity",
+      "nexus_identity",
+      "oracle_refs",
+      "substrate_identity",
+      "ark_identity",
+      "int_identity",
+      "collection_snapshot_id",
+      "evidence_snapshot_ref",
+      "hardware_runtime_metadata"
+    ]
+  },
+  "field_provenance": {
+    "required_for_every_canonical_field": true,
+    "classes": [
+      "observed",
+      "provider_reported",
+      "locally_verified",
+      "inferred",
+      "unknown"
+    ],
+    "unclassified_default": "unknown",
+    "caller_may_assign_locally_verified": false,
+    "locally_verified_assignment": "runtime-only-after-CONTROL-verification",
+    "runtime_verified_examples": [
+      "system.control_run_id",
+      "hashes computed from supplied local model/weights/tokenizer artifacts",
+      "exact Collection snapshot inherited from the verified containing run"
+    ],
+    "control_run_id": "locally_verified",
+    "captured_at": "observed"
+  },
+  "local_artifact_verification": {
+    "roles": ["model", "weights", "tokenizer"],
+    "regular_file_identity": "sha256(exact file bytes)",
+    "directory_identity": "sha256(canonical relative-path/file-hash/size manifest)",
+    "directory_manifest_protocol": "qsol-control-local-artifact-manifest/1",
+    "local_paths_persisted": false,
+    "artifact_bytes_copied": false,
+    "locally_computed_hash_provenance": "locally_verified"
+  },
+  "comparison": {
+    "state_protocol": "qsol-control-model-state-comparison/1",
+    "run_protocol": "qsol-control-model-state-run-comparison/1",
+    "run_alignment_preference": "council_seat_then_provider_model_id",
+    "compares_values_and_provenance": true,
+    "model_mind_inference": false,
+    "authority": "metadata-comparison-only"
+  },
+  "archaeology_export": {
+    "protocol": "qsol-control-model-state-archaeology/1",
+    "deterministic": true,
+    "self_describing": true,
+    "contains_model_artifact_bytes": false,
+    "local_artifact_paths_persisted": false,
+    "restricted_requires_explicit_acknowledgement": true,
+    "output_file_mode": "0600",
+    "authority": "reproducibility-archive-only"
+  },
+  "privacy": {
+    "record_classes": ["PUBLIC", "INTERNAL", "RESTRICTED"],
+    "forbidden_material_persisted": false,
+    "credential_labelled_fields_fail_closed": true,
+    "credential_value_markers_fail_closed": true,
+    "hidden_reasoning_fields_fail_closed": true
+  },
+  "ui_labels": {
+    "panel_title": "Model-state reproducibility metadata",
+    "boundary_badge": "Not model mind",
+    "provenance_heading": "Metadata provenance",
+    "unknown_label": "Unknown / not established",
+    "locally_verified_label": "Locally verified",
+    "provider_reported_label": "Provider reported",
+    "inferred_label": "Inferred — not verified",
+    "observed_label": "Observed"
+  },
+  "forbidden_claims": [
+    "hidden chain-of-thought captured",
+    "model mind captured",
+    "consciousness inferred from runtime metadata",
+    "provider identity authenticated merely because it was reported",
+    "caller self-awarded locally verified metadata",
+    "exact stochastic replay guaranteed by metadata alone",
+    "truth inferred from model identity or configuration"
+  ],
+  "invariants": [
+    "MODEL_STATE != MODEL_MIND",
+    "VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
+    "RUNTIME_METADATA != CONSCIOUSNESS",
+    "PROVIDER_REPORTED != LOCALLY_VERIFIED",
+    "CALLER_REPORTED != LOCALLY_VERIFIED",
+    "HASH_IDENTITY != ARTIFACT_BYTES",
+    "MODEL_STATE_COMPARISON != MIND_COMPARISON"
+  ]
+}

@@ -1,12 +1,10 @@
-# QSOL-CONTROL Model-State Preservation
+# QSOL-CONTROL Model-State Registry
 
 ## Purpose
 
-CONTROL preserves externally inspectable model/runtime metadata so future humans and AIs can understand the computational circumstances surrounding a recorded interaction.
+Phase 4 implements persistent `qsol-control-model-state/1` records for **computational archaeology and reproducibility**.
 
-The goal is **computational archaeology and reproducibility**, not mind capture.
-
-## Core boundary
+The registry preserves externally inspectable facts about a model execution. It does not preserve or infer a model mind.
 
 ```text
 MODEL_STATE != MODEL_MIND
@@ -14,11 +12,174 @@ VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 RUNTIME_METADATA != CONSCIOUSNESS
 ```
 
-CONTROL must never claim it preserved hidden reasoning that a model/provider did not expose.
+These are runtime and schema invariants, not disclaimers pasted onto the UI later.
 
-## State classes
+## Persistent identity
 
-Every field should be classifiable as one of:
+Canonical records live under the CONTROL storage root:
+
+```text
+records/model-states/<sha256>.json
+```
+
+`state_id` is the SHA-256 content reference of the canonical record payload excluding `state_id` itself.
+
+```text
+STATE_ID = sha256(canonical model-state payload)
+```
+
+Records are immutable. A path/content identity mismatch fails verification.
+
+Each record is bound to an existing `qsol-control-interaction/2` run through:
+
+```text
+system.control_run_id
+```
+
+The registry validates that run before capture. Late model-state capture does **not** mutate the already immutable interaction run record merely to add a new array member.
+
+### Run-event lineage
+
+Phase 1B already defined a compact `model_state` event payload. Phase 4 deliberately does not redefine that old event shape in place.
+
+Instead:
+
+```text
+full Phase-4 registry record = canonical model state
+Phase-1B model_state event   = backward-compatible lineage projection
+record_refs                  = [canonical state_id]
+```
+
+The projection preserves the model/runtime identifiers, selected execution fields, system run binding, and the canonical `state_id`. The full field-level provenance remains in the registry record.
+
+The older event format has only one coarse `metadata_provenance` field. Phase 4 sets that projection field to `unknown` rather than collapsing many field-level provenance classes into a stronger claim.
+
+```text
+EVENT_PROJECTION != CANONICAL_MODEL_STATE
+COARSE_PROVENANCE != FIELD_LEVEL_PROVENANCE
+```
+
+Capture is idempotent: re-capturing the same canonical state does not append a duplicate run-event link.
+
+## Canonical record
+
+The record captures four dimensions.
+
+### Model identity
+
+```text
+provider
+runtime
+runtime_version
+model_id
+revision
+quantization
+model_hash
+weight_hash
+tokenizer_identity
+tokenizer_hash
+```
+
+The first five identify what the execution environment says the model was. Hashes provide artifact identity only when available.
+
+### Local artifact verification
+
+The CLI/runtime may be given local paths for:
+
+```text
+model
+weights
+tokenizer
+```
+
+Those paths are used only for hashing.
+
+For a regular file:
+
+```text
+sha256(exact file bytes)
+```
+
+For a directory/sharded artifact:
+
+```text
+sha256(canonical manifest(relative path, exact file SHA-256, size))
+```
+
+The latter is explicitly labelled `directory-manifest`; it is not misrepresented as a hash of one imaginary directory byte stream.
+
+The canonical model-state record stores:
+
+```text
+hash
+hash scope/kind
+size
+file count
+manifest protocol when applicable
+```
+
+It does **not** store:
+
+```text
+local artifact path
+model bytes
+weight bytes
+tokenizer bytes
+```
+
+```text
+HASH_IDENTITY != ARTIFACT_BYTES
+```
+
+### Execution configuration
+
+The registry preserves, where available:
+
+```text
+Council seat
+NEXUS mode
+deterministic/stochastic indicator
+seed
+context limit
+sampling parameters
+tool permissions
+tool permission envelope
+```
+
+The canonical tool envelope separates:
+
+```text
+filesystem: none | read-only | workspace-write | unrestricted | unknown
+network:    none | loopback | restricted | unrestricted | unknown
+tools
+mcp_plugins
+external_execution
+```
+
+Tool access is recorded as execution context. It does not confer epistemic authority.
+
+### System snapshot identities
+
+A model-state may bind:
+
+```text
+CONTROL run identity
+CONTROL manifest identity
+NEXUS identity
+ORACLE refs
+SUBSTRATE identity
+ARK identity
+INT identity
+exact Collection snapshot identity
+NEXUS evidence snapshot ref
+relevant hardware/runtime metadata
+```
+
+If a containing CONTROL run already binds a Collection snapshot, the registry refuses a contradictory model-state snapshot identity.
+
+## Field-level provenance
+
+Every canonical capture field has one explicit provenance class:
 
 ```text
 observed
@@ -28,237 +189,207 @@ inferred
 unknown
 ```
 
-`inferred` metadata must remain explicitly inferred. Unknown fields remain unknown.
-
-## Candidate fields
-
-When available and appropriate, preserve:
-
-### Identity
+Unclassified fields default to:
 
 ```text
-provider
-runtime
-runtime_version
-model_id
-model_revision
-model_family
-open_or_closed_weight_status
+unknown
 ```
 
-### Artifact identity
+They never silently become `observed`.
+
+Locally computed model/weight/tokenizer hashes are automatically labelled:
 
 ```text
-weight/model hash
-model file identity
-tokenizer identity/hash
-adapter identity/hash
-quantization identity
+locally_verified
 ```
 
-### Inference configuration
+The containing CONTROL run identity is also locally verified. `captured_at` is classified as observed.
+
+Important distinction:
 
 ```text
-context limit
-sampling parameters
-temperature
-top_p/top_k where applicable
-seed where meaningful
-deterministic/stochastic classification
+PROVIDER_REPORTED != LOCALLY_VERIFIED
+INFERRED != OBSERVED
+UNKNOWN != FALSE
 ```
 
-### QSOL execution context
+A provider-reported model ID is preserved as provider-reported unless another mechanism independently establishes it.
+
+## Privacy and forbidden material
+
+Persistent records use:
 
 ```text
-CONTROL protocol/version/run_id
-NEXUS protocol/runtime
-Council seat
-Council mode
-ORACLE snapshot/receipt refs
-SUBSTRATE snapshot identity
-ARK/INT compatibility refs where relevant
-tool permission envelope
+PUBLIC
+INTERNAL
+RESTRICTED
 ```
 
-### Environment
+`FORBIDDEN` is not a persistable class. It is a rejection outcome.
 
-Only when materially relevant to reproducibility:
+The runtime recursively rejects credential-labelled fields such as API keys, access/refresh tokens, client secrets, passwords, authorization headers, cookies and private keys. Known credential-value markers are rejected as defence in depth.
+
+The runtime also rejects fields labelled as:
 
 ```text
-OS/runtime class
-accelerator/GPU class
-precision
-relevant library/runtime versions
-execution timestamp
+chain_of_thought
+hidden_chain_of_thought
+hidden_reasoning
+private_reasoning
+internal_reasoning
+reasoning_trace
+scratchpad
+model_mind
+internal_activations
 ```
 
-Avoid collecting irrelevant host/user details merely because they are available.
+Do not hash a credential and call the result archival metadata.
 
-## Recommended field policy
+## Cross-state and cross-run comparison
 
-Prefer **allowlisted structured fields** over dumping provider/runtime response objects into a generic metadata map.
-
-Good:
+Two model states can be compared deterministically with:
 
 ```text
-runtime = ollama
-runtime_version = 0.x
-quantization = Q4_K_M
-accelerator_class = RTX-50-series
+qsol-control-model-state-comparison/1
 ```
 
-Usually unnecessary and potentially sensitive:
+The comparison records:
 
 ```text
-local username
-home directory
-machine hostname
-serial number
-private LAN address
-provider account ID
-billing workspace ID
-raw HTTP headers
-full environment dump
+field path
+left value
+right value
+left provenance
+right provenance
+field category
 ```
 
-If a sensitive identifier is genuinely necessary for reproducibility, classify it as restricted metadata and document why.
-
-## Privacy classification
-
-Before model-state persistence/export, classify fields conceptually as:
+Run-level comparison uses:
 
 ```text
-PUBLIC      deliberately safe for public export
-INTERNAL    useful local reproducibility metadata; not public by default
-RESTRICTED  sensitive identifier or environment metadata requiring explicit approval
-FORBIDDEN   credential or hidden reasoning that CONTROL must not retain
+qsol-control-model-state-run-comparison/1
 ```
 
-A model-state record may contain fields from more than one class internally, but export tooling must not flatten those classes into an unrestricted public blob.
+States are aligned by Council seat when a seat exists, otherwise by provider/model identity. Ambiguous duplicate alignment keys fail closed rather than guessing which model instance corresponds to which.
 
-## Redaction / aggregation
-
-Redact or aggregate before durable storage when precision is not required.
-
-Examples:
-
-```text
-/home/alice/models/foo.gguf       -> local model path omitted; artifact hash retained
-trent-workstation-03              -> hostname omitted
-192.168.1.27                      -> network address omitted
-GPU serial ABC123                 -> accelerator class retained, serial omitted
-provider workspace 784923...      -> workspace ID omitted
-Authorization: Bearer ...         -> entire credential removed
-```
-
-Do not hash a credential and then call the hash safe archival metadata. Secret-derived hashes may still be sensitive and can support guessing attacks.
-
-## Retention
-
-Model-state metadata exists to support replay/reconstruction, but retention is still a deliberate decision.
-
-Recommended policy:
-
-- credentials/hidden reasoning: **never persist**;
-- incidental transport/debug metadata: **transient**;
-- unreviewed model-state captures: **session/workspace scope** by default;
-- curated reproducibility records: **archive** only after classification and redaction;
-- ARK/public exports: only explicitly cleared fields.
-
-Archival intent does not override privacy or rights boundaries.
-
-## Example canonical record
-
-The canonical valid fixture is:
-
-```text
-examples/schema/model-state.valid.json
-```
-
-Its paired negative fixture intentionally claims hidden chain-of-thought capture and **must fail**:
-
-```text
-examples/schema/model-state.invalid.json
-```
-
-Conceptually, a valid record looks like:
+Comparisons explicitly carry:
 
 ```json
-{
-  "protocol": "qsol-control-model-state/1",
-  "state_id": "sha256:...",
-  "captured_at": "...",
-  "model": {
-    "provider": "local",
-    "runtime": "ollama",
-    "model_id": "example-model",
-    "revision": null,
-    "quantization": "Q4_K_M",
-    "metadata_provenance": "observed"
-  },
-  "execution": {
-    "council_seat": "WHITE",
-    "mode": "analytical",
-    "stochastic": true
-  },
-  "system": {
-    "control_run_id": "sha256:...",
-    "nexus_identity": "...",
-    "oracle_refs": [],
-    "substrate_identity": "..."
-  },
-  "hidden_chain_of_thought_captured": false
-}
+"model_mind_inference": false
 ```
 
-## Future-AI questions this should enable
+```text
+MODEL_STATE_COMPARISON != MIND_COMPARISON
+```
 
-A future system should be able to ask:
+## Future-AI archaeology export
 
-- Which model/runtime produced this visible output?
-- Was the exact model artifact locally hashable?
-- Which NEXUS version and Council seat were active?
-- What evidence snapshot was available?
-- Was generation deterministic or stochastic?
+`qsol-control-model-state-archaeology/1` is a deterministic, self-describing JSON export of selected states.
+
+It includes:
+
+```text
+canonical model-state records
+state IDs
+run -> state index
+provenance vocabulary
+privacy class
+artifact identity semantics
+epistemic/UI boundary labels
+```
+
+It explicitly states:
+
+```json
+"hidden_chain_of_thought_captured": false,
+"model_mind_captured": false,
+"contains_model_artifact_bytes": false,
+"local_artifact_paths_persisted": false
+```
+
+RESTRICTED exports require explicit acknowledgement and are written owner-only (`0600`) on POSIX systems.
+
+The archaeology export is meant to answer questions such as:
+
+- Which model/runtime was recorded for this visible output?
+- Which identity fields were observed, provider-reported, locally verified, inferred or unknown?
+- Were exact weights or tokenizer artifacts locally hashable?
+- What sampling/context/tool envelope was active?
+- Which NEXUS/ORACLE/SUBSTRATE/Collection identities were bound?
 - What changed between two runs?
-- Is enough metadata present to reproduce, approximate, or merely contextualize the run?
 
-## What this record cannot prove
+It cannot answer:
 
-A model-state record does not prove:
+- What was the model secretly thinking?
+- Was the model conscious?
+- Was the answer true because a particular model produced it?
+- Can a future runtime reproduce identical stochastic output merely from metadata?
 
-- that the model's answer was true;
-- that the provider-reported model identity was authentic unless independently verified;
-- consciousness or subjective state;
-- the model's complete internal activations;
-- hidden chain-of-thought;
-- that a future implementation can recreate identical stochastic output.
+## UI label contract
 
-## Privacy / secret boundary
+Until Phase 5 builds the WebUI, the required model-state labels are already machine-readable in `ai/model-state-contract.json`.
 
-Never store:
+The UI must present:
 
-- API keys/tokens;
-- account cookies;
-- private provider billing/account metadata;
-- secret environment variables;
-- unredacted credentials in command lines;
-- hidden reasoning not intentionally exposed for persistence.
+```text
+Panel title:        Model-state reproducibility metadata
+Boundary badge:     Not model mind
+Provenance heading: Metadata provenance
+Unknown:            Unknown / not established
+Locally verified:   Locally verified
+Provider reported:  Provider reported
+Inferred:           Inferred — not verified
+Observed:           Observed
+```
 
-Review before storage/export:
+The WebUI must not shorten the panel to `Mind`, `AI mind`, `internal state`, or equivalent language.
 
-- provider request IDs;
-- workspace/project IDs;
-- model endpoints;
-- usernames/local paths;
-- hostnames/IP addresses;
-- device identifiers;
-- free-form provider metadata.
+## CLI
 
-See `SECURITY.md` for the repository-wide classification, redaction, access-control and retention rules.
+Capture from a JSON descriptor:
 
-## Export to ARK
+```bash
+python3 tools/model_state.py --root .store capture \
+  --descriptor model-state-input.json \
+  --weight-artifact /local/path/model.gguf \
+  --tokenizer-artifact /local/path/tokenizer.json
+```
 
-ARK-oriented exports should prefer compact, self-describing model-state records with schemas and hashes so future reconstruction does not depend on the original CONTROL database or UI.
+Inspect and verify:
 
-An ARK export is a new boundary review: it must not automatically inherit every field that CONTROL retained locally.
+```bash
+python3 tools/model_state.py --root .store show <state_id>
+python3 tools/model_state.py --root .store verify <state_id>
+python3 tools/model_state.py --root .store list --run-id <run_id>
+```
+
+Compare:
+
+```bash
+python3 tools/model_state.py --root .store compare-states <left_state_id> <right_state_id>
+python3 tools/model_state.py --root .store compare-runs <left_run_id> <right_run_id>
+```
+
+Export:
+
+```bash
+python3 tools/model_state.py --root .store export \
+  --run-id <run_id> \
+  --output model-state-archaeology.json
+```
+
+For RESTRICTED material, add `--allow-restricted` only after reviewing the export boundary.
+
+## Schemas and contracts
+
+- `schema/model-state.schema.json`
+- `schema/model-state-comparison.schema.json`
+- `schema/model-state-run-comparison.schema.json`
+- `schema/model-state-archaeology.schema.json`
+- `ai/model-state-contract.json`
+
+The public protocol remains:
+
+```text
+qsol-control-model-state/1
+```

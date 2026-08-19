@@ -1,6 +1,6 @@
 {
   "document_type": "qsol-control-ai-bootstrap",
-  "schema_version": 6,
+  "schema_version": 7,
   "protocol": "QSOL-CONTROL/0.1",
   "audience": ["ai", "agents", "automated_reviewers", "tooling"],
   "human_document": "README.md",
@@ -22,10 +22,13 @@
     "oracle_history": "none",
     "nexus_worldstore_history": "none",
     "nexus_governance": "none",
+    "model_mind": "none",
+    "hidden_chain_of_thought": "none",
     "recovery": "none",
     "operator_orchestration": "owned_by_control",
     "file_and_collection_storage_mechanics": "owned_by_control",
     "interaction_and_lattice_storage_mechanics": "owned_by_control",
+    "model_state_registry_mechanics": "owned_by_control",
     "ark_bundle_construction_and_verification": "owned_by_control",
     "oracle_adapter_reads": "owned_by_control",
     "oracle_adapter_writes": "forbidden",
@@ -39,6 +42,7 @@
     "ai": "structured_machine_api_planned",
     "storage_cli": "tools/storage_cli.py",
     "interaction_cli": "tools/interaction_cli.py",
+    "model_state_cli": "tools/model_state.py",
     "ark_bundle_cli": "tools/ark_bundle.py",
     "oracle_adapter_cli": "tools/oracle_adapter.py",
     "nexus_adapter_cli": "tools/nexus_adapter.py",
@@ -49,12 +53,18 @@
   "contracts": {
     "json_schema_draft": "https://json-schema.org/draft/2020-12/schema",
     "schema_versioning": "semantic-versioning",
-    "schema_version": "1.6.0",
+    "schema_version": "2.0.0",
+    "schema_version_major_bump_reason": "Phase 4 finalizes the previously provisional model-state schema with required persistent-registry and epistemic-boundary fields",
     "python_minimum": "3.11",
     "legacy_interaction_protocol": "qsol-control-interaction/1",
     "persistent_interaction_protocol": "qsol-control-interaction/2",
     "run_event_protocol": "qsol-control-run-event/1",
     "run_record_set_protocol": "qsol-control-run-record-set/1",
+    "model_state_protocol": "qsol-control-model-state/1",
+    "model_state_contract": "ai/model-state-contract.json",
+    "model_state_comparison_protocol": "qsol-control-model-state-comparison/1",
+    "model_state_run_comparison_protocol": "qsol-control-model-state-run-comparison/1",
+    "model_state_archaeology_protocol": "qsol-control-model-state-archaeology/1",
     "ark_minimum_bundle_protocol": "qsol-control-ark-minimum-bundle/1",
     "ark_recovery_contract": "ai/ark-recovery-contract.json",
     "oracle_adapter_protocol": "qsol-control-oracle-adapter/1",
@@ -101,6 +111,10 @@
     "VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
     "MODEL_STATE != MODEL_MIND",
     "VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
+    "RUNTIME_METADATA != CONSCIOUSNESS",
+    "PROVIDER_REPORTED != LOCALLY_VERIFIED",
+    "HASH_IDENTITY != ARTIFACT_BYTES",
+    "MODEL_STATE_COMPARISON != MIND_COMPARISON",
     "GEOMETRY != TRUTH"
   ],
   "question_modes": ["evidence_only", "council"],
@@ -108,6 +122,7 @@
     "status": "phase1b_offline_gate_satisfied",
     "runtime": "storage/control_store.py",
     "interaction_runtime": "storage/interaction_store.py",
+    "model_state_runtime": "storage/model_state_registry.py",
     "ark_recovery_runtime": "storage/ark_recovery_bundle.py",
     "object_identity": "sha256(raw_bytes)",
     "collection_history": "immutable_snapshot_chain_plus_atomic_head_pointer",
@@ -215,8 +230,62 @@
     "literal_sierpinski_claim": false
   },
   "model_state": {
-    "purpose": "future_ai_archaeology_and_reproducibility",
+    "status": "implemented_phase4_persistent_registry",
+    "protocol": "qsol-control-model-state/1",
+    "runtime": "storage/model_state_registry.py",
+    "contract": "ai/model-state-contract.json",
+    "purpose": "externally_inspectable_reproducibility_metadata_and_future_ai_archaeology",
+    "authority": "reproducibility_metadata_only",
+    "epistemic_boundary": "MODEL_STATE != MODEL_MIND",
+    "state_identity": "sha256_canonical_record_payload_without_state_id",
+    "captures": {
+      "model_identity": ["provider", "runtime", "runtime_version", "model_id", "revision", "quantization"],
+      "artifact_identity": ["model_hash", "weight_hash", "tokenizer_identity", "tokenizer_hash"],
+      "execution": ["council_seat", "mode", "stochastic", "seed", "context_limit", "sampling", "tool_permissions", "tool_permission_envelope"],
+      "system": ["control_run_id", "control_manifest_identity", "nexus_identity", "oracle_refs", "substrate_identity", "ark_identity", "int_identity", "collection_snapshot_id", "evidence_snapshot_ref", "hardware_runtime_metadata"]
+    },
+    "field_provenance": {
+      "classes": ["observed", "provider_reported", "locally_verified", "inferred", "unknown"],
+      "unclassified_default": "unknown",
+      "control_run_id": "locally_verified",
+      "captured_at": "observed"
+    },
+    "local_artifacts": {
+      "roles": ["model", "weights", "tokenizer"],
+      "file_identity": "sha256_exact_file_bytes",
+      "directory_identity": "sha256_canonical_relative_path_hash_size_manifest",
+      "paths_persisted": false,
+      "bytes_copied": false
+    },
+    "comparison": {
+      "state_protocol": "qsol-control-model-state-comparison/1",
+      "run_protocol": "qsol-control-model-state-run-comparison/1",
+      "compares_values_and_provenance": true,
+      "model_mind_inference": false
+    },
+    "archaeology_export": {
+      "protocol": "qsol-control-model-state-archaeology/1",
+      "deterministic": true,
+      "self_describing": true,
+      "restricted_requires_explicit_acknowledgement": true,
+      "contains_model_artifact_bytes": false,
+      "local_artifact_paths_persisted": false,
+      "hidden_chain_of_thought_captured": false,
+      "model_mind_captured": false
+    },
+    "ui_label_contract": {
+      "webui_implemented": false,
+      "panel_title": "Model-state reproducibility metadata",
+      "boundary_badge": "Not model mind",
+      "provenance_heading": "Metadata provenance",
+      "unknown_label": "Unknown / not established",
+      "locally_verified_label": "Locally verified",
+      "provider_reported_label": "Provider reported",
+      "inferred_label": "Inferred — not verified",
+      "observed_label": "Observed"
+    },
     "captures_hidden_chain_of_thought": false,
+    "captures_model_mind": false,
     "credentials_are_forbidden_persistence": true
   },
   "run_record": {
@@ -229,7 +298,7 @@
       "oracle_receipts",
       "nexus_receipts",
       "nexus_session_refs",
-      "model_states",
+      "model_state_run_bindings",
       "lattice_addresses",
       "file_refs",
       "collection_snapshot_refs",
@@ -239,16 +308,20 @@
       "hidden_model_reasoning",
       "truth_from_consensus",
       "truth_from_search_similarity",
-      "replayability_of_live_stochastic_inference_without_evidence"
+      "replayability_of_live_stochastic_inference_without_evidence",
+      "model_mind_from_model_state_metadata"
     ]
   },
   "validation": {
     "command": "python3 tools/validate_control.py",
     "tests": "python3 -W default -m unittest discover -s tests -v",
     "nexus_adapter_cli": "python3 tools/nexus_adapter.py --help",
+    "model_state_cli": "python3 tools/model_state.py --help",
     "phase1b_offline_recovery_round_trip_tests": true,
     "oracle_read_only_boundary_tests": true,
-    "nexus_governance_boundary_tests": true
+    "nexus_governance_boundary_tests": true,
+    "model_state_registry_tests": true,
+    "model_state_epistemic_gate_tests": true
   },
   "read_next": [
     "manifest.json",
@@ -257,8 +330,13 @@
     "ai/ark-recovery-contract.json",
     "ai/oracle-adapter-contract.json",
     "ai/nexus-adapter-contract.json",
-    "schema/nexus-discovery.schema.json",
-    "schema/nexus-council-response.schema.json",
+    "ai/model-state-contract.json",
+    "schema/model-state.schema.json",
+    "schema/model-state-comparison.schema.json",
+    "schema/model-state-run-comparison.schema.json",
+    "schema/model-state-archaeology.schema.json",
+    "docs/MODEL-STATE.md",
+    "docs/WEBUI.md",
     "docs/ARK-MINIMUM-BUNDLE.md",
     "docs/ORACLE-ADAPTER.md",
     "docs/NEXUS-ADAPTER.md",

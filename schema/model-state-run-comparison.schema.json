@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/model-state-run-comparison.schema.json",
+  "title": "QSOL-CONTROL Cross-Run Model-State Comparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparison_id",
+    "protocol",
+    "left_run_id",
+    "right_run_id",
+    "aligned",
+    "left_only",
+    "right_only",
+    "epistemic_boundary",
+    "model_mind_inference",
+    "authority"
+  ],
+  "properties": {
+    "comparison_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-model-state-run-comparison/1"},
+    "left_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "right_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "aligned": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "comparison"],
+        "properties": {
+          "key": {"type": "string", "minLength": 1},
+          "comparison": {"$ref": "model-state-comparison.schema.json"}
+        }
+      }
+    },
+    "left_only": {"$ref": "#/$defs/unmatched"},
+    "right_only": {"$ref": "#/$defs/unmatched"},
+    "epistemic_boundary": {"const": "MODEL_STATE != MODEL_MIND"},
+    "model_mind_inference": {"const": false},
+    "authority": {"const": "metadata-comparison-only"}
+  },
+  "$defs": {
+    "unmatched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "state_id"],
+        "properties": {
+          "key": {"type": "string", "minLength": 1},
+          "state_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

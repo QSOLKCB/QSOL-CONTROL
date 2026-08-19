@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -17,7 +18,9 @@ RUN_ID_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 LATTICE_RE = re.compile(r"^L\[[0-2],[0-2],[0-2]\](?:/L\[[0-2],[0-2],[0-2]\])*$")
 SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 PYTHON_MAJOR_MINOR_RE = re.compile(r"^[0-9]+\.[0-9]+$")
-FORBIDDEN_SECRET_MARKERS = ("ghp_", "github_pat_", "Bearer ", "AKIA", "-----BEGIN PRIVATE KEY-----")
+FORBIDDEN_SECRET_MARKERS = (
+    "ghp_", "github_pat_", "Bearer ", "AKIA", "-----BEGIN PRIVATE KEY-----"
+)
 PRIVACY_CLASSES = {"PUBLIC", "INTERNAL", "RESTRICTED"}
 RETENTION_CLASSES = {"TRANSIENT", "SESSION", "ARCHIVE"}
 
@@ -49,7 +52,6 @@ def parse_datetime(value: Any, field: str) -> None:
 
 
 def parse_python_minimum(value: Any) -> tuple[int, int]:
-    """Parse the validator's minimum Python contract as exactly MAJOR.MINOR."""
     if not isinstance(value, str) or not PYTHON_MAJOR_MINOR_RE.fullmatch(value):
         raise ValueError("validation.python_minimum must use MAJOR.MINOR")
     major, minor = value.split(".")
@@ -66,12 +68,24 @@ def reject_obvious_secrets(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     for marker in FORBIDDEN_SECRET_MARKERS:
         if marker in text:
-            raise ValueError(f"{path.relative_to(ROOT)} contains forbidden secret marker {marker!r}")
+            raise ValueError(
+                f"{path.relative_to(ROOT)} contains forbidden secret marker {marker!r}"
+            )
 
 
 def require_sha_ref(value: Any, field: str) -> None:
     if not isinstance(value, str) or not RUN_ID_RE.fullmatch(value):
         raise ValueError(f"{field} must be a sha256: content reference")
+
+
+def _canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
 
 
 def validate_query_instance(value: dict[str, Any]) -> None:
@@ -97,7 +111,9 @@ def validate_query_instance(value: dict[str, Any]) -> None:
         if not isinstance(requester, dict) or requester.get("kind") not in {"human", "ai", "system"}:
             raise ValueError("query requester.kind is invalid")
         requester_id = requester.get("id")
-        if requester_id is not None and (not isinstance(requester_id, str) or len(requester_id) > 256):
+        if requester_id is not None and (
+            not isinstance(requester_id, str) or len(requester_id) > 256
+        ):
             raise ValueError("query requester.id is invalid")
 
 
@@ -139,38 +155,204 @@ def validate_interaction_instance(value: dict[str, Any]) -> None:
 def validate_model_state_instance(value: dict[str, Any]) -> None:
     required = {
         "protocol", "state_id", "captured_at", "model", "execution", "system",
-        "hidden_chain_of_thought_captured",
+        "field_provenance", "privacy_class", "epistemic_boundary",
+        "hidden_chain_of_thought_captured", "model_mind_captured", "authority",
     }
-    require_keys(value, required, "model-state fixture")
+    if set(value) != required:
+        missing = sorted(required - set(value))
+        extra = sorted(set(value) - required)
+        raise ValueError(
+            f"model-state fixture fields mismatch; missing={missing}, extra={extra}"
+        )
     if value["protocol"] != "qsol-control-model-state/1":
         raise ValueError("model-state protocol mismatch")
     require_sha_ref(value["state_id"], "model-state state_id")
     parse_datetime(value["captured_at"], "model-state captured_at")
-    model = value["model"]
-    if not isinstance(model, dict):
-        raise ValueError("model-state model must be an object")
-    require_keys(model, {"provider", "runtime", "model_id"}, "model-state model")
-    for field in ("provider", "runtime", "model_id"):
-        if not isinstance(model[field], str) or not model[field]:
-            raise ValueError(f"model-state model.{field} must be non-empty")
-    provenance = model.get("metadata_provenance")
-    if provenance is not None and provenance not in {
-        "observed", "provider_reported", "locally_verified", "inferred", "unknown"
-    }:
-        raise ValueError("model-state metadata_provenance is invalid")
-    execution = value["execution"]
-    if not isinstance(execution, dict):
-        raise ValueError("model-state execution must be an object")
-    context_limit = execution.get("context_limit")
-    if context_limit is not None and (not isinstance(context_limit, int) or context_limit < 1):
-        raise ValueError("model-state context_limit is invalid")
-    system = value["system"]
-    if not isinstance(system, dict):
-        raise ValueError("model-state system must be an object")
-    require_keys(system, {"control_run_id"}, "model-state system")
-    require_sha_ref(system["control_run_id"], "model-state control_run_id")
+    if value["privacy_class"] not in PRIVACY_CLASSES:
+        raise ValueError("model-state privacy_class is invalid")
+    if value["epistemic_boundary"] != "MODEL_STATE != MODEL_MIND":
+        raise ValueError("model-state epistemic boundary is invalid")
     if value["hidden_chain_of_thought_captured"] is not False:
         raise ValueError("model-state must never claim hidden chain-of-thought capture")
+    if value["model_mind_captured"] is not False:
+        raise ValueError("model-state must never claim model-mind capture")
+    if value["authority"] != "reproducibility-metadata-only":
+        raise ValueError("model-state authority is invalid")
+
+    model = value["model"]
+    model_keys = {
+        "provider", "runtime", "runtime_version", "model_id", "revision",
+        "model_hash", "weight_hash", "tokenizer_identity", "tokenizer_hash",
+        "quantization", "artifacts",
+    }
+    if not isinstance(model, dict) or set(model) != model_keys:
+        raise ValueError("model-state model fields are invalid")
+    for field, limit in (("provider", 256), ("runtime", 256), ("model_id", 1024)):
+        item = model[field]
+        if not isinstance(item, str) or not (1 <= len(item) <= limit):
+            raise ValueError(f"model-state model.{field} is invalid")
+    for field, limit in (
+        ("runtime_version", 256), ("revision", 1024),
+        ("tokenizer_identity", 1024), ("quantization", 256),
+    ):
+        item = model[field]
+        if item is not None and (
+            not isinstance(item, str) or not (1 <= len(item) <= limit)
+        ):
+            raise ValueError(f"model-state model.{field} is invalid")
+    for field in ("model_hash", "weight_hash", "tokenizer_hash"):
+        item = model[field]
+        if item is not None:
+            require_sha_ref(item, f"model-state model.{field}")
+    artifacts = model["artifacts"]
+    if not isinstance(artifacts, dict) or set(artifacts) != {"model", "weights", "tokenizer"}:
+        raise ValueError("model-state model.artifacts is invalid")
+    for role, artifact in artifacts.items():
+        if artifact is None:
+            continue
+        if not isinstance(artifact, dict) or set(artifact) != {
+            "kind", "sha256", "size_bytes", "file_count", "manifest_protocol",
+        }:
+            raise ValueError(f"model-state artifact {role} is invalid")
+        if artifact["kind"] not in {"file-bytes", "directory-manifest"}:
+            raise ValueError(f"model-state artifact {role} kind is invalid")
+        require_sha_ref(artifact["sha256"], f"model-state artifact {role} sha256")
+        if type(artifact["size_bytes"]) is not int or artifact["size_bytes"] < 0:
+            raise ValueError(f"model-state artifact {role} size is invalid")
+        if type(artifact["file_count"]) is not int or artifact["file_count"] < 0:
+            raise ValueError(f"model-state artifact {role} file_count is invalid")
+        if artifact["kind"] == "file-bytes":
+            if artifact["file_count"] != 1 or artifact["manifest_protocol"] is not None:
+                raise ValueError(f"model-state artifact {role} file descriptor is inconsistent")
+        elif artifact["manifest_protocol"] != "qsol-control-local-artifact-manifest/1":
+            raise ValueError(f"model-state artifact {role} manifest protocol is invalid")
+        hash_field = {"model": "model_hash", "weights": "weight_hash", "tokenizer": "tokenizer_hash"}[role]
+        if model[hash_field] != artifact["sha256"]:
+            raise ValueError(f"model-state model.{hash_field} differs from artifact")
+
+    execution = value["execution"]
+    execution_keys = {
+        "council_seat", "mode", "stochastic", "seed", "context_limit",
+        "sampling", "tool_permissions", "tool_permission_envelope",
+    }
+    if not isinstance(execution, dict) or set(execution) != execution_keys:
+        raise ValueError("model-state execution fields are invalid")
+    for field in ("council_seat", "mode"):
+        item = execution[field]
+        if item is not None and (
+            not isinstance(item, str) or not item or len(item) > 256
+        ):
+            raise ValueError(f"model-state execution.{field} is invalid")
+    if execution["stochastic"] is not None and type(execution["stochastic"]) is not bool:
+        raise ValueError("model-state stochastic is invalid")
+    seed = execution["seed"]
+    if seed is not None and (type(seed) not in (int, str) or isinstance(seed, bool)):
+        raise ValueError("model-state seed is invalid")
+    context_limit = execution["context_limit"]
+    if context_limit is not None and (
+        type(context_limit) is not int or context_limit < 1
+    ):
+        raise ValueError("model-state context_limit is invalid")
+    if not isinstance(execution["sampling"], dict):
+        raise ValueError("model-state sampling must be an object")
+    permissions = execution["tool_permissions"]
+    if (
+        not isinstance(permissions, list)
+        or any(not isinstance(item, str) or not item for item in permissions)
+        or len(permissions) != len(set(permissions))
+        or permissions != sorted(permissions, key=lambda item: item.encode("utf-8"))
+    ):
+        raise ValueError("model-state tool_permissions are invalid or non-canonical")
+    envelope = execution["tool_permission_envelope"]
+    if not isinstance(envelope, dict) or set(envelope) != {
+        "filesystem", "network", "tools", "mcp_plugins", "external_execution",
+    }:
+        raise ValueError("model-state tool_permission_envelope is invalid")
+    if envelope["filesystem"] not in {
+        "none", "read-only", "workspace-write", "unrestricted", "unknown",
+    }:
+        raise ValueError("model-state filesystem permission is invalid")
+    if envelope["network"] not in {
+        "none", "loopback", "restricted", "unrestricted", "unknown",
+    }:
+        raise ValueError("model-state network permission is invalid")
+    tools = envelope["tools"]
+    plugins = envelope["mcp_plugins"]
+    for items, label in ((tools, "tools"), (plugins, "mcp_plugins")):
+        if (
+            not isinstance(items, list)
+            or any(not isinstance(item, str) or not item for item in items)
+            or len(items) != len(set(items))
+            or items != sorted(items, key=lambda item: item.encode("utf-8"))
+        ):
+            raise ValueError(f"model-state {label} are invalid or non-canonical")
+    if tools != permissions:
+        raise ValueError("model-state tool permission lists disagree")
+    if envelope["external_execution"] is not None and type(envelope["external_execution"]) is not bool:
+        raise ValueError("model-state external_execution is invalid")
+
+    system = value["system"]
+    system_keys = {
+        "control_run_id", "control_manifest_identity", "nexus_identity", "oracle_refs",
+        "substrate_identity", "ark_identity", "int_identity", "collection_snapshot_id",
+        "evidence_snapshot_ref", "hardware_runtime_metadata",
+    }
+    if not isinstance(system, dict) or set(system) != system_keys:
+        raise ValueError("model-state system fields are invalid")
+    require_sha_ref(system["control_run_id"], "model-state control_run_id")
+    for field in (
+        "control_manifest_identity", "nexus_identity", "substrate_identity",
+        "ark_identity", "int_identity", "evidence_snapshot_ref",
+    ):
+        item = system[field]
+        if item is not None and (
+            not isinstance(item, str) or not item or len(item) > 1024
+        ):
+            raise ValueError(f"model-state system.{field} is invalid")
+    refs = system["oracle_refs"]
+    if (
+        not isinstance(refs, list)
+        or any(not isinstance(item, str) or not item for item in refs)
+        or len(refs) != len(set(refs))
+        or refs != sorted(refs, key=lambda item: item.encode("utf-8"))
+    ):
+        raise ValueError("model-state oracle_refs are invalid or non-canonical")
+    if system["collection_snapshot_id"] is not None:
+        require_sha_ref(system["collection_snapshot_id"], "model-state collection_snapshot_id")
+    if not isinstance(system["hardware_runtime_metadata"], dict):
+        raise ValueError("model-state hardware_runtime_metadata must be an object")
+
+    provenance = value["field_provenance"]
+    provenance_fields = {
+        "captured_at",
+        "model.provider", "model.runtime", "model.runtime_version", "model.model_id",
+        "model.revision", "model.model_hash", "model.weight_hash",
+        "model.tokenizer_identity", "model.tokenizer_hash", "model.quantization",
+        "model.artifacts.model", "model.artifacts.weights", "model.artifacts.tokenizer",
+        "execution.council_seat", "execution.mode", "execution.stochastic",
+        "execution.seed", "execution.context_limit", "execution.sampling",
+        "execution.tool_permissions", "execution.tool_permission_envelope",
+        "system.control_run_id", "system.control_manifest_identity",
+        "system.nexus_identity", "system.oracle_refs", "system.substrate_identity",
+        "system.ark_identity", "system.int_identity", "system.collection_snapshot_id",
+        "system.evidence_snapshot_ref", "system.hardware_runtime_metadata",
+    }
+    allowed_provenance = {
+        "observed", "provider_reported", "locally_verified", "inferred", "unknown",
+    }
+    if not isinstance(provenance, dict) or set(provenance) != provenance_fields:
+        raise ValueError("model-state field_provenance is incomplete or contains extras")
+    if any(item not in allowed_provenance for item in provenance.values()):
+        raise ValueError("model-state field_provenance contains an invalid class")
+    if provenance["captured_at"] != "observed":
+        raise ValueError("model-state captured_at provenance must be observed")
+    if provenance["system.control_run_id"] != "locally_verified":
+        raise ValueError("model-state control_run_id provenance must be locally_verified")
+
+    payload = {key: item for key, item in value.items() if key != "state_id"}
+    expected_state_id = "sha256:" + hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
+    if value["state_id"] != expected_state_id:
+        raise ValueError("model-state state_id does not match canonical content")
 
 
 def validate_file_instance(value: dict[str, Any]) -> None:
@@ -299,7 +481,10 @@ def validate_search_index_instance(value: dict[str, Any]) -> None:
             require_sha_ref(file_id, "semantic vector file_id")
             if not isinstance(vector, list) or len(vector) != dimensions:
                 raise ValueError("semantic vector dimension mismatch")
-            if any(not isinstance(item, (int, float)) or not math.isfinite(float(item)) for item in vector):
+            if any(
+                not isinstance(item, (int, float)) or not math.isfinite(float(item))
+                for item in vector
+            ):
                 raise ValueError("semantic vectors must contain finite numbers")
 
 
@@ -384,18 +569,12 @@ def validate() -> dict[str, Any]:
 
     constitution = load_json(ROOT / "ai" / "constitution.json")
     required_invariants = {
-        "CONTROL_DISPLAY != AUTHORITY",
-        "VOTE != EVIDENCE",
-        "CONSENSUS != TRUTH",
-        "STORED != TRUE",
-        "MODEL_STATE != MODEL_MIND",
+        "CONTROL_DISPLAY != AUTHORITY", "VOTE != EVIDENCE", "CONSENSUS != TRUTH",
+        "STORED != TRUE", "MODEL_STATE != MODEL_MIND",
         "VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
-        "CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY",
-        "CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES",
-        "SEARCH_SCORE != TRUTH",
-        "SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH",
-        "INDEX != CANONICAL_MEMORY",
-        "COLLECTION_MEMBERSHIP != ENDORSEMENT",
+        "CONTROL_MUST_NOT_REWRITE_ORACLE_HISTORY", "CONTROL_MUST_NOT_CHANGE_NEXUS_VOTES",
+        "SEARCH_SCORE != TRUTH", "SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH",
+        "INDEX != CANONICAL_MEMORY", "COLLECTION_MEMBERSHIP != ENDORSEMENT",
     }
     present = set(constitution.get("invariants", []))
     missing = sorted(required_invariants - present)
@@ -419,6 +598,12 @@ def validate() -> dict[str, Any]:
     hidden = model_schema.get("properties", {}).get("hidden_chain_of_thought_captured", {})
     if hidden.get("const") is not False:
         raise ValueError("model-state schema must forbid hidden chain-of-thought capture")
+    mind = model_schema.get("properties", {}).get("model_mind_captured", {})
+    if mind.get("const") is not False:
+        raise ValueError("model-state schema must forbid model-mind capture")
+    boundary = model_schema.get("properties", {}).get("epistemic_boundary", {})
+    if boundary.get("const") != "MODEL_STATE != MODEL_MIND":
+        raise ValueError("model-state schema must pin MODEL_STATE != MODEL_MIND")
 
     storage = manifest.get("persistent_storage", {})
     if storage.get("index_authority") != "none":
@@ -434,26 +619,19 @@ def validate() -> dict[str, Any]:
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for phrase in [
-        "QSOL-SUBSTRATE  KNOWS",
-        "QSOL-ARK        SURVIVES",
-        "QSOL-INT        COMPOSES",
-        "QSOL-ORACLE     WITNESSES",
-        "QSOL-NEXUS      REASONS",
-        "QSOL-CONTROL    OPERATES",
-        "LATTICE MEMORY  REMEMBERS",
+        "QSOL-SUBSTRATE  KNOWS", "QSOL-ARK        SURVIVES", "QSOL-INT        COMPOSES",
+        "QSOL-ORACLE     WITNESSES", "QSOL-NEXUS      REASONS",
+        "QSOL-CONTROL    OPERATES", "LATTICE MEMORY  REMEMBERS",
     ]:
         if phrase not in readme:
             raise ValueError(f"README architecture missing role line: {phrase}")
 
     return {
-        "protocol": manifest["protocol"],
-        "status": "valid",
+        "protocol": manifest["protocol"], "status": "valid",
         "phase": manifest["status"]["phase"],
         "documentation_files": len(manifest.get("documentation", [])),
-        "schemas": len(manifest.get("schemas", {})),
-        "schema_examples": example_count,
-        "schema_draft": schema_draft,
-        "lattice_cells": lattice["top_level_cell_count"],
+        "schemas": len(manifest.get("schemas", {})), "schema_examples": example_count,
+        "schema_draft": schema_draft, "lattice_cells": lattice["top_level_cell_count"],
         "persistent_storage": storage["collection_protocol"],
     }
 

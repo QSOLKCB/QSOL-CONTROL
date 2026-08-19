@@ -126,18 +126,28 @@ VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 
 ## Phase 4 — AI model-state registry
 
-- [ ] Implement `qsol-control-model-state/1` records in persistent runtime storage.
-- [ ] Capture provider/runtime/model/revision metadata where available.
-- [ ] Capture model/weight/tokenizer hashes where locally verifiable.
-- [ ] Capture quantization, sampling, context and deterministic seed metadata.
-- [ ] Capture Council seat, mode, tool permission envelope, and system snapshot identities.
-- [ ] Distinguish observed, provider-reported, inferred, and unknown fields.
-- [ ] Add cross-run model-state comparison.
-- [ ] Add future-AI archaeology export.
+- [x] Implement `qsol-control-model-state/1` records in persistent runtime storage.
+- [x] Capture provider/runtime/model/revision metadata where available.
+- [x] Capture model/weight/tokenizer hashes where locally verifiable.
+- [x] Capture quantization, sampling, context and deterministic seed metadata.
+- [x] Capture Council seat, mode, tool permission envelope, and system snapshot identities.
+- [x] Distinguish observed, provider-reported, inferred, and unknown fields.
+- [x] Add cross-run model-state comparison.
+- [x] Add future-AI archaeology export.
 
 ### Epistemic gate
 
-`MODEL_STATE != MODEL_MIND` must be enforced in schemas, docs, UI labels, and exports.
+**Satisfied at the storage, schema, export, documentation, and UI-label-contract layers.** `qsol-control-model-state/1` records are immutable reproducibility metadata with explicit per-field provenance. The runtime and schemas require `MODEL_STATE != MODEL_MIND`, `hidden_chain_of_thought_captured = false`, and `model_mind_captured = false`. Archaeology exports preserve the same boundary, contain no model artifact bytes or local artifact paths, and require explicit acknowledgement for RESTRICTED material.
+
+The Phase 5 WebUI is **not** implemented yet. Its model-state inspector labels are already pinned in `ai/model-state-contract.json` and `docs/MODEL-STATE.md`, including `Model-state reproducibility metadata` and the `Not model mind` boundary badge, so a future UI cannot silently relabel this material as cognition.
+
+```text
+MODEL_STATE != MODEL_MIND
+VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+RUNTIME_METADATA != CONSCIOUSNESS
+PROVIDER_REPORTED != LOCALLY_VERIFIED
+MODEL_STATE_COMPARISON != MIND_COMPARISON
+```
 
 ## Phase 5 — Human WebUI
 
@@ -160,6 +170,8 @@ VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 ### UI invariant
 
 Never display a synthetic `truth percentage` derived from votes, confidence, entropy, model count, consensus, retrieval score, embedding similarity, codon frequency, or lattice position.
+
+The future model-state inspector must also preserve the Phase 4 label contract: reproducibility metadata is not a model mind, provider-reported metadata is not locally verified metadata, and inferred values must remain visibly inferred.
 
 ## Phase 6 — AI / agent API
 

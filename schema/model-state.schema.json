@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://qsol.example/schema/model-state.schema.json",
   "title": "QSOL-CONTROL Model State",
+  "description": "Externally inspectable reproducibility metadata. MODEL_STATE != MODEL_MIND.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -11,7 +12,12 @@
     "model",
     "execution",
     "system",
-    "hidden_chain_of_thought_captured"
+    "field_provenance",
+    "privacy_class",
+    "epistemic_boundary",
+    "hidden_chain_of_thought_captured",
+    "model_mind_captured",
+    "authority"
   ],
   "properties": {
     "protocol": {"const": "qsol-control-model-state/1"},
@@ -20,25 +26,58 @@
     "model": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["provider", "runtime", "model_id"],
+      "required": [
+        "provider",
+        "runtime",
+        "runtime_version",
+        "model_id",
+        "revision",
+        "model_hash",
+        "weight_hash",
+        "tokenizer_identity",
+        "tokenizer_hash",
+        "quantization",
+        "artifacts"
+      ],
       "properties": {
-        "provider": {"type": "string", "minLength": 1},
-        "runtime": {"type": "string", "minLength": 1},
-        "runtime_version": {"type": ["string", "null"]},
-        "model_id": {"type": "string", "minLength": 1},
-        "revision": {"type": ["string", "null"]},
-        "weight_hash": {"type": ["string", "null"]},
-        "tokenizer_identity": {"type": ["string", "null"]},
-        "quantization": {"type": ["string", "null"]},
-        "metadata_provenance": {"enum": ["observed", "provider_reported", "locally_verified", "inferred", "unknown"]}
+        "provider": {"type": "string", "minLength": 1, "maxLength": 256},
+        "runtime": {"type": "string", "minLength": 1, "maxLength": 256},
+        "runtime_version": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+        "model_id": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "revision": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
+        "model_hash": {"$ref": "#/$defs/nullableSha256Ref"},
+        "weight_hash": {"$ref": "#/$defs/nullableSha256Ref"},
+        "tokenizer_identity": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
+        "tokenizer_hash": {"$ref": "#/$defs/nullableSha256Ref"},
+        "quantization": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+        "artifacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "weights", "tokenizer"],
+          "properties": {
+            "model": {"$ref": "#/$defs/nullableArtifact"},
+            "weights": {"$ref": "#/$defs/nullableArtifact"},
+            "tokenizer": {"$ref": "#/$defs/nullableArtifact"}
+          }
+        }
       }
     },
     "execution": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "council_seat",
+        "mode",
+        "stochastic",
+        "seed",
+        "context_limit",
+        "sampling",
+        "tool_permissions",
+        "tool_permission_envelope"
+      ],
       "properties": {
-        "council_seat": {"type": ["string", "null"]},
-        "mode": {"type": ["string", "null"]},
+        "council_seat": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
+        "mode": {"type": ["string", "null"], "minLength": 1, "maxLength": 256},
         "stochastic": {"type": ["boolean", "null"]},
         "seed": {"type": ["integer", "string", "null"]},
         "context_limit": {"type": ["integer", "null"], "minimum": 1},
@@ -46,26 +85,196 @@
         "tool_permissions": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"type": "string"}
+          "items": {"type": "string", "minLength": 1}
+        },
+        "tool_permission_envelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["filesystem", "network", "tools", "mcp_plugins", "external_execution"],
+          "properties": {
+            "filesystem": {
+              "enum": ["none", "read-only", "workspace-write", "unrestricted", "unknown"]
+            },
+            "network": {
+              "enum": ["none", "loopback", "restricted", "unrestricted", "unknown"]
+            },
+            "tools": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "mcp_plugins": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "external_execution": {"type": ["boolean", "null"]}
+          }
         }
       }
     },
     "system": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["control_run_id"],
+      "required": [
+        "control_run_id",
+        "control_manifest_identity",
+        "nexus_identity",
+        "oracle_refs",
+        "substrate_identity",
+        "ark_identity",
+        "int_identity",
+        "collection_snapshot_id",
+        "evidence_snapshot_ref",
+        "hardware_runtime_metadata"
+      ],
       "properties": {
         "control_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
-        "nexus_identity": {"type": ["string", "null"]},
+        "control_manifest_identity": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
+        "nexus_identity": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
         "oracle_refs": {
           "type": "array",
           "uniqueItems": true,
-          "items": {"type": "string"}
+          "items": {"type": "string", "minLength": 1}
         },
-        "substrate_identity": {"type": ["string", "null"]},
+        "substrate_identity": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
+        "ark_identity": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
+        "int_identity": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
+        "collection_snapshot_id": {"$ref": "#/$defs/nullableSha256Ref"},
+        "evidence_snapshot_ref": {"type": ["string", "null"], "minLength": 1, "maxLength": 1024},
         "hardware_runtime_metadata": {"type": "object"}
       }
     },
-    "hidden_chain_of_thought_captured": {"const": false}
+    "field_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captured_at",
+        "model.provider",
+        "model.runtime",
+        "model.runtime_version",
+        "model.model_id",
+        "model.revision",
+        "model.model_hash",
+        "model.weight_hash",
+        "model.tokenizer_identity",
+        "model.tokenizer_hash",
+        "model.quantization",
+        "model.artifacts.model",
+        "model.artifacts.weights",
+        "model.artifacts.tokenizer",
+        "execution.council_seat",
+        "execution.mode",
+        "execution.stochastic",
+        "execution.seed",
+        "execution.context_limit",
+        "execution.sampling",
+        "execution.tool_permissions",
+        "execution.tool_permission_envelope",
+        "system.control_run_id",
+        "system.control_manifest_identity",
+        "system.nexus_identity",
+        "system.oracle_refs",
+        "system.substrate_identity",
+        "system.ark_identity",
+        "system.int_identity",
+        "system.collection_snapshot_id",
+        "system.evidence_snapshot_ref",
+        "system.hardware_runtime_metadata"
+      ],
+      "properties": {
+        "captured_at": {"const": "observed"},
+        "model.provider": {"$ref": "#/$defs/provenanceKind"},
+        "model.runtime": {"$ref": "#/$defs/provenanceKind"},
+        "model.runtime_version": {"$ref": "#/$defs/provenanceKind"},
+        "model.model_id": {"$ref": "#/$defs/provenanceKind"},
+        "model.revision": {"$ref": "#/$defs/provenanceKind"},
+        "model.model_hash": {"$ref": "#/$defs/provenanceKind"},
+        "model.weight_hash": {"$ref": "#/$defs/provenanceKind"},
+        "model.tokenizer_identity": {"$ref": "#/$defs/provenanceKind"},
+        "model.tokenizer_hash": {"$ref": "#/$defs/provenanceKind"},
+        "model.quantization": {"$ref": "#/$defs/provenanceKind"},
+        "model.artifacts.model": {"$ref": "#/$defs/provenanceKind"},
+        "model.artifacts.weights": {"$ref": "#/$defs/provenanceKind"},
+        "model.artifacts.tokenizer": {"$ref": "#/$defs/provenanceKind"},
+        "execution.council_seat": {"$ref": "#/$defs/provenanceKind"},
+        "execution.mode": {"$ref": "#/$defs/provenanceKind"},
+        "execution.stochastic": {"$ref": "#/$defs/provenanceKind"},
+        "execution.seed": {"$ref": "#/$defs/provenanceKind"},
+        "execution.context_limit": {"$ref": "#/$defs/provenanceKind"},
+        "execution.sampling": {"$ref": "#/$defs/provenanceKind"},
+        "execution.tool_permissions": {"$ref": "#/$defs/provenanceKind"},
+        "execution.tool_permission_envelope": {"$ref": "#/$defs/provenanceKind"},
+        "system.control_run_id": {"const": "locally_verified"},
+        "system.control_manifest_identity": {"$ref": "#/$defs/provenanceKind"},
+        "system.nexus_identity": {"$ref": "#/$defs/provenanceKind"},
+        "system.oracle_refs": {"$ref": "#/$defs/provenanceKind"},
+        "system.substrate_identity": {"$ref": "#/$defs/provenanceKind"},
+        "system.ark_identity": {"$ref": "#/$defs/provenanceKind"},
+        "system.int_identity": {"$ref": "#/$defs/provenanceKind"},
+        "system.collection_snapshot_id": {"$ref": "#/$defs/provenanceKind"},
+        "system.evidence_snapshot_ref": {"$ref": "#/$defs/provenanceKind"},
+        "system.hardware_runtime_metadata": {"$ref": "#/$defs/provenanceKind"}
+      }
+    },
+    "privacy_class": {"enum": ["PUBLIC", "INTERNAL", "RESTRICTED"]},
+    "epistemic_boundary": {"const": "MODEL_STATE != MODEL_MIND"},
+    "hidden_chain_of_thought_captured": {"const": false},
+    "model_mind_captured": {"const": false},
+    "authority": {"const": "reproducibility-metadata-only"}
+  },
+  "$defs": {
+    "sha256Ref": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "nullableSha256Ref": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/sha256Ref"}
+      ]
+    },
+    "provenanceKind": {
+      "enum": ["observed", "provider_reported", "locally_verified", "inferred", "unknown"]
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sha256", "size_bytes", "file_count", "manifest_protocol"],
+      "properties": {
+        "kind": {"enum": ["file-bytes", "directory-manifest"]},
+        "sha256": {"$ref": "#/$defs/sha256Ref"},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "file_count": {"type": "integer", "minimum": 0},
+        "manifest_protocol": {
+          "anyOf": [
+            {"type": "null"},
+            {"const": "qsol-control-local-artifact-manifest/1"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "file-bytes"}}},
+          "then": {
+            "properties": {
+              "file_count": {"const": 1},
+              "manifest_protocol": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "directory-manifest"}}},
+          "then": {
+            "properties": {
+              "manifest_protocol": {"const": "qsol-control-local-artifact-manifest/1"}
+            }
+          }
+        }
+      ]
+    },
+    "nullableArtifact": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/artifact"}
+      ]
+    }
   }
 }

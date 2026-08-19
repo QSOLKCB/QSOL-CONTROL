@@ -112,9 +112,34 @@ The actual ballot vocabulary must come from the NEXUS operation/result contract 
 
 ## Model-state inspector
 
-For each model, show available externally inspectable metadata and provenance classification. Missing fields should render `unknown`.
+Phase 4 defines the model-state inspector's labels before the Phase 5 WebUI exists. The frontend must consume the same label contract from `ai/model-state-contract.json` rather than inventing a more anthropomorphic presentation.
 
-Never render hidden-chain-of-thought placeholders implying that CONTROL possesses private reasoning.
+Required visible labels:
+
+```text
+Panel title:        Model-state reproducibility metadata
+Boundary badge:     Not model mind
+Provenance heading: Metadata provenance
+Unknown:            Unknown / not established
+Locally verified:   Locally verified
+Provider reported:  Provider reported
+Inferred:           Inferred — not verified
+Observed:           Observed
+```
+
+For each state, show externally inspectable metadata together with its field-level provenance classification. Missing or unclassified fields render `Unknown / not established`; they do not become false, absent, or provider-verified by implication.
+
+Locally hash-verified artifact identities should be distinguishable from provider-reported model names/revisions. Hashes may be displayed as artifact identities, but the UI must not imply that CONTROL stores the underlying model/weight/tokenizer bytes when it does not.
+
+Comparison views may show configuration and provenance changes, but must retain:
+
+```text
+MODEL_STATE != MODEL_MIND
+MODEL_STATE_COMPARISON != MIND_COMPARISON
+RUNTIME_METADATA != CONSCIOUSNESS
+```
+
+Never render hidden-chain-of-thought placeholders, expandable `private reasoning` panels, `AI mind`, `internal thoughts`, consciousness indicators, or equivalent wording implying that CONTROL possesses private cognition.
 
 ## Lattice browser
 
@@ -156,6 +181,8 @@ Implementation should target:
 - readable raw JSON views for technical inspection;
 - mobile fallback for basic evidence/Council inspection.
 
+The `Not model mind` boundary must remain available to assistive technology; it must not be conveyed only by colour or iconography.
+
 ## Forbidden UI shortcuts
 
 Do not display:
@@ -164,6 +191,9 @@ Do not display:
 AI TRUTH SCORE: 87%
 PROBABILITY TRUE: <derived from model confidence>
 6/6 MODELS AGREE -> VERIFIED
+AI MIND STATE
+HIDDEN THOUGHTS AVAILABLE
+CONSCIOUSNESS LEVEL
 ```
 
-unless a future protocol supplies an independently meaningful, correctly defined quantity with provenance. Council agreement alone is not such a quantity.
+unless a future protocol supplies an independently meaningful, correctly defined quantity with provenance. Council agreement alone is not such a quantity, and Phase 4 model-state metadata is not a cognition or consciousness measure.

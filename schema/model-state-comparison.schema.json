@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/model-state-comparison.schema.json",
+  "title": "QSOL-CONTROL Model-State Comparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparison_id",
+    "protocol",
+    "left_state_id",
+    "right_state_id",
+    "left_run_id",
+    "right_run_id",
+    "changed_fields",
+    "changed_field_count",
+    "same_model_identity",
+    "epistemic_boundary",
+    "model_mind_inference",
+    "authority"
+  ],
+  "properties": {
+    "comparison_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-model-state-comparison/1"},
+    "left_state_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "right_state_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "left_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "right_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "changed_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "category", "left", "right", "left_provenance", "right_provenance"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "category": {"enum": ["capture", "model", "execution", "system"]},
+          "left": {},
+          "right": {},
+          "left_provenance": {"enum": ["observed", "provider_reported", "locally_verified", "inferred", "unknown"]},
+          "right_provenance": {"enum": ["observed", "provider_reported", "locally_verified", "inferred", "unknown"]}
+        }
+      }
+    },
+    "changed_field_count": {"type": "integer", "minimum": 0},
+    "same_model_identity": {"type": "boolean"},
+    "epistemic_boundary": {"const": "MODEL_STATE != MODEL_MIND"},
+    "model_mind_inference": {"const": false},
+    "authority": {"const": "metadata-comparison-only"}
+  }
+}
