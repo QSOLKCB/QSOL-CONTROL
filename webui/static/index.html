@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>QSOL-CONTROL</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Skip to workspace</a>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">QSOL-CONTROL / HUMAN OPERATOR PLANE</p>
+      <h1>Evidence, Council, memory, without authority collapse.</h1>
+    </div>
+    <div class="boundary-stack" aria-label="Permanent epistemic boundaries">
+      <span class="boundary-badge">MODEL_STATE ≠ MODEL_MIND</span>
+      <span class="boundary-badge">CONSENSUS ≠ TRUTH</span>
+    </div>
+  </header>
+
+  <nav class="tabbar" aria-label="CONTROL views" role="tablist">
+    <button role="tab" aria-selected="true" aria-controls="panel-ask" id="tab-ask" data-panel="ask">Ask</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-evidence" id="tab-evidence" data-panel="evidence">Evidence</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-council" id="tab-council" data-panel="council">Council</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-minority" id="tab-minority" data-panel="minority">Minority</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-sources" id="tab-sources" data-panel="sources">Sources</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-timeline" id="tab-timeline" data-panel="timeline">Timeline</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-receipts" id="tab-receipts" data-panel="receipts">Receipts</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-models" id="tab-models" data-panel="models">Models</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-memory" id="tab-memory" data-panel="memory">Memory</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-dna" id="tab-dna" data-panel="dna">DNA</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-replay" id="tab-replay" data-panel="replay">Replay / Compare</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-collections" id="tab-collections" data-panel="collections">Collections</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-health" id="tab-health" data-panel="health">Health</button>
+  </nav>
+
+  <main id="workspace" class="workspace">
+    <section id="panel-ask" role="tabpanel" aria-labelledby="tab-ask" data-view="ask">
+      <div class="panel-heading"><div><p class="eyebrow">QUESTION COMPOSER</p><h2>Ask CONTROL</h2></div><span class="status-chip" id="composer-status">Ready</span></div>
+      <form id="ask-form" class="stack">
+        <fieldset class="mode-switch">
+          <legend>Question mode</legend>
+          <label><input type="radio" name="mode" value="evidence_only" checked><strong>Evidence only</strong><span>Query ORACLE when configured. Do not invoke Council.</span></label>
+          <label><input type="radio" name="mode" value="council"><strong>Ask Council</strong><span>Preserve evidence separately, then invoke verified NEXUS Council.</span></label>
+        </fieldset>
+        <label class="field"><span>Question</span><textarea id="question" rows="5" maxlength="2048" required placeholder="What do you want CONTROL to inspect?"></textarea><small>Maximum 2,048 characters, matching the ORACLE subject contract.</small></label>
+        <div class="two-col">
+          <label class="field"><span>Persistent Collection</span><select id="ask-collection"><option value="">No Collection</option></select><small>The exact current snapshot is frozen into the run at submission.</small></label>
+          <label class="field"><span>Immediate File context</span><input id="file-input" type="file" multiple><small>Files are content-addressed before the run is created.</small></label>
+        </div>
+        <div id="attached-files" class="token-list" aria-live="polite"></div>
+        <details id="council-options"><summary>Council options</summary><div class="stack inset">
+          <label class="field"><span>NEXUS mode</span><input id="nexus-mode" value="analytical" maxlength="256"></label>
+          <label class="field"><span>Council members JSON</span><textarea id="members-json" rows="7" spellcheck="false" placeholder='[{"member_id":"WHITE","model_id":"...","adapter_id":"..."}]'></textarea><small>Leave blank to use the server-configured member set.</small></label>
+          <label class="field"><span>Admitted NEXUS evidence refs</span><textarea id="nexus-evidence-refs" rows="4" spellcheck="false" placeholder="object:0123...&#10;object:abcd..."></textarea><small>These are NEXUS WorldStore object refs, not ORACLE evidence authority.</small></label>
+        </div></details>
+        <button class="primary" type="submit">Submit bounded question</button>
+      </form>
+      <aside class="invariant-card" aria-label="UI invariant"><strong>No truth percentage.</strong><p>Votes, confidence, entropy, model count, consensus, retrieval similarity, codon frequency, and lattice position are rendered only as their actual quantities.</p></aside>
+    </section>
+
+    <section id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence" data-view="evidence" hidden><div class="panel-heading"><div><p class="eyebrow">ORACLE</p><h2>Evidence</h2></div><span class="status-chip" id="evidence-status">Unknown</span></div><div id="evidence-view" class="stack empty-state">Submit or select a run to inspect evidence.</div></section>
+    <section id="panel-council" role="tabpanel" aria-labelledby="tab-council" data-view="council" hidden><div class="panel-heading"><div><p class="eyebrow">NEXUS</p><h2>Council phases + sealed vote</h2></div><span class="status-chip">VOTE ≠ EVIDENCE</span></div><div id="council-view" class="stack empty-state">No Council run selected.</div></section>
+    <section id="panel-minority" role="tabpanel" aria-labelledby="tab-minority" data-view="minority" hidden><div class="panel-heading"><div><p class="eyebrow">PRESERVED DISAGREEMENT</p><h2>Minority reports</h2></div></div><div id="minority-view" class="stack empty-state">No minority reports selected.</div></section>
+    <section id="panel-sources" role="tabpanel" aria-labelledby="tab-sources" data-view="sources" hidden><div class="panel-heading"><div><p class="eyebrow">PROVENANCE</p><h2>Sources</h2></div></div><div id="sources-view" class="stack empty-state">No run selected.</div></section>
+    <section id="panel-timeline" role="tabpanel" aria-labelledby="tab-timeline" data-view="timeline" hidden><div class="panel-heading"><div><p class="eyebrow">ORACLE / TIME</p><h2>Timeline</h2></div></div><div id="timeline-view" class="stack empty-state">No timeline selected.</div></section>
+    <section id="panel-receipts" role="tabpanel" aria-labelledby="tab-receipts" data-view="receipts" hidden><div class="panel-heading"><div><p class="eyebrow">VERIFICATION REFERENCES</p><h2>Receipts</h2></div></div><div id="receipts-view" class="stack empty-state">No run selected.</div></section>
+
+    <section id="panel-models" role="tabpanel" aria-labelledby="tab-models" data-view="models" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">PHASE 4 CONTRACT</p><h2 id="model-panel-title">Model-state reproducibility metadata</h2></div><span class="boundary-badge" id="model-boundary">Not model mind</span></div>
+      <p class="lede">Runtime metadata is preserved for reproducibility and computational archaeology. It is not cognition, consciousness, hidden reasoning, or a personality essence.</p>
+      <div id="models-view" class="stack empty-state">No model-state records selected.</div>
+    </section>
+
+    <section id="panel-memory" role="tabpanel" aria-labelledby="tab-memory" data-view="memory" hidden><div class="panel-heading"><div><p class="eyebrow">3 × 3 × 3</p><h2>Lattice memory</h2></div><span class="status-chip">GEOMETRY ≠ TRUTH</span></div><div id="lattice-view" class="lattice-grid" aria-live="polite"></div></section>
+
+    <section id="panel-dna" role="tabpanel" aria-labelledby="tab-dna" data-view="dna" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">REVERSIBLE RECOVERY PROJECTION</p><h2>DNA / lattice inspector</h2></div><span class="status-chip">CODON FREQUENCY ≠ EVIDENCE</span></div>
+      <div class="two-col">
+        <label class="field"><span>File ID</span><input id="dna-file-id" placeholder="sha256:..."></label>
+        <label class="field"><span>Traversal</span><select id="dna-traversal"><option value="qsol.phi-stride-27/1">φ stride 17</option><option value="qsol.lexicographic-27/1">Lexicographic</option></select></label>
+      </div>
+      <label class="field"><span>Operator / audit identity</span><input id="dna-actor" maxlength="256" placeholder="local operator identity"><small>Required for RESTRICTED reversible exports so the audit record attributes the authorization to an explicit operator.</small></label>
+      <div class="button-row"><button id="dna-inspect" type="button">Inspect projection</button><button id="dna-export" type="button">Export projection JSON</button></div>
+      <label class="checkline"><input id="dna-restricted-ack" type="checkbox"> I acknowledge that a RESTRICTED DNA projection is reversible sensitive data.</label>
+      <div id="dna-view" class="stack empty-state">Choose a CONTROL File to inspect.</div>
+    </section>
+
+    <section id="panel-replay" role="tabpanel" aria-labelledby="tab-replay" data-view="replay" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">IMMUTABLE HISTORY</p><h2>Replay / compare</h2></div><span class="status-chip">Comparison only in Phase 5</span></div>
+      <p class="lede">This view compares preserved runs. Phase 7 owns actual replay execution and longitudinal rerun semantics.</p>
+      <div class="two-col"><label class="field"><span>Original run</span><select id="compare-left"></select></label><label class="field"><span>Comparison run</span><select id="compare-right"></select></label></div>
+      <button id="compare-runs" type="button">Compare immutable runs</button><div id="compare-view" class="stack empty-state">Choose two runs.</div>
+    </section>
+
+    <section id="panel-collections" role="tabpanel" aria-labelledby="tab-collections" data-view="collections" hidden>
+      <div class="panel-heading"><div><p class="eyebrow">PERSISTENT CONTEXT</p><h2>Collections</h2></div></div>
+      <form id="collection-create" class="inline-form"><label class="field grow"><span>New Collection name</span><input id="collection-name" maxlength="256" required></label><button type="submit">Create Collection</button></form>
+      <div class="two-col">
+        <div><label class="field"><span>Browse Collection</span><select id="collection-browser"></select></label><div class="card compact-card"><h3>Membership update</h3><p class="muted">Creates a new immutable membership snapshot. Use exact CONTROL File IDs.</p><label class="field"><span>Add File IDs</span><textarea id="collection-add-files" rows="3" spellcheck="false" placeholder="sha256:... one per line"></textarea></label><label class="field"><span>Remove File IDs</span><textarea id="collection-remove-files" rows="3" spellcheck="false" placeholder="sha256:... one per line"></textarea></label><button id="collection-update-button" type="button">Create membership snapshot</button></div><div id="collection-detail" class="stack empty-state">No Collection selected.</div></div>
+        <div><label class="field"><span>Search selected Collection</span><input id="collection-search" placeholder="Lexical query"></label><button id="collection-search-button" type="button">Search exact snapshot</button><div id="collection-search-results" class="stack empty-state">No search yet.</div></div>
+      </div>
+    </section>
+
+    <section id="panel-health" role="tabpanel" aria-labelledby="tab-health" data-view="health" hidden><div class="panel-heading"><div><p class="eyebrow">CONNECTED SERVICES</p><h2>Health / status</h2></div></div><button id="refresh-health" type="button">Refresh status</button><div id="health-view" class="service-grid"></div><h3>QSOL-CONTEXT 2056 timelock view</h3><div id="timelock-view" class="stack empty-state">ORACLE timelock status not loaded.</div></section>
+  </main>
+
+  <footer><p>CONTROL operates machinery. It does not manufacture truth, evidence authority, hidden reasoning, or model minds.</p><label class="field run-picker"><span>Inspect preserved run</span><select id="run-picker"><option value="">Select a run…</option></select></label></footer>
+  <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

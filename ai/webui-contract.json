@@ -1,0 +1,157 @@
+{
+  "type": "qsol-control-webui-contract",
+  "protocol": "qsol-control-webui/1",
+  "runtime": "webui/server.py",
+  "cli": "tools/webui.py",
+  "static_root": "webui/static",
+  "role": "human_operator_surface",
+  "authority": "orchestration_display_and_control_owned_storage_only",
+  "bind_policy": {
+    "default": "127.0.0.1",
+    "allowed": ["127.0.0.1", "::1", "localhost"],
+    "remote_multi_user_deployment": false,
+    "reason": "Phase 5 implements a local operator surface; network deployment remains deferred."
+  },
+  "security_boundary": {
+    "state_changing_requests_require_session_token": true,
+    "api_reads_after_bootstrap_require_session_token": true,
+    "session_token_header": "X-QSOL-Control-Token",
+    "cors_enabled": false,
+    "content_security_policy": true,
+    "frame_ancestors": "none",
+    "max_json_body_bytes": 8388608,
+    "max_upload_bytes": 4194304,
+    "static_untrusted_rendering": "DOM textContent only; no innerHTML for retrieved records",
+    "loopback_host_header_required": true,
+    "dns_rebinding_non_loopback_host_rejected": true,
+    "state_changing_origin_must_match_loopback_server": true
+  },
+  "question_composer": {
+    "modes": ["evidence_only", "council"],
+    "max_question_characters": 2048,
+    "file_attachments": "content-addressed CONTROL Files",
+    "collection_binding": "exact Collection snapshot at submission",
+    "oracle_behavior": "read-only query when configured; unavailable/unconfigured preserved as unknown",
+    "nexus_behavior": "existing governance-preserving Council adapter only",
+    "council_unconfigured_or_unavailable_persisted_as_response_event": true,
+    "generic_parent_operation_passthrough": false
+  },
+  "panels": [
+    "question_composer",
+    "evidence",
+    "council_phases_and_sealed_vote",
+    "minority_reports",
+    "sources_and_provenance",
+    "oracle_timeline_and_receipts",
+    "model_state_inspector",
+    "lattice_memory",
+    "dna_lattice_projection",
+    "replay_compare",
+    "collections",
+    "health_status"
+  ],
+  "model_state_inspector": {
+    "labels": {
+      "panel_title": "Model-state reproducibility metadata",
+      "boundary_badge": "Not model mind",
+      "provenance_heading": "Metadata provenance",
+      "unknown_label": "Unknown / not established",
+      "locally_verified_label": "Locally verified",
+      "provider_reported_label": "Provider reported",
+      "inferred_label": "Inferred — not verified",
+      "observed_label": "Observed"
+    },
+    "hidden_chain_of_thought_display": false,
+    "model_mind_display": false,
+    "provider_reported_promoted_to_locally_verified": false,
+    "inferred_values_visibly_inferred": true
+  },
+  "truth_percentage": {
+    "implemented": false,
+    "forbidden_sources": [
+      "votes",
+      "confidence",
+      "entropy",
+      "model_count",
+      "consensus",
+      "retrieval_score",
+      "embedding_similarity",
+      "codon_frequency",
+      "lattice_position"
+    ]
+  },
+  "council": {
+    "canonical_roster_preserved": true,
+    "canonical_roster_rendered": true,
+    "canonical_phase_order_preserved": true,
+    "sealed_ballot_rendered_separately": true,
+    "exact_threshold_rendered": true,
+    "minority_reports_preserved": true,
+    "receipt_verification_rendered": true,
+    "vote_is_evidence": false,
+    "consensus_is_truth": false
+  },
+  "oracle_display": {
+    "freshness_fields_rendered_structurally": true,
+    "observation_timestamps_rendered_separately_from_control_event_times": true,
+    "health_independent_from_timelock_rendering": true
+  },
+  "sources": {
+    "control_file_source_rendered": true,
+    "control_file_privacy_class_rendered": true,
+    "oracle_source_rendered": true,
+    "oracle_provenance_kind_rendered": true
+  },
+  "collections": {
+    "create_browse_search": true,
+    "exact_snapshot_visible": true,
+    "lexical_score_label": "retrieval_similarity_not_truth_or_evidence_strength",
+    "membership_updates_create_immutable_snapshots": true,
+    "membership_update_compare_and_swap": true,
+    "membership_update_requires_expected_head_snapshot_id": true,
+    "search_serialized_against_collection_head_updates": true
+  },
+  "lattice": {
+    "top_level_cells": 27,
+    "profile": "qsol-3x3x3-sierpinski-derived-memory/1",
+    "geometry_is_truth": false,
+    "authority": "navigation_and_storage_addressing_only"
+  },
+  "dna_projection": {
+    "inspect_and_export": true,
+    "raw_bytes_canonical": true,
+    "projection_derived": true,
+    "codon_frequency_is_evidence": false,
+    "restricted_export_requires_explicit_acknowledgement": true,
+    "restricted_export_requires_explicit_actor": true
+  },
+  "replay_compare": {
+    "immutable_run_comparison": true,
+    "nexus_refs_derived_from_immutable_events": true,
+    "phase7_replay_execution_implemented": false,
+    "comparison_is_replay_execution": false
+  },
+  "accessibility": {
+    "keyboard_first_tabs": true,
+    "semantic_landmarks": true,
+    "screen_reader_labels": true,
+    "non_colour_only_status": true,
+    "mobile_fallback": true,
+    "reduced_motion_respected": true
+  },
+  "invariants": [
+    "CONTROL_DISPLAY != AUTHORITY",
+    "CONTROL_OPERATION != TRUTH",
+    "VOTE != EVIDENCE",
+    "CONSENSUS != TRUTH",
+    "SEARCH_SCORE != TRUTH",
+    "SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH",
+    "MODEL_STATE != MODEL_MIND",
+    "VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT",
+    "RUNTIME_METADATA != CONSCIOUSNESS",
+    "PROVIDER_REPORTED != LOCALLY_VERIFIED",
+    "MODEL_STATE_COMPARISON != MIND_COMPARISON",
+    "LATTICE_ADDRESS != TRUTH",
+    "CODON_FREQUENCY != EVIDENCE"
+  ]
+}
