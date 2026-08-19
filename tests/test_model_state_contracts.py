@@ -81,10 +81,18 @@ class ModelStateContractTests(unittest.TestCase):
             props["ui_boundary_label"]["const"], "Reproducibility metadata — not model mind"
         )
 
-    def test_machine_contract_pins_ui_labels_and_privacy_gate(self):
+    def test_machine_contract_pins_ui_labels_privacy_and_verification_authority(self):
         contract = self.load("ai/model-state-contract.json")
         self.assertEqual(contract["epistemic_boundary"], "MODEL_STATE != MODEL_MIND")
         self.assertEqual(contract["authority"], "reproducibility-metadata-only")
+        provenance = contract["field_provenance"]
+        self.assertFalse(provenance["caller_may_assign_locally_verified"])
+        self.assertEqual(
+            provenance["locally_verified_assignment"],
+            "runtime-only-after-CONTROL-verification",
+        )
+        self.assertEqual(contract["identity"]["max_record_bytes"], 4194304)
+        self.assertTrue(contract["identity"]["bounded_before_parse"])
         labels = contract["ui_labels"]
         self.assertEqual(labels["panel_title"], "Model-state reproducibility metadata")
         self.assertEqual(labels["boundary_badge"], "Not model mind")
