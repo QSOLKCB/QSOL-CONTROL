@@ -24,54 +24,108 @@ caller
   -> caller
 ```
 
-No Council run is required.
-
-The adapter returns only:
-
-```text
-known
-conflict
-unknown
-```
-
-Suggested searches are explicitly non-evidence.
+No Council run is required. The adapter returns only `known`, `conflict`, or `unknown`; suggested searches are explicitly non-evidence.
 
 ## Council path
 
-The NEXUS path remains a later phase:
+Phase 3 implements the local NEXUS Council path:
 
 ```text
 caller
   -> CONTROL
-  -> ORACLE evidence retrieval / admitted refs
-  -> CONTROL
-  -> NEXUS Council invocation
-  -> visible phase outputs / ballots / minority reports / receipts
-  -> optional ORACLE witness receipt
-  -> CONTROL storage + rendering
+  -> admitted evidence references / explicit evidence state
+  -> discover NEXUS system.health + system.operations
+  -> NEXUS council.run over local JSONL/stdio
+  -> NEXUS commits WorldStore session + receipts
+  -> CONTROL world.inspect + receipt.verify
+  -> verify roster / phases / ballots / threshold / minority reports
+  -> CONTROL reference-only storage + rendering
   -> caller
 ```
 
+CONTROL does not call NEXUS by copying Council mechanics locally. It invokes the parent runtime and then verifies the committed parent artifacts.
+
 ## NEXUS ownership
 
-CONTROL must treat the following as NEXUS-owned behavior:
+CONTROL treats the following as NEXUS-owned behavior:
 
-- Council roster semantics;
-- phase order;
-- same-phase blindness/barriers;
-- sealed ballot mechanics;
-- vote weights;
-- consensus threshold;
+- Council roster semantics and canonical join order;
+- phase order and same-phase blindness/barriers;
+- sealed ballot mechanics and ballot contents;
+- vote weights and epistemic privilege;
+- consensus numerator/denominator;
 - minority reports;
 - WorldStore identity/lineage;
-- NEXUS receipts;
+- NEXUS receipts and replayability claims;
+- Council Chair / Compute Epoch admission policy where present;
 - model adapter/governance behavior.
 
-CONTROL may display or request these. It may not reimplement a contradictory version and call it NEXUS.
+CONTROL may request execution, inspect committed state, verify linkage, render it, and store reference-only copies. It may not reimplement a contradictory version and call it NEXUS.
+
+## Implemented NEXUS governance gate
+
+`qsol-control-nexus-adapter/1` discovers NEXUS capabilities through:
+
+```text
+system.health
+system.operations
+```
+
+and requires the live parent to advertise the operations needed by the adapter. It does not hard-code the full operation catalog.
+
+CONTROL's exposed NEXUS mutation surface contains exactly:
+
+```text
+council.run
+```
+
+It does not expose generic operation passthrough or direct `world.create`.
+
+Requested member/configuration objects are rejected before submission if they contain CONTROL-side attempts to set:
+
+```text
+vote_weight
+epistemic_privilege
+ballot / ballots
+ballot commitments
+consensus threshold numerator/denominator
+roster authority
+WorldStore state
+```
+
+After execution, CONTROL resolves and content-address verifies the committed Council session and receipt before rendering. It verifies ballot commitments, recomputes the tally, requires the exact committed threshold, and preserves minority reports.
+
+```text
+CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
+CONTROL_RECEIPT_COPY != NEXUS_WORLDSTORE_WRITE
+CONTROL_CAN_OVERRIDE_VOTE_WEIGHT = false
+CONTROL_CAN_OVERRIDE_BALLOTS = false
+CONTROL_CAN_OVERRIDE_CONSENSUS_THRESHOLD = false
+NEXUS_OWNS_WORLDSTORE_HISTORY = true
+```
+
+`council.run` may cause NEXUS itself to append immutable WorldStore objects. That is parent-owned protocol execution, not direct CONTROL WorldStore mutation.
+
+## Phase order and sealed ballot
+
+The committed NEXUS session policy is the source of canonical `phase_order`. CONTROL preserves it exactly.
+
+In the current reference runtime the policy contains six deliberation phases:
+
+```text
+WHITE
+RED
+BLACK
+YELLOW
+GREEN
+BLUE
+```
+
+The commitment/reveal stage is rendered separately as `SEALED_BALLOT`. CONTROL does not alter the parent policy array merely to flatten the lifecycle into one list.
 
 ## ORACLE ownership
 
-CONTROL must treat the following as ORACLE-owned behavior:
+CONTROL treats the following as ORACLE-owned behavior:
 
 - witnessed observations;
 - evidence provenance classification;
@@ -87,7 +141,7 @@ ORACLE_REFERENCE != CONTROL_AUTHORITY
 ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND
 ```
 
-## Implemented read-only adapter security gate
+## Implemented ORACLE read-only security gate
 
 `qsol-control-oracle-adapter/1` discovers `QSOL-ORACLE/1` from the parent manifest at runtime and verifies the parent append-only ledger before returning evidence.
 
@@ -101,22 +155,11 @@ rewrite    = forbidden
 relabel    = forbidden
 ```
 
-The adapter also refuses to use a CONTROL receipt-storage root that overlaps the ORACLE repository tree.
-
-Unknown ORACLE protocol majors fail closed rather than being interpreted by analogy.
+The adapter refuses a CONTROL receipt-storage root that overlaps the ORACLE repository tree. Unknown ORACLE protocol majors fail closed rather than being interpreted by analogy.
 
 ## Freshness boundary
 
-CONTROL may display:
-
-```text
-fresh
-stale
-undated
-future-dated
-```
-
-but must preserve:
+CONTROL may display `fresh`, `stale`, `undated`, or `future-dated`, but preserves:
 
 ```text
 FRESH != TRUE
@@ -139,19 +182,16 @@ It always reports:
 ELIGIBLE != EXECUTED
 ```
 
-## Stenographer relationship
+## Hidden chain-of-thought boundary
 
-NEXUS's Courtroom Stenographer is a passive local AI-action study ledger with zero control authority. ORACLE generalizes ecosystem witnessing outside NEXUS.
+NEXUS's Courtroom Stenographer is a passive local AI-action study ledger with zero CONTROL authority. The Phase 3 adapter does **not** call Stenographer operations and does not request hidden chain-of-thought.
 
-CONTROL may expose both where useful, but must label provenance clearly so a user can tell whether a record came from:
+Visible Council phase submissions and visible ballot rationales are externally visible NEXUS outputs and may be preserved. Fields explicitly labelled as hidden/private reasoning, chain-of-thought, scratchpad, or reasoning trace fail closed rather than being copied into CONTROL.
 
 ```text
-NEXUS Stenographer
-QSOL-ORACLE
-CONTROL interaction storage
+VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+HIDDEN_CHAIN_OF_THOUGHT_CAPTURED = false
 ```
-
-`stored in CONTROL` is not equivalent to `witnessed by ORACLE`.
 
 ## Claim boundary
 
@@ -164,7 +204,7 @@ Consensus threshold: met
 Minority report: present
 ```
 
-CONTROL must preserve the tension. It must **not** rewrite that as:
+CONTROL preserves the tension. It must **not** rewrite that as:
 
 ```text
 VERIFIED TRUE: interpretation A
@@ -176,17 +216,17 @@ If ORACLE is unavailable or fails integrity verification:
 
 - mark evidence path unavailable;
 - do not manufacture evidence;
-- do not silently query an unverified ledger;
-- Council invocation should later follow an explicit policy about whether an evidence-unavailable run is permitted and how it is labelled.
+- do not silently query an unverified ledger.
 
-If NEXUS is unavailable:
+If NEXUS is unavailable, advertises an unsupported protocol major, omits required operations, or returns invalid committed artifacts:
 
 - evidence-only mode may still work;
-- Council mode is unavailable;
-- CONTROL must not silently substitute its own local vote simulation.
+- Council mode is unavailable/fails closed;
+- CONTROL must not silently substitute its own vote simulation;
+- CONTROL must not normalize a tampered roster, ballot, threshold, or receipt into a plausible-looking answer.
 
 ## Version drift
 
-The ORACLE adapter reports parent protocol/schema versions and fails closed on unknown majors. Backward-compatible ORACLE 1.x additions may be discovered without becoming mandatory dependencies.
+The ORACLE adapter reports parent protocol/schema versions and fails closed on unknown majors. The NEXUS adapter discovers parent protocol/runtime version and operation inventory on each Council session and fails closed on unknown protocol majors or missing required operations.
 
-Later INT integration should test CONTROL↔ORACLE compatibility, stale-parent handling, authority non-escalation, and schema/version drift explicitly.
+Later INT integration should test CONTROL↔ORACLE and CONTROL↔NEXUS compatibility, stale-parent handling, authority non-escalation, and schema/version drift explicitly.
