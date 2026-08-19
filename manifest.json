@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-manifest",
   "protocol": "QSOL-CONTROL/0.1",
-  "schema_version": "1.5.0",
+  "schema_version": "1.6.0",
   "snapshot_date": "2026-08-19",
   "role": "human-and-ai-control-plane",
   "verb": "OPERATES",
@@ -15,6 +15,7 @@
   "concap_bundle_contract": "ai/concap-bundle-contract.json",
   "ark_recovery_contract": "ai/ark-recovery-contract.json",
   "oracle_adapter_contract": "ai/oracle-adapter-contract.json",
+  "nexus_adapter_contract": "ai/nexus-adapter-contract.json",
   "architecture": "ARCHITECTURE.md",
   "roadmap": "ROADMAP.md",
   "security": "SECURITY.md",
@@ -24,6 +25,7 @@
   "portable_concap_document": "docs/PORTABLE-CONCAP-BUNDLES.md",
   "ark_minimum_bundle_document": "docs/ARK-MINIMUM-BUNDLE.md",
   "oracle_adapter_document": "docs/ORACLE-ADAPTER.md",
+  "nexus_adapter_document": "docs/NEXUS-ADAPTER.md",
   "json_schema": {
     "draft": "https://json-schema.org/draft/2020-12/schema",
     "compatibility_policy": "semantic-versioning",
@@ -40,6 +42,7 @@
     "interaction_command": "python3 tools/interaction_cli.py",
     "ark_bundle_command": "python3 tools/ark_bundle.py",
     "oracle_adapter_command": "python3 tools/oracle_adapter.py",
+    "nexus_adapter_command": "python3 tools/nexus_adapter.py",
     "test_command": "python3 -W default -m unittest discover -s tests -v",
     "workflow": ".github/workflows/validate.yml"
   },
@@ -51,7 +54,8 @@
     "concap_bundle_cli": "tools/concap_bundle.py",
     "interaction_cli": "tools/interaction_cli.py",
     "ark_bundle_cli": "tools/ark_bundle.py",
-    "oracle_adapter_cli": "tools/oracle_adapter.py"
+    "oracle_adapter_cli": "tools/oracle_adapter.py",
+    "nexus_adapter_cli": "tools/nexus_adapter.py"
   },
   "roles": {
     "QSOL-SUBSTRATE": "KNOWS",
@@ -94,12 +98,16 @@
       "role": "witness and append-only evidence history",
       "control_access": "read-only-adapter",
       "control_write_authority": false
+    },
+    "QSOL-NEXUS": {
+      "visibility": "public-parent",
+      "role": "Council reasoning, governance, receipts, and WorldStore history",
+      "control_access": "local-jsonl-council-adapter",
+      "control_direct_worldstore_authority": false,
+      "control_governance_override_authority": false
     }
   },
-  "query_modes": [
-    "evidence_only",
-    "council"
-  ],
+  "query_modes": ["evidence_only", "council"],
   "lattice": {
     "profile": "qsol-3x3x3-sierpinski-derived-memory/1",
     "top_level_cells": 27,
@@ -141,10 +149,7 @@
     "snapshot_gc": "not-yet-implemented",
     "index_authority": "none",
     "indexes_are_derived_and_rebuildable": true,
-    "search_modes": [
-      "deterministic-lexical-baseline",
-      "semantic-vector"
-    ],
+    "search_modes": ["deterministic-lexical-baseline", "semantic-vector"],
     "lexical_engine": "qsol.term-frequency-cosine/2",
     "lexical_tokenizer": {
       "id": "qsol.unicode-nfkc-casefold-alnum/1",
@@ -157,10 +162,7 @@
     "collation": "qsol.utf8-byte-lexicographic/1",
     "semantic_embedding_generation": "external-adapter-required",
     "semantic_snapshot_mismatch_policy": "fail-closed",
-    "semantic_index_fingerprints": [
-      "embedding_sha256",
-      "vectors_sha256"
-    ],
+    "semantic_index_fingerprints": ["embedding_sha256", "vectors_sha256"],
     "canonical_fingerprint_excludes_derived_indexes": true,
     "canonical_fingerprint_excludes_audit_events": true,
     "interaction_persistence": {
@@ -215,12 +217,7 @@
     },
     "dna_projection": {
       "codec": "qsol.dna-2bit-codon64/1",
-      "alphabet": [
-        "A",
-        "C",
-        "G",
-        "T"
-      ],
+      "alphabet": ["A", "C", "G", "T"],
       "bits_per_base": 2,
       "bases_per_byte": 4,
       "bases_per_codon": 3,
@@ -245,20 +242,8 @@
       "identity": "sha256 manifest id + per-entry SHA-256 + payload SHA-256",
       "fixed_point_required": true,
       "dna_projection_optional": true,
-      "recovery_classes": [
-        "NEAR_SHELL",
-        "MID_SHELL",
-        "OUTER_SHELL",
-        "RESONANCE_NODE",
-        "WIGGLE_ZONE"
-      ],
-      "phi_shell_milli": [
-        1000,
-        1618,
-        2618,
-        4236,
-        6854
-      ],
+      "recovery_classes": ["NEAR_SHELL", "MID_SHELL", "OUTER_SHELL", "RESONANCE_NODE", "WIGGLE_ZONE"],
+      "phi_shell_milli": [1000, 1618, 2618, 4236, 6854],
       "qec_lineage_semantics": "deterministic recovery scheduling lineage only",
       "recovery_authority": "QSOL-ARK",
       "model_instance_reconstruction_claim": false
@@ -286,6 +271,30 @@
     "control_store_must_not_overlap_oracle_repository": true,
     "oracle_write_operations": []
   },
+  "nexus_adapter": {
+    "protocol": "qsol-control-nexus-adapter/1",
+    "runtime": "adapters/nexus.py",
+    "parent_repository": "QSOLKCB/QSOL-NEXUS",
+    "supported_parent_protocol_major": 0,
+    "control_transport": "jsonl_stdio",
+    "discovery_operations": ["system.health", "system.operations"],
+    "required_operations": ["system.health", "system.operations", "council.run", "world.inspect", "receipt.verify"],
+    "optional_operations": ["council.epoch.verify"],
+    "adapter_mutation_operations": ["council.run"],
+    "direct_worldstore_mutation_exposed": false,
+    "arbitrary_operation_passthrough": false,
+    "governance_override_operations": [],
+    "preserves_canonical_roster": true,
+    "preserves_parent_phase_order": true,
+    "sealed_ballot_commitments_verified": true,
+    "consensus_threshold_source": "nexus_committed_council_session",
+    "minority_reports_preserved": true,
+    "receipt_verify_required": true,
+    "control_store_artifact_authority": "reference-only",
+    "hidden_chain_of_thought_capture": false,
+    "stenographer_operations_used": false,
+    "worldstore_history_owner": "QSOL-NEXUS"
+  },
   "restore_contracts": {
     "pack_spec_schema": "schema/restore-pack-spec.schema.json",
     "concap_export_spec_schema": "schema/concap-export-spec.schema.json",
@@ -293,12 +302,7 @@
     "ark_minimum_bundle_contract": "ai/ark-recovery-contract.json",
     "valid_fixture": "examples/schema/restore-pack-spec.valid.json",
     "invalid_fixture": "examples/schema/restore-pack-spec.invalid.json",
-    "runtime_tests": [
-      "tests/test_restore_capsule.py",
-      "tests/test_restore_cli.py",
-      "tests/test_concap_bundle.py",
-      "tests/test_ark_recovery_bundle.py"
-    ]
+    "runtime_tests": ["tests/test_restore_capsule.py", "tests/test_restore_cli.py", "tests/test_concap_bundle.py", "tests/test_ark_recovery_bundle.py"]
   },
   "schemas": {
     "query": "schema/control-query.schema.json",
@@ -314,37 +318,18 @@
     "dna_lattice": "schema/dna-lattice.schema.json",
     "concap_export_spec": "schema/concap-export-spec.schema.json",
     "ark_minimum_bundle": "schema/ark-minimum-bundle.schema.json",
-    "oracle_adapter_response": "schema/oracle-adapter-response.schema.json"
+    "oracle_adapter_response": "schema/oracle-adapter-response.schema.json",
+    "nexus_discovery": "schema/nexus-discovery.schema.json",
+    "nexus_council_response": "schema/nexus-council-response.schema.json"
   },
   "schema_examples": {
-    "query": {
-      "valid": "examples/schema/control-query.valid.json",
-      "invalid": "examples/schema/control-query.invalid.json"
-    },
-    "interaction": {
-      "valid": "examples/schema/interaction-record.valid.json",
-      "invalid": "examples/schema/interaction-record.invalid.json"
-    },
-    "model_state": {
-      "valid": "examples/schema/model-state.valid.json",
-      "invalid": "examples/schema/model-state.invalid.json"
-    },
-    "file": {
-      "valid": "examples/schema/file-record.valid.json",
-      "invalid": "examples/schema/file-record.invalid.json"
-    },
-    "collection": {
-      "valid": "examples/schema/collection-record.valid.json",
-      "invalid": "examples/schema/collection-record.invalid.json"
-    },
-    "collection_snapshot": {
-      "valid": "examples/schema/collection-snapshot.valid.json",
-      "invalid": "examples/schema/collection-snapshot.invalid.json"
-    },
-    "search_index": {
-      "valid": "examples/schema/search-index.valid.json",
-      "invalid": "examples/schema/search-index.invalid.json"
-    }
+    "query": {"valid": "examples/schema/control-query.valid.json", "invalid": "examples/schema/control-query.invalid.json"},
+    "interaction": {"valid": "examples/schema/interaction-record.valid.json", "invalid": "examples/schema/interaction-record.invalid.json"},
+    "model_state": {"valid": "examples/schema/model-state.valid.json", "invalid": "examples/schema/model-state.invalid.json"},
+    "file": {"valid": "examples/schema/file-record.valid.json", "invalid": "examples/schema/file-record.invalid.json"},
+    "collection": {"valid": "examples/schema/collection-record.valid.json", "invalid": "examples/schema/collection-record.invalid.json"},
+    "collection_snapshot": {"valid": "examples/schema/collection-snapshot.valid.json", "invalid": "examples/schema/collection-snapshot.invalid.json"},
+    "search_index": {"valid": "examples/schema/search-index.valid.json", "invalid": "examples/schema/search-index.invalid.json"}
   },
   "interaction_v2_examples": {
     "valid": "examples/schema/interaction-record-v2.valid.json",
@@ -375,11 +360,12 @@
     "docs/COLD-RESTORE.md",
     "docs/PORTABLE-CONCAP-BUNDLES.md",
     "docs/ARK-MINIMUM-BUNDLE.md",
-    "docs/ORACLE-ADAPTER.md"
+    "docs/ORACLE-ADAPTER.md",
+    "docs/NEXUS-ADAPTER.md"
   ],
   "status": {
     "phase": 1,
-    "completed_through_roadmap_phase": 2,
+    "completed_through_roadmap_phase": 3,
     "architecture_contracts": "implemented",
     "validation_ci": "implemented",
     "persistent_storage_core": "implemented",
@@ -412,7 +398,12 @@
     "oracle_receipt_reference_storage": "implemented-phase-2",
     "oracle_freshness_and_availability": "implemented-phase-2",
     "oracle_timelock_view": "implemented-phase-2",
-    "live_nexus_adapter": "not-yet-implemented",
+    "live_nexus_adapter": "implemented-phase-3-local-jsonl",
+    "nexus_runtime_discovery": "implemented-phase-3",
+    "nexus_council_invocation": "implemented-phase-3",
+    "nexus_governance_preservation": "implemented-phase-3",
+    "nexus_receipt_and_visible_output_storage": "implemented-phase-3",
+    "nexus_hidden_chain_of_thought_capture": false,
     "webui": "not-yet-implemented",
     "ai_api": "not-yet-implemented"
   }
