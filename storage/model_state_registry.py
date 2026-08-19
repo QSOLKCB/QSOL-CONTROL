@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Persistent AI model-state registry for QSOL-CONTROL.
 
-Model-state records preserve externally inspectable reproducibility metadata only.
-They do not preserve a model mind, consciousness, hidden activations, or hidden
-chain-of-thought. Local artifact paths may be inspected to compute hashes, but
-paths and artifact bytes are never copied into canonical model-state records.
+This module is the registered Phase-4 runtime. It preserves externally
+inspectable reproducibility metadata only.
+
+MODEL_STATE != MODEL_MIND
+VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+RUNTIME_METADATA != CONSCIOUSNESS
 """
 
 from __future__ import annotations
@@ -14,8 +16,8 @@ import hashlib
 import json
 import os
 import re
-import stat
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -33,11 +35,7 @@ AUTHORITY = "reproducibility-metadata-only"
 
 SHA256_REF_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 PROVENANCE_KINDS = {
-    "observed",
-    "provider_reported",
-    "locally_verified",
-    "inferred",
-    "unknown",
+    "observed", "provider_reported", "locally_verified", "inferred", "unknown",
 }
 PRIVACY_CLASSES = {"PUBLIC", "INTERNAL", "RESTRICTED"}
 PRIVACY_RANK = {"PUBLIC": 0, "INTERNAL": 1, "RESTRICTED": 2}
@@ -48,141 +46,61 @@ MAX_EXPORT_STATES = 10_000
 MAX_SCAN_NODES = 1_000_000
 
 FORBIDDEN_REASONING_KEYS = {
-    "chain_of_thought",
-    "hidden_chain_of_thought",
-    "hidden_reasoning",
-    "private_reasoning",
-    "internal_reasoning",
-    "reasoning_trace",
-    "scratchpad",
-    "private_scratchpad",
-    "model_mind",
-    "mind_state",
-    "internal_activations",
+    "chain_of_thought", "hidden_chain_of_thought", "hidden_reasoning",
+    "private_reasoning", "internal_reasoning", "reasoning_trace", "scratchpad",
+    "private_scratchpad", "model_mind", "mind_state", "internal_activations",
 }
 FORBIDDEN_SECRET_KEYS = {
-    "api_key",
-    "apikey",
-    "access_token",
-    "refresh_token",
-    "auth_token",
-    "bearer_token",
-    "client_secret",
-    "private_key",
-    "password",
-    "passwd",
-    "credential",
-    "credentials",
-    "authorization",
-    "cookie",
-    "session_cookie",
+    "api_key", "apikey", "access_token", "refresh_token", "auth_token",
+    "bearer_token", "client_secret", "secret_access_key", "private_key",
+    "password", "passwd", "credential", "credentials", "authorization",
+    "cookie", "session_cookie", "token",
 }
+FORBIDDEN_SECRET_SUFFIXES = tuple(
+    sorted(FORBIDDEN_SECRET_KEYS | {"secret", "secret_key"}, key=len, reverse=True)
+)
 FORBIDDEN_SECRET_MARKERS = (
-    "ghp_",
-    "github_pat_",
-    "Bearer ",
-    "-----BEGIN PRIVATE KEY-----",
-    "AKIA",
+    "ghp_", "github_pat_", "Bearer ", "-----BEGIN PRIVATE KEY-----", "AKIA",
 )
 
 PROVENANCE_FIELDS = (
     "captured_at",
-    "model.provider",
-    "model.runtime",
-    "model.runtime_version",
-    "model.model_id",
-    "model.revision",
-    "model.model_hash",
-    "model.weight_hash",
-    "model.tokenizer_identity",
-    "model.tokenizer_hash",
-    "model.quantization",
-    "model.artifacts.model",
-    "model.artifacts.weights",
-    "model.artifacts.tokenizer",
-    "execution.council_seat",
-    "execution.mode",
-    "execution.stochastic",
-    "execution.seed",
-    "execution.context_limit",
-    "execution.sampling",
-    "execution.tool_permissions",
-    "execution.tool_permission_envelope",
-    "system.control_run_id",
-    "system.control_manifest_identity",
-    "system.nexus_identity",
-    "system.oracle_refs",
-    "system.substrate_identity",
-    "system.ark_identity",
-    "system.int_identity",
-    "system.collection_snapshot_id",
-    "system.evidence_snapshot_ref",
-    "system.hardware_runtime_metadata",
+    "model.provider", "model.runtime", "model.runtime_version", "model.model_id",
+    "model.revision", "model.model_hash", "model.weight_hash",
+    "model.tokenizer_identity", "model.tokenizer_hash", "model.quantization",
+    "model.artifacts.model", "model.artifacts.weights", "model.artifacts.tokenizer",
+    "execution.council_seat", "execution.mode", "execution.stochastic",
+    "execution.seed", "execution.context_limit", "execution.sampling",
+    "execution.tool_permissions", "execution.tool_permission_envelope",
+    "system.control_run_id", "system.control_manifest_identity",
+    "system.nexus_identity", "system.oracle_refs", "system.substrate_identity",
+    "system.ark_identity", "system.int_identity", "system.collection_snapshot_id",
+    "system.evidence_snapshot_ref", "system.hardware_runtime_metadata",
 )
-
 MODEL_KEYS = {
-    "provider",
-    "runtime",
-    "runtime_version",
-    "model_id",
-    "revision",
-    "model_hash",
-    "weight_hash",
-    "tokenizer_identity",
-    "tokenizer_hash",
-    "quantization",
-    "artifacts",
+    "provider", "runtime", "runtime_version", "model_id", "revision",
+    "model_hash", "weight_hash", "tokenizer_identity", "tokenizer_hash",
+    "quantization", "artifacts",
 }
 EXECUTION_KEYS = {
-    "council_seat",
-    "mode",
-    "stochastic",
-    "seed",
-    "context_limit",
-    "sampling",
-    "tool_permissions",
-    "tool_permission_envelope",
+    "council_seat", "mode", "stochastic", "seed", "context_limit", "sampling",
+    "tool_permissions", "tool_permission_envelope",
 }
 SYSTEM_KEYS = {
-    "control_run_id",
-    "control_manifest_identity",
-    "nexus_identity",
-    "oracle_refs",
-    "substrate_identity",
-    "ark_identity",
-    "int_identity",
-    "collection_snapshot_id",
-    "evidence_snapshot_ref",
-    "hardware_runtime_metadata",
+    "control_run_id", "control_manifest_identity", "nexus_identity", "oracle_refs",
+    "substrate_identity", "ark_identity", "int_identity", "collection_snapshot_id",
+    "evidence_snapshot_ref", "hardware_runtime_metadata",
 }
 RECORD_KEYS = {
-    "protocol",
-    "state_id",
-    "captured_at",
-    "model",
-    "execution",
-    "system",
-    "field_provenance",
-    "privacy_class",
-    "epistemic_boundary",
-    "hidden_chain_of_thought_captured",
-    "model_mind_captured",
-    "authority",
+    "protocol", "state_id", "captured_at", "model", "execution", "system",
+    "field_provenance", "privacy_class", "epistemic_boundary",
+    "hidden_chain_of_thought_captured", "model_mind_captured", "authority",
 }
-
 TOOL_FILESYSTEM_CLASSES = {
-    "none",
-    "read-only",
-    "workspace-write",
-    "unrestricted",
-    "unknown",
+    "none", "read-only", "workspace-write", "unrestricted", "unknown",
 }
 TOOL_NETWORK_CLASSES = {
-    "none",
-    "loopback",
-    "restricted",
-    "unrestricted",
-    "unknown",
+    "none", "loopback", "restricted", "unrestricted", "unknown",
 }
 
 
@@ -194,9 +112,22 @@ def _normalize_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.casefold()).strip("_")
 
 
-def _reject_forbidden_material(value: Any, label: str) -> None:
-    """Reject hidden-reasoning and credential-bearing keys/values recursively."""
+def _credential_key(normalized: str) -> bool:
+    if normalized in FORBIDDEN_SECRET_KEYS:
+        return True
+    segments = tuple(segment for segment in normalized.split("_") if segment)
+    return any(
+        normalized == suffix or normalized.endswith("_" + suffix)
+        for suffix in FORBIDDEN_SECRET_SUFFIXES
+    ) or (
+        bool(segments)
+        and segments[-1] in {
+            "token", "password", "passwd", "credential", "credentials", "cookie",
+        }
+    )
 
+
+def _reject_forbidden_material(value: Any, label: str) -> None:
     stack = [value]
     visited = 0
     while stack:
@@ -213,7 +144,7 @@ def _reject_forbidden_material(value: Any, label: str) -> None:
                     raise ModelStateError(
                         f"{label} contains forbidden hidden-reasoning field {key!r}"
                     )
-                if normalized in FORBIDDEN_SECRET_KEYS:
+                if _credential_key(normalized):
                     raise ModelStateError(
                         f"{label} contains forbidden credential field {key!r}"
                     )
@@ -230,8 +161,6 @@ def _validate_timestamp(value: Any) -> str:
     if not isinstance(value, str) or not value:
         raise ModelStateError("captured_at must be a non-empty ISO-8601 timestamp")
     candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
-    from datetime import datetime
-
     try:
         parsed = datetime.fromisoformat(candidate)
     except ValueError as exc:
@@ -271,7 +200,9 @@ def _required_string(value: Any, label: str, *, maximum: int = 4096) -> str:
 def _unique_strings(values: Any, label: str) -> list[str]:
     if values is None:
         return []
-    if not isinstance(values, list) or any(not isinstance(item, str) or not item for item in values):
+    if not isinstance(values, list) or any(
+        not isinstance(item, str) or not item for item in values
+    ):
         raise ModelStateError(f"{label} must be an array of non-empty strings")
     if len(values) != len(set(values)):
         raise ModelStateError(f"{label} must not contain duplicates")
@@ -298,6 +229,12 @@ def _atomic_write(path: Path, data: bytes, *, mode: int = 0o600) -> None:
 def _read_canonical_json(path: Path) -> dict[str, Any]:
     if path.is_symlink():
         raise ModelStateError("model-state record must not be a symbolic link")
+    try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise ModelStateError("model-state record is unavailable") from exc
+    if size > MAX_RECORD_BYTES:
+        raise ModelStateError("model-state record exceeds canonical byte limit")
     try:
         encoded = path.read_bytes()
         value = json.loads(encoded.decode("utf-8"))
@@ -328,14 +265,6 @@ def _hash_file(path: Path) -> tuple[str, int]:
 
 
 def hash_local_artifact(path_value: str | Path) -> dict[str, Any]:
-    """Hash a local file or directory without persisting its path or bytes.
-
-    Directory identity is the SHA-256 of a canonical manifest of relative file
-    names, exact file-byte hashes, and sizes. It is therefore explicitly a
-    directory-manifest identity rather than a claim that a directory has one raw
-    byte stream.
-    """
-
     path = Path(path_value).expanduser()
     if path.is_symlink():
         raise ModelStateError("local model artifact must not be a symbolic link")
@@ -344,18 +273,21 @@ def hash_local_artifact(path_value: str | Path) -> dict[str, Any]:
     if path.is_file():
         digest, size = _hash_file(path)
         return {
-            "kind": "file-bytes",
-            "sha256": digest,
-            "size_bytes": size,
-            "file_count": 1,
-            "manifest_protocol": None,
+            "kind": "file-bytes", "sha256": digest, "size_bytes": size,
+            "file_count": 1, "manifest_protocol": None,
         }
     if not path.is_dir():
         raise ModelStateError("local model artifact must be a regular file or directory")
 
     rows: list[dict[str, Any]] = []
     total = 0
-    for candidate in sorted(path.rglob("*"), key=lambda item: item.relative_to(path).as_posix().encode("utf-8")):
+    candidates = sorted(
+        path.rglob("*"),
+        key=lambda item: item.relative_to(path).as_posix().encode("utf-8"),
+    )
+    if len(candidates) > MAX_SCAN_NODES:
+        raise ModelStateError("local artifact directory exceeds entry scan limit")
+    for candidate in candidates:
         if candidate.is_symlink():
             raise ModelStateError("local artifact directory must not contain symbolic links")
         if candidate.is_dir():
@@ -364,13 +296,11 @@ def hash_local_artifact(path_value: str | Path) -> dict[str, Any]:
             raise ModelStateError("local artifact directory contains a non-regular entry")
         digest, size = _hash_file(candidate)
         total += size
-        rows.append(
-            {
-                "path": candidate.relative_to(path).as_posix(),
-                "sha256": digest,
-                "size_bytes": size,
-            }
-        )
+        rows.append({
+            "path": candidate.relative_to(path).as_posix(),
+            "sha256": digest,
+            "size_bytes": size,
+        })
     manifest = {"protocol": LOCAL_ARTIFACT_MANIFEST_PROTOCOL, "files": rows}
     return {
         "kind": "directory-manifest",
@@ -385,11 +315,7 @@ def _validate_artifact_descriptor(value: Any, label: str) -> dict[str, Any] | No
     if value is None:
         return None
     if not isinstance(value, dict) or set(value) != {
-        "kind",
-        "sha256",
-        "size_bytes",
-        "file_count",
-        "manifest_protocol",
+        "kind", "sha256", "size_bytes", "file_count", "manifest_protocol",
     }:
         raise ModelStateError(f"{label} artifact descriptor is invalid")
     if value.get("kind") not in {"file-bytes", "directory-manifest"}:
@@ -410,18 +336,11 @@ def _validate_artifact_descriptor(value: Any, label: str) -> dict[str, Any] | No
 def _tool_envelope(value: Any, permissions: list[str]) -> dict[str, Any]:
     if value is None:
         return {
-            "filesystem": "unknown",
-            "network": "unknown",
-            "tools": list(permissions),
-            "mcp_plugins": [],
-            "external_execution": None,
+            "filesystem": "unknown", "network": "unknown",
+            "tools": list(permissions), "mcp_plugins": [], "external_execution": None,
         }
     if not isinstance(value, dict) or set(value) != {
-        "filesystem",
-        "network",
-        "tools",
-        "mcp_plugins",
-        "external_execution",
+        "filesystem", "network", "tools", "mcp_plugins", "external_execution",
     }:
         raise ModelStateError("tool_permission_envelope must use the canonical fields")
     filesystem = value.get("filesystem")
@@ -433,14 +352,11 @@ def _tool_envelope(value: Any, permissions: list[str]) -> dict[str, Any]:
     external = value.get("external_execution")
     if external is not None and type(external) is not bool:
         raise ModelStateError("tool_permission_envelope.external_execution must be boolean or null")
-    if permissions and tools != permissions:
+    if tools != permissions:
         raise ModelStateError("tool_permissions and tool_permission_envelope.tools disagree")
     return {
-        "filesystem": filesystem,
-        "network": network,
-        "tools": tools,
-        "mcp_plugins": plugins,
-        "external_execution": external,
+        "filesystem": filesystem, "network": network, "tools": tools,
+        "mcp_plugins": plugins, "external_execution": external,
     }
 
 
@@ -480,20 +396,45 @@ class ModelStateRegistry:
     def _identity(payload: dict[str, Any]) -> str:
         return sha256_ref(canonical_json_bytes(payload))
 
+    @staticmethod
+    def _event_projection(record: dict[str, Any]) -> dict[str, Any]:
+        model = record["model"]
+        execution = record["execution"]
+        system = record["system"]
+        return {
+            "protocol": MODEL_STATE_PROTOCOL,
+            "state_id": record["state_id"],
+            "captured_at": record["captured_at"],
+            "model": {
+                "provider": model["provider"], "runtime": model["runtime"],
+                "runtime_version": model["runtime_version"], "model_id": model["model_id"],
+                "revision": model["revision"], "weight_hash": model["weight_hash"],
+                "tokenizer_identity": model["tokenizer_identity"],
+                "quantization": model["quantization"], "metadata_provenance": "unknown",
+            },
+            "execution": {
+                "council_seat": execution["council_seat"], "mode": execution["mode"],
+                "stochastic": execution["stochastic"], "seed": execution["seed"],
+                "context_limit": execution["context_limit"], "sampling": execution["sampling"],
+                "tool_permissions": execution["tool_permissions"],
+            },
+            "system": {
+                "control_run_id": system["control_run_id"],
+                "nexus_identity": system["nexus_identity"],
+                "oracle_refs": system["oracle_refs"],
+                "substrate_identity": system["substrate_identity"],
+                "hardware_runtime_metadata": system["hardware_runtime_metadata"],
+            },
+            "hidden_chain_of_thought_captured": False,
+        }
+
     def capture(
-        self,
-        *,
-        captured_at: str,
-        model: dict[str, Any],
-        execution: dict[str, Any],
-        system: dict[str, Any],
-        field_provenance: dict[str, str] | None = None,
+        self, *, captured_at: str, model: dict[str, Any], execution: dict[str, Any],
+        system: dict[str, Any], field_provenance: dict[str, str] | None = None,
         privacy_class: str = "INTERNAL",
         local_artifacts: dict[str, str | Path] | None = None,
         link_run_event: bool = True,
     ) -> dict[str, Any]:
-        """Capture one canonical model-state record and optionally link it to its run."""
-
         timestamp = _validate_timestamp(captured_at)
         if privacy_class not in PRIVACY_CLASSES:
             raise ModelStateError("privacy_class must be PUBLIC, INTERNAL, or RESTRICTED")
@@ -503,11 +444,26 @@ class ModelStateRegistry:
         _reject_forbidden_material(execution, "execution descriptor")
         _reject_forbidden_material(system, "system descriptor")
 
+        supplied_provenance = field_provenance or {}
+        if not isinstance(supplied_provenance, dict):
+            raise ModelStateError("field_provenance must be an object")
+        self_awarded = sorted(
+            path for path, provenance in supplied_provenance.items()
+            if provenance == "locally_verified"
+        )
+        if self_awarded:
+            raise ModelStateError(
+                "locally_verified provenance is reserved for CONTROL verification; "
+                "caller supplied: " + ", ".join(self_awarded)
+            )
+
         run_id = _validate_sha_ref(system.get("control_run_id"), "system.control_run_id", allow_none=False)
         assert run_id is not None
         run = self.interactions.get_run(run_id)
 
-        computed_artifacts: dict[str, dict[str, Any] | None] = {role: None for role in ARTIFACT_ROLES}
+        computed_artifacts: dict[str, dict[str, Any] | None] = {
+            role: None for role in ARTIFACT_ROLES
+        }
         for role, path in (local_artifacts or {}).items():
             if role not in ARTIFACT_ROLES:
                 raise ModelStateError(f"unknown local artifact role: {role}")
@@ -526,24 +482,19 @@ class ModelStateRegistry:
             if computed is None:
                 computed_artifacts[role] = declared
 
-        model_hash = _validate_sha_ref(model.get("model_hash"), "model.model_hash")
-        weight_hash = _validate_sha_ref(model.get("weight_hash"), "model.weight_hash")
-        tokenizer_hash = _validate_sha_ref(model.get("tokenizer_hash"), "model.tokenizer_hash")
-        role_hash_fields = {
-            "model": ("model_hash", model_hash),
-            "weights": ("weight_hash", weight_hash),
-            "tokenizer": ("tokenizer_hash", tokenizer_hash),
+        declared_hashes = {
+            "model_hash": _validate_sha_ref(model.get("model_hash"), "model.model_hash"),
+            "weight_hash": _validate_sha_ref(model.get("weight_hash"), "model.weight_hash"),
+            "tokenizer_hash": _validate_sha_ref(model.get("tokenizer_hash"), "model.tokenizer_hash"),
         }
-        resolved_hashes = {
-            "model_hash": model_hash,
-            "weight_hash": weight_hash,
-            "tokenizer_hash": tokenizer_hash,
-        }
-        for role, (field, declared_hash) in role_hash_fields.items():
+        role_hash_fields = {"model": "model_hash", "weights": "weight_hash", "tokenizer": "tokenizer_hash"}
+        resolved_hashes = dict(declared_hashes)
+        for role, field in role_hash_fields.items():
             descriptor = computed_artifacts[role]
             if descriptor is None:
                 continue
             verified_hash = descriptor["sha256"]
+            declared_hash = declared_hashes[field]
             if declared_hash is not None and declared_hash != verified_hash:
                 raise ModelStateError(f"model.{field} differs from locally verified {role} artifact")
             resolved_hashes[field] = verified_hash
@@ -579,21 +530,21 @@ class ModelStateRegistry:
         canonical_execution = {
             "council_seat": _optional_string(execution.get("council_seat"), "execution.council_seat", maximum=256),
             "mode": _optional_string(execution.get("mode"), "execution.mode", maximum=256),
-            "stochastic": stochastic,
-            "seed": seed,
-            "context_limit": context_limit,
-            "sampling": copy.deepcopy(sampling),
-            "tool_permissions": permissions,
+            "stochastic": stochastic, "seed": seed, "context_limit": context_limit,
+            "sampling": copy.deepcopy(sampling), "tool_permissions": permissions,
             "tool_permission_envelope": _tool_envelope(execution.get("tool_permission_envelope"), permissions),
         }
 
+        oracle_refs_supplied = system.get("oracle_refs") is not None
         oracle_refs = system.get("oracle_refs")
         if oracle_refs is None:
             oracle_refs = list(run.get("oracle_refs", []))
         canonical_oracle_refs = _unique_strings(oracle_refs, "system.oracle_refs")
+
         collection_snapshot_id = system.get("collection_snapshot_id")
         run_collection = run.get("collection_ref")
-        if collection_snapshot_id is None and isinstance(run_collection, dict):
+        inherited_collection_snapshot = collection_snapshot_id is None and isinstance(run_collection, dict)
+        if inherited_collection_snapshot:
             collection_snapshot_id = run_collection.get("snapshot_id")
         if collection_snapshot_id is not None:
             _validate_sha_ref(collection_snapshot_id, "system.collection_snapshot_id", allow_none=False)
@@ -618,44 +569,33 @@ class ModelStateRegistry:
         }
 
         automatic_provenance: dict[str, str] = {
-            "captured_at": "observed",
-            "system.control_run_id": "locally_verified",
+            "captured_at": "observed", "system.control_run_id": "locally_verified",
         }
-        if system.get("oracle_refs") is None and canonical_oracle_refs:
-            automatic_provenance["system.oracle_refs"] = "locally_verified"
-        if system.get("collection_snapshot_id") is None and collection_snapshot_id is not None:
+        if inherited_collection_snapshot and collection_snapshot_id is not None:
             automatic_provenance["system.collection_snapshot_id"] = "locally_verified"
-        for role, (field, _) in role_hash_fields.items():
+        for role, field in role_hash_fields.items():
             if (local_artifacts or {}).get(role) is not None:
                 automatic_provenance[f"model.artifacts.{role}"] = "locally_verified"
                 automatic_provenance[f"model.{field}"] = "locally_verified"
 
-        supplied_provenance = field_provenance or {}
-        if not isinstance(supplied_provenance, dict):
-            raise ModelStateError("field_provenance must be an object")
         unknown_paths = set(supplied_provenance) - set(PROVENANCE_FIELDS)
         if unknown_paths:
-            raise ModelStateError(
-                "field_provenance contains unknown fields: " + ", ".join(sorted(unknown_paths))
-            )
+            raise ModelStateError("field_provenance contains unknown fields: " + ", ".join(sorted(unknown_paths)))
         provenance: dict[str, str] = {}
         for field in PROVENANCE_FIELDS:
             kind = automatic_provenance.get(field, supplied_provenance.get(field, "unknown"))
             if kind not in PROVENANCE_KINDS:
                 raise ModelStateError(f"invalid provenance kind for {field}: {kind!r}")
             provenance[field] = kind
+        if not oracle_refs_supplied and canonical_oracle_refs:
+            provenance["system.oracle_refs"] = "unknown"
 
         payload = {
-            "protocol": MODEL_STATE_PROTOCOL,
-            "captured_at": timestamp,
-            "model": canonical_model,
-            "execution": canonical_execution,
-            "system": canonical_system,
-            "field_provenance": provenance,
-            "privacy_class": privacy_class,
-            "epistemic_boundary": EPISTEMIC_BOUNDARY,
-            "hidden_chain_of_thought_captured": False,
-            "model_mind_captured": False,
+            "protocol": MODEL_STATE_PROTOCOL, "captured_at": timestamp,
+            "model": canonical_model, "execution": canonical_execution,
+            "system": canonical_system, "field_provenance": provenance,
+            "privacy_class": privacy_class, "epistemic_boundary": EPISTEMIC_BOUNDARY,
+            "hidden_chain_of_thought_captured": False, "model_mind_captured": False,
             "authority": AUTHORITY,
         }
         state_id = self._identity(payload)
@@ -664,13 +604,17 @@ class ModelStateRegistry:
         encoded = canonical_json_bytes(record)
         if len(encoded) > MAX_RECORD_BYTES:
             raise ModelStateError("model-state record exceeds canonical byte limit")
+
+        projection = self._event_projection(record) if link_run_event else None
+        if projection is not None:
+            self.interactions._validate_model_state_payload(projection, run_id=run_id)
+
         path = self._path(state_id)
         if path.exists():
             if path.read_bytes() != encoded:
                 raise ModelStateError("model-state identity collision detected")
         else:
             _atomic_write(path, encoded)
-
         if link_run_event:
             self._ensure_run_event(record)
         return copy.deepcopy(record)
@@ -682,11 +626,8 @@ class ModelStateRegistry:
             if event.get("kind") == "model_state" and event.get("payload", {}).get("state_id") == state_id:
                 return event
         return self.interactions.append_event(
-            run_id,
-            kind="model_state",
-            payload=record,
-            occurred_at=record["captured_at"],
-            record_refs=[state_id],
+            run_id, kind="model_state", payload=self._event_projection(record),
+            occurred_at=record["captured_at"], record_refs=[state_id],
         )
 
     def get_state(self, state_id: str) -> dict[str, Any]:
@@ -732,14 +673,11 @@ class ModelStateRegistry:
         artifacts = model.get("artifacts")
         if not isinstance(artifacts, dict) or set(artifacts) != set(ARTIFACT_ROLES):
             raise ModelStateError("model.artifacts must contain canonical artifact roles")
+        role_hash_fields = {"model": "model_hash", "weights": "weight_hash", "tokenizer": "tokenizer_hash"}
         for role in ARTIFACT_ROLES:
             descriptor = _validate_artifact_descriptor(artifacts[role], f"model.artifacts.{role}")
             if descriptor is not None:
-                hash_field = role_hash_fields = {
-                    "model": "model_hash",
-                    "weights": "weight_hash",
-                    "tokenizer": "tokenizer_hash",
-                }[role]
+                hash_field = role_hash_fields[role]
                 if model.get(hash_field) != descriptor["sha256"]:
                     raise ModelStateError(f"model.{hash_field} differs from artifact descriptor")
 
@@ -772,12 +710,8 @@ class ModelStateRegistry:
         run_id = _validate_sha_ref(system.get("control_run_id"), "system.control_run_id", allow_none=False)
         assert run_id is not None
         for field in (
-            "control_manifest_identity",
-            "nexus_identity",
-            "substrate_identity",
-            "ark_identity",
-            "int_identity",
-            "evidence_snapshot_ref",
+            "control_manifest_identity", "nexus_identity", "substrate_identity",
+            "ark_identity", "int_identity", "evidence_snapshot_ref",
         ):
             _optional_string(system.get(field), f"system.{field}")
         collection_snapshot_id = system.get("collection_snapshot_id")
@@ -804,11 +738,12 @@ class ModelStateRegistry:
             raise ModelStateError("system.control_run_id provenance must be locally_verified")
         if provenance.get("captured_at") != "observed":
             raise ModelStateError("captured_at provenance must be observed")
-        for role, field in (("model", "model_hash"), ("weights", "weight_hash"), ("tokenizer", "tokenizer_hash")):
+        for role, field in (
+            ("model", "model_hash"), ("weights", "weight_hash"), ("tokenizer", "tokenizer_hash"),
+        ):
             descriptor = model["artifacts"][role]
-            if descriptor is not None and provenance.get(f"model.artifacts.{role}") == "locally_verified":
-                if provenance.get(f"model.{field}") != "locally_verified":
-                    raise ModelStateError("locally verified artifact hash provenance is inconsistent")
+            if descriptor is not None and provenance.get(f"model.artifacts.{role}") == "locally_verified" and provenance.get(f"model.{field}") != "locally_verified":
+                raise ModelStateError("locally verified artifact hash provenance is inconsistent")
 
         _reject_forbidden_material(record, "model-state record")
         payload = {key: value for key, value in record.items() if key != "state_id"}
@@ -822,15 +757,11 @@ class ModelStateRegistry:
             for event in self.interactions.list_events(record["system"]["control_run_id"])
         )
         return {
-            "protocol": STATE_VERIFICATION_PROTOCOL,
-            "status": "valid",
-            "state_id": state_id,
-            "control_run_id": record["system"]["control_run_id"],
-            "interaction_event_linked": event_linked,
-            "privacy_class": record["privacy_class"],
+            "protocol": STATE_VERIFICATION_PROTOCOL, "status": "valid",
+            "state_id": state_id, "control_run_id": record["system"]["control_run_id"],
+            "interaction_event_linked": event_linked, "privacy_class": record["privacy_class"],
             "epistemic_boundary": EPISTEMIC_BOUNDARY,
-            "hidden_chain_of_thought_captured": False,
-            "model_mind_captured": False,
+            "hidden_chain_of_thought_captured": False, "model_mind_captured": False,
             "authority": AUTHORITY,
         }
 
@@ -843,11 +774,21 @@ class ModelStateRegistry:
             raise ModelStateError("model-state registry exceeds scan limit")
         output: list[dict[str, Any]] = []
         for path in paths:
+            if not re.fullmatch(r"[0-9a-f]{64}\.json", path.name):
+                raise ModelStateError("model-state registry contains a malformed record filename")
             state_id = "sha256:" + path.stem
             record = self.get_state(state_id)
             if run_id is None or record["system"]["control_run_id"] == run_id:
                 output.append(record)
         return output
+
+    @staticmethod
+    def _model_identity(record: dict[str, Any]) -> tuple[Any, ...]:
+        model = record["model"]
+        return (
+            model["provider"], model["runtime"], model["runtime_version"],
+            model["model_id"], model["revision"], model["quantization"],
+        )
 
     def compare_states(self, left_state_id: str, right_state_id: str) -> dict[str, Any]:
         left = self.get_state(left_state_id)
@@ -859,49 +800,32 @@ class ModelStateRegistry:
             left_provenance = left["field_provenance"][path]
             right_provenance = right["field_provenance"][path]
             if left_value != right_value or left_provenance != right_provenance:
-                changes.append(
-                    {
-                        "path": path,
-                        "category": _field_category(path),
-                        "left": left_value,
-                        "right": right_value,
-                        "left_provenance": left_provenance,
-                        "right_provenance": right_provenance,
-                    }
-                )
+                changes.append({
+                    "path": path, "category": _field_category(path),
+                    "left": left_value, "right": right_value,
+                    "left_provenance": left_provenance,
+                    "right_provenance": right_provenance,
+                })
         payload = {
             "protocol": STATE_COMPARISON_PROTOCOL,
-            "left_state_id": left_state_id,
-            "right_state_id": right_state_id,
+            "left_state_id": left_state_id, "right_state_id": right_state_id,
             "left_run_id": left["system"]["control_run_id"],
             "right_run_id": right["system"]["control_run_id"],
-            "changed_fields": changes,
-            "changed_field_count": len(changes),
-            "same_model_identity": (
-                left["model"]["provider"],
-                left["model"]["runtime"],
-                left["model"]["model_id"],
-                left["model"]["revision"],
-            )
-            == (
-                right["model"]["provider"],
-                right["model"]["runtime"],
-                right["model"]["model_id"],
-                right["model"]["revision"],
-            ),
-            "epistemic_boundary": EPISTEMIC_BOUNDARY,
-            "model_mind_inference": False,
+            "changed_fields": changes, "changed_field_count": len(changes),
+            "same_model_identity": self._model_identity(left) == self._model_identity(right),
+            "epistemic_boundary": EPISTEMIC_BOUNDARY, "model_mind_inference": False,
             "authority": "metadata-comparison-only",
         }
-        comparison_id = self._identity(payload)
-        return {"comparison_id": comparison_id, **payload}
+        return {"comparison_id": self._identity(payload), **payload}
 
     @staticmethod
     def _run_key(record: dict[str, Any]) -> str:
         seat = record["execution"].get("council_seat")
         if isinstance(seat, str) and seat:
-            return "seat:" + seat
-        return "model:" + record["model"]["provider"] + ":" + record["model"]["model_id"]
+            return "seat:" + json.dumps(seat, ensure_ascii=False, separators=(",", ":"))
+        model = record["model"]
+        identity = [model["provider"], model["model_id"]]
+        return "model:" + json.dumps(identity, ensure_ascii=False, separators=(",", ":"))
 
     def compare_runs(self, left_run_id: str, right_run_id: str) -> dict[str, Any]:
         left_states = self.list_states(run_id=left_run_id)
@@ -927,32 +851,22 @@ class ModelStateRegistry:
             elif key not in right:
                 left_only.append({"key": key, "state_id": left[key]["state_id"]})
             else:
-                aligned.append(
-                    {
-                        "key": key,
-                        "comparison": self.compare_states(left[key]["state_id"], right[key]["state_id"]),
-                    }
-                )
+                aligned.append({
+                    "key": key,
+                    "comparison": self.compare_states(left[key]["state_id"], right[key]["state_id"]),
+                })
         payload = {
             "protocol": RUN_COMPARISON_PROTOCOL,
-            "left_run_id": left_run_id,
-            "right_run_id": right_run_id,
-            "aligned": aligned,
-            "left_only": left_only,
-            "right_only": right_only,
-            "epistemic_boundary": EPISTEMIC_BOUNDARY,
-            "model_mind_inference": False,
+            "left_run_id": left_run_id, "right_run_id": right_run_id,
+            "aligned": aligned, "left_only": left_only, "right_only": right_only,
+            "epistemic_boundary": EPISTEMIC_BOUNDARY, "model_mind_inference": False,
             "authority": "metadata-comparison-only",
         }
         return {"comparison_id": self._identity(payload), **payload}
 
     def build_archaeology_export(
-        self,
-        *,
-        state_ids: Iterable[str] = (),
-        run_ids: Iterable[str] = (),
-        include_all: bool = False,
-        allow_restricted: bool = False,
+        self, *, state_ids: Iterable[str] = (), run_ids: Iterable[str] = (),
+        include_all: bool = False, allow_restricted: bool = False,
     ) -> dict[str, Any]:
         selected: dict[str, dict[str, Any]] = {}
         for state_id in state_ids:
@@ -969,10 +883,7 @@ class ModelStateRegistry:
         if len(selected) > MAX_EXPORT_STATES:
             raise ModelStateError("archaeology export exceeds model-state count limit")
         records = [selected[key] for key in sorted(selected, key=lambda item: item.encode("ascii"))]
-        strictest = max(
-            (record["privacy_class"] for record in records),
-            key=lambda item: PRIVACY_RANK[item],
-        )
+        strictest = max((record["privacy_class"] for record in records), key=lambda item: PRIVACY_RANK[item])
         if strictest == "RESTRICTED" and not allow_restricted:
             raise ModelStateError("RESTRICTED archaeology export requires explicit acknowledgement")
         run_index: dict[str, list[str]] = {}
@@ -983,41 +894,27 @@ class ModelStateRegistry:
             for run_id, ids in sorted(run_index.items(), key=lambda item: item[0].encode("ascii"))
         }
         payload = {
-            "protocol": ARCHAEOLOGY_PROTOCOL,
-            "model_state_protocol": MODEL_STATE_PROTOCOL,
-            "state_count": len(records),
-            "state_ids": [record["state_id"] for record in records],
-            "run_index": run_index,
-            "records": records,
-            "provenance_kinds": sorted(PROVENANCE_KINDS),
-            "privacy_class": strictest,
+            "protocol": ARCHAEOLOGY_PROTOCOL, "model_state_protocol": MODEL_STATE_PROTOCOL,
+            "state_count": len(records), "state_ids": [record["state_id"] for record in records],
+            "run_index": run_index, "records": records,
+            "provenance_kinds": sorted(PROVENANCE_KINDS), "privacy_class": strictest,
             "epistemic_boundary": EPISTEMIC_BOUNDARY,
-            "hidden_chain_of_thought_captured": False,
-            "model_mind_captured": False,
-            "contains_model_artifact_bytes": False,
-            "local_artifact_paths_persisted": False,
+            "hidden_chain_of_thought_captured": False, "model_mind_captured": False,
+            "contains_model_artifact_bytes": False, "local_artifact_paths_persisted": False,
             "artifact_identity_semantics": "hashes-and-descriptors-only",
-            "reconstruction_scope": (
-                "externally inspectable computational circumstances; not hidden cognition"
-            ),
+            "reconstruction_scope": "externally inspectable computational circumstances; not hidden cognition",
             "ui_boundary_label": "Reproducibility metadata — not model mind",
             "authority": "reproducibility-archive-only",
         }
         return {"export_id": self._identity(payload), **payload}
 
     def write_archaeology_export(
-        self,
-        output: str | Path,
-        *,
-        state_ids: Iterable[str] = (),
-        run_ids: Iterable[str] = (),
-        include_all: bool = False,
+        self, output: str | Path, *, state_ids: Iterable[str] = (),
+        run_ids: Iterable[str] = (), include_all: bool = False,
         allow_restricted: bool = False,
     ) -> dict[str, Any]:
         export = self.build_archaeology_export(
-            state_ids=state_ids,
-            run_ids=run_ids,
-            include_all=include_all,
+            state_ids=state_ids, run_ids=run_ids, include_all=include_all,
             allow_restricted=allow_restricted,
         )
         path = Path(output)
@@ -1028,11 +925,7 @@ class ModelStateRegistry:
 
 
 __all__ = [
-    "ARCHAEOLOGY_PROTOCOL",
-    "EPISTEMIC_BOUNDARY",
-    "MODEL_STATE_PROTOCOL",
-    "ModelStateError",
-    "ModelStateRegistry",
-    "PROVENANCE_KINDS",
-    "hash_local_artifact",
+    "ARCHAEOLOGY_PROTOCOL", "EPISTEMIC_BOUNDARY", "MAX_RECORD_BYTES",
+    "MODEL_STATE_PROTOCOL", "ModelStateError", "ModelStateRegistry",
+    "PROVENANCE_KINDS", "hash_local_artifact",
 ]

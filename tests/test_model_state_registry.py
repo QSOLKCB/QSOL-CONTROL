@@ -44,23 +44,35 @@ class ModelStateRegistryTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def descriptor(self, run_id, *, revision="r1", temperature=0.2, privacy="INTERNAL"):
+    def descriptor(
+        self,
+        run_id,
+        *,
+        revision="r1",
+        runtime_version="0.12.0",
+        quantization="Q4_K_M",
+        temperature=0.2,
+        privacy="INTERNAL",
+        council_seat="seat-A",
+        provider="local",
+        model_id="fixture-model",
+    ):
         return {
             "captured_at": TIME_A if run_id == self.run_a["run_id"] else TIME_B,
             "model": {
-                "provider": "local",
+                "provider": provider,
                 "runtime": "ollama",
-                "runtime_version": "0.12.0",
-                "model_id": "fixture-model",
+                "runtime_version": runtime_version,
+                "model_id": model_id,
                 "revision": revision,
                 "model_hash": None,
                 "weight_hash": None,
                 "tokenizer_identity": "fixture-tokenizer",
                 "tokenizer_hash": None,
-                "quantization": "Q4_K_M",
+                "quantization": quantization,
             },
             "execution": {
-                "council_seat": "seat-A",
+                "council_seat": council_seat,
                 "mode": "analytical",
                 "stochastic": True,
                 "seed": 42,
@@ -98,17 +110,17 @@ class ModelStateRegistryTests(unittest.TestCase):
                 "model.model_id": "provider_reported",
                 "model.revision": "provider_reported",
                 "model.quantization": "observed",
-                "execution.council_seat": "locally_verified",
-                "execution.mode": "locally_verified",
+                "execution.council_seat": "observed",
+                "execution.mode": "observed",
                 "execution.sampling": "observed",
                 "execution.context_limit": "provider_reported",
-                "system.nexus_identity": "locally_verified",
+                "system.nexus_identity": "observed",
                 "system.hardware_runtime_metadata": "observed",
             },
             "privacy_class": privacy,
         }
 
-    def capture(self, descriptor, *, local_artifacts=None):
+    def capture(self, descriptor, *, local_artifacts=None, link_run_event=False):
         return self.registry.capture(
             captured_at=descriptor["captured_at"],
             model=descriptor["model"],
@@ -117,7 +129,7 @@ class ModelStateRegistryTests(unittest.TestCase):
             field_provenance=descriptor["field_provenance"],
             privacy_class=descriptor["privacy_class"],
             local_artifacts=local_artifacts,
-            link_run_event=False,
+            link_run_event=link_run_event,
         )
 
     def test_capture_is_content_addressed_persistent_and_boundary_explicit(self):
@@ -137,6 +149,19 @@ class ModelStateRegistryTests(unittest.TestCase):
         verified = self.registry.verify_state(first["state_id"])
         self.assertEqual(verified["status"], "valid")
         self.assertFalse(verified["interaction_event_linked"])
+
+    def test_registered_runtime_links_compact_projection(self):
+        descriptor = self.descriptor(self.run_a["run_id"])
+        state = self.capture(descriptor, link_run_event=True)
+        events = self.interactions.list_events(self.run_a["run_id"])
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event["kind"], "model_state")
+        self.assertEqual(event["record_refs"], [state["state_id"]])
+        self.assertEqual(event["payload"]["state_id"], state["state_id"])
+        self.assertNotIn("field_provenance", event["payload"])
+        self.assertEqual(event["payload"]["model"]["metadata_provenance"], "unknown")
+        self.assertIn("field_provenance", self.registry.get_state(state["state_id"]))
 
     def test_local_model_weight_and_tokenizer_artifacts_are_hashed_without_paths(self):
         model_file = self.root / "fixture-model.gguf"
@@ -200,7 +225,25 @@ class ModelStateRegistryTests(unittest.TestCase):
         self.assertEqual(state["field_provenance"]["execution.seed"], "unknown")
         self.assertEqual(state["field_provenance"]["system.ark_identity"], "unknown")
 
-    def test_hidden_reasoning_and_credential_fields_fail_before_persistence(self):
+    def test_registered_runtime_rejects_caller_self_awarded_locally_verified(self):
+        descriptor = self.descriptor(self.run_a["run_id"])
+        descriptor["field_provenance"]["model.model_id"] = "locally_verified"
+        with self.assertRaisesRegex(ModelStateError, "reserved for CONTROL verification"):
+            self.capture(descriptor)
+        self.assertEqual(list((self.root / "records" / "model-states").glob("*.json")), [])
+
+    def test_vendor_prefixed_credentials_fail_closed_before_persistence(self):
+        for key in ("openai_api_key", "aws_secret_access_key", "github_token"):
+            with self.subTest(key=key):
+                descriptor = self.descriptor(self.run_a["run_id"])
+                descriptor["system"]["hardware_runtime_metadata"][key] = "sk-live-secret"
+                before = list((self.root / "records" / "model-states").glob("*.json"))
+                with self.assertRaisesRegex(ModelStateError, "credential field"):
+                    self.capture(descriptor)
+                after = list((self.root / "records" / "model-states").glob("*.json"))
+                self.assertEqual(before, after)
+
+    def test_hidden_reasoning_and_generic_credential_fields_fail_before_persistence(self):
         for section, key in (
             ("model", "api_key"),
             ("execution", "hidden_reasoning"),
@@ -215,40 +258,80 @@ class ModelStateRegistryTests(unittest.TestCase):
                 after = list((self.root / "records" / "model-states").glob("*.json"))
                 self.assertEqual(before, after)
 
+    def test_inherited_oracle_refs_are_not_promoted_to_locally_verified(self):
+        run = self.interactions.create_run(
+            question="Preserve lineage without promoting ORACLE authority.",
+            mode="council",
+            requester_kind="human",
+            created_at=TIME_A,
+            evidence_state="unknown",
+            oracle_refs=["oracle:unverified-user-input"],
+            replayability="R3",
+        )
+        descriptor = self.descriptor(run["run_id"])
+        descriptor["system"]["oracle_refs"] = None
+        state = self.capture(descriptor)
+        self.assertEqual(state["system"]["oracle_refs"], ["oracle:unverified-user-input"])
+        self.assertEqual(state["field_provenance"]["system.oracle_refs"], "unknown")
+
+    def test_tool_envelope_cannot_add_undeclared_tools(self):
+        descriptor = self.descriptor(self.run_a["run_id"])
+        descriptor["execution"]["tool_permissions"] = []
+        descriptor["execution"]["tool_permission_envelope"]["tools"] = ["shell"]
+        with self.assertRaisesRegex(ModelStateError, "tool_permissions.*disagree"):
+            self.capture(descriptor)
+
     def test_unknown_run_is_rejected(self):
         descriptor = self.descriptor("sha256:" + "f" * 64)
         with self.assertRaises(StorageError):
             self.capture(descriptor)
 
-    def test_state_comparison_preserves_values_and_provenance_without_mind_inference(self):
-        left = self.capture(self.descriptor(self.run_a["run_id"], revision="r1", temperature=0.2))
-        right_descriptor = self.descriptor(self.run_b["run_id"], revision="r2", temperature=0.7)
-        right_descriptor["field_provenance"]["model.revision"] = "locally_verified"
+    def test_state_comparison_preserves_values_provenance_and_full_identity(self):
+        left = self.capture(
+            self.descriptor(
+                self.run_a["run_id"],
+                revision="r1",
+                runtime_version="0.12.0",
+                quantization="Q4_K_M",
+                temperature=0.2,
+            )
+        )
+        right_descriptor = self.descriptor(
+            self.run_b["run_id"],
+            revision="r1",
+            runtime_version="0.13.0",
+            quantization="Q8_0",
+            temperature=0.7,
+        )
         right = self.capture(right_descriptor)
         comparison = self.registry.compare_states(left["state_id"], right["state_id"])
         paths = {item["path"] for item in comparison["changed_fields"]}
-        self.assertIn("model.revision", paths)
+        self.assertIn("model.runtime_version", paths)
+        self.assertIn("model.quantization", paths)
         self.assertIn("execution.sampling", paths)
+        self.assertFalse(comparison["same_model_identity"])
         self.assertFalse(comparison["model_mind_inference"])
-        revision_change = next(
-            item for item in comparison["changed_fields"] if item["path"] == "model.revision"
-        )
-        self.assertEqual(revision_change["left_provenance"], "provider_reported")
-        self.assertEqual(revision_change["right_provenance"], "locally_verified")
 
     def test_cross_run_comparison_aligns_by_council_seat(self):
         left = self.capture(self.descriptor(self.run_a["run_id"], revision="r1"))
         right = self.capture(self.descriptor(self.run_b["run_id"], revision="r2"))
         report = self.registry.compare_runs(self.run_a["run_id"], self.run_b["run_id"])
         self.assertEqual(len(report["aligned"]), 1)
-        self.assertEqual(report["aligned"][0]["key"], "seat:seat-A")
-        self.assertEqual(
-            report["aligned"][0]["comparison"]["left_state_id"], left["state_id"]
-        )
-        self.assertEqual(
-            report["aligned"][0]["comparison"]["right_state_id"], right["state_id"]
-        )
+        self.assertTrue(report["aligned"][0]["key"].startswith("seat:"))
+        self.assertEqual(report["aligned"][0]["comparison"]["left_state_id"], left["state_id"])
+        self.assertEqual(report["aligned"][0]["comparison"]["right_state_id"], right["state_id"])
         self.assertFalse(report["model_mind_inference"])
+
+    def test_fallback_alignment_key_has_no_delimiter_collision(self):
+        left = {
+            "execution": {"council_seat": None},
+            "model": {"provider": "a:b", "model_id": "c"},
+        }
+        right = {
+            "execution": {"council_seat": None},
+            "model": {"provider": "a", "model_id": "b:c"},
+        }
+        self.assertNotEqual(self.registry._run_key(left), self.registry._run_key(right))
 
     def test_archaeology_export_is_deterministic_self_describing_and_contains_no_model_bytes(self):
         model_file = self.root / "model.gguf"
@@ -271,9 +354,7 @@ class ModelStateRegistryTests(unittest.TestCase):
         self.assertNotIn(str(model_file).encode("utf-8"), encoded)
 
     def test_restricted_archaeology_export_requires_acknowledgement_and_is_owner_only(self):
-        state = self.capture(
-            self.descriptor(self.run_a["run_id"], privacy="RESTRICTED")
-        )
+        state = self.capture(self.descriptor(self.run_a["run_id"], privacy="RESTRICTED"))
         with self.assertRaisesRegex(ModelStateError, "explicit acknowledgement"):
             self.registry.build_archaeology_export(state_ids=[state["state_id"]])
         output = self.root / "archaeology.json"
