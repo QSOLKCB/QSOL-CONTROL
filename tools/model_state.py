@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from storage.control_store import StorageError
-from storage.model_state_registry import ModelStateError, ModelStateRegistry
+from storage.model_state import ModelStateError, ModelStateRegistry
 
 MAX_DESCRIPTOR_BYTES = 4 * 1024 * 1024
 
@@ -111,10 +111,11 @@ def main(argv: list[str] | None = None) -> int:
                 field_provenance=descriptor.get("field_provenance"),
                 privacy_class=descriptor.get("privacy_class", "INTERNAL"),
                 local_artifacts=artifacts,
-                # The registry's system.control_run_id is the canonical run link.
-                # Phase 4 does not mutate the immutable run record merely to add a
-                # late model-state reference.
-                link_run_event=False,
+                # Canonical registry state is linked to the containing run by a
+                # compact backward-compatible model_state event projection that
+                # references this state_id. The full registry record remains
+                # canonical.
+                link_run_event=True,
             )
             _emit(record)
             return 0
