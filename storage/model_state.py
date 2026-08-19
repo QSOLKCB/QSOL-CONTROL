@@ -26,7 +26,36 @@ from .model_state_registry import (
 
 
 class ModelStateRegistry(_Registry):
-    """Public registry with Phase-1B-compatible run-event linkage."""
+    """Public registry with epistemic and Phase-1B linkage hardening."""
+
+    def capture(
+        self,
+        *args: Any,
+        field_provenance: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        # `locally_verified` is evidence about what CONTROL itself checked, not
+        # a label a capture caller may self-award. The implementation layer
+        # adds it automatically for bound run identity, inherited verified
+        # snapshot refs, and hashes computed from supplied local artifacts.
+        if field_provenance is not None:
+            if not isinstance(field_provenance, dict):
+                raise ModelStateError("field_provenance must be an object")
+            self_awarded = sorted(
+                path
+                for path, provenance in field_provenance.items()
+                if provenance == "locally_verified"
+            )
+            if self_awarded:
+                raise ModelStateError(
+                    "locally_verified provenance is reserved for CONTROL verification; "
+                    "caller supplied: " + ", ".join(self_awarded)
+                )
+        return super().capture(
+            *args,
+            field_provenance=field_provenance,
+            **kwargs,
+        )
 
     @staticmethod
     def _event_projection(record: dict[str, Any]) -> dict[str, Any]:
