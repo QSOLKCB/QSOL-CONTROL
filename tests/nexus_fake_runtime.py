@@ -30,9 +30,15 @@ def nexus_ref(prefix: str, value: Any) -> str:
 
 
 class FakeNexus:
-    def __init__(self, *, tamper: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        tamper: str | None = None,
+        runtime_version: str = "2.0.0",
+    ) -> None:
         self.objects: dict[str, dict[str, Any]] = {}
         self.tamper = tamper
+        self.runtime_version = runtime_version
         self.operations_seen: list[str] = []
 
     def create_object(
@@ -65,7 +71,7 @@ class FakeNexus:
                 {
                     "status": "ok",
                     "protocol": "nexus/0.14",
-                    "runtime_version": "2.0.0",
+                    "runtime_version": self.runtime_version,
                     "control_transport": "jsonl_stdio",
                     "council_chair": {
                         "vote_weight_per_seat": 1,
@@ -129,10 +135,14 @@ class FakeNexus:
         evidence_refs = list(request.get("evidence_refs", []))
         evidence_state = request.get("evidence_state", "UNTESTED")
         mode = request.get("mode", "analytical")
+        committed_question = (
+            "different committed question" if self.tamper == "question_binding" else question
+        )
+        committed_mode = "historical" if self.tamper == "mode_binding" else mode
 
         question_obj = self.create_object(
             "question",
-            {"text": question, "secret_scrubbed": False, "scrubbed_types": []},
+            {"text": committed_question, "secret_scrubbed": False, "scrubbed_types": []},
             {"actor": "human_operator"},
         )
         evidence_obj = self.create_object(
@@ -157,12 +167,16 @@ class FakeNexus:
             }
             for member in members
         ]
+        if roster and self.tamper == "roster_missing_model":
+            roster[0].pop("model_id")
+        if roster and self.tamper == "roster_bad_adapter":
+            roster[0]["adapter_id"] = 7
         roster_ids = [row["member_id"] for row in roster]
         presence = self.create_object(
             "world_presence",
             {
-                "mode_id": mode,
-                "mode_label": mode,
+                "mode_id": committed_mode,
+                "mode_label": committed_mode,
                 "region_id": "observatory",
                 "region_label": "Observatory",
                 "coordinates": [0, 0],
@@ -185,7 +199,7 @@ class FakeNexus:
             "question_ref": question_obj["object_id"],
             "evidence_snapshot_ref": evidence_obj["object_id"],
             "world_presence_ref": presence["object_id"],
-            "world_mode": {"mode_id": mode},
+            "world_mode": {"mode_id": committed_mode},
             "geometry_region": {"region_id": "observatory"},
             "roster": roster,
             "policy": policy,
@@ -211,7 +225,10 @@ class FakeNexus:
         revealed: list[dict[str, Any]] = []
         commitments: list[dict[str, Any]] = []
         for index, member_id in enumerate(roster_ids):
-            choice = "ACCEPT" if index < 2 else "TEST_FURTHER"
+            if self.tamper in {"below_threshold", "false_consensus"} and len(roster_ids) == 4:
+                choice = ["ACCEPT", "ACCEPT", "TEST_FURTHER", "REJECT"][index]
+            else:
+                choice = "ACCEPT" if index < 2 else "TEST_FURTHER"
             rationale = "supported by admitted evidence" if choice == "ACCEPT" else "needs more evidence"
             commitment = nexus_ref(
                 "ballot",
@@ -235,7 +252,25 @@ class FakeNexus:
             revealed[0]["rationale"] = "altered after commitment"
 
         tally = dict(sorted(Counter(item["choice"] for item in revealed).items()))
-        disposition = "ACCEPT" if tally.get("ACCEPT", 0) >= 2 else "NO_SINGLE_DISPOSITION"
+        top_count = max(tally.values())
+        winners = sorted(choice for choice, count in tally.items() if count == top_count)
+        single_winner = len(winners) == 1
+        disposition = winners[0] if single_winner else "NO_SINGLE_DISPOSITION"
+        total = len(revealed)
+        threshold_met = single_winner and top_count * 3 >= total * 2
+        if single_winner and top_count == total:
+            consensus_label = "UNANIMOUS"
+        elif threshold_met and top_count * 5 >= total * 4:
+            consensus_label = "STRONG_CONSENSUS"
+        elif threshold_met:
+            consensus_label = "CONSENSUS"
+        elif single_winner and top_count * 2 > total:
+            consensus_label = "MAJORITY_NO_CONSENSUS"
+        else:
+            consensus_label = "NO_CONSENSUS"
+        if self.tamper == "false_consensus":
+            consensus_label = "CONSENSUS"
+
         minority = [
             {
                 "member_id": item["member_id"],
@@ -251,11 +286,14 @@ class FakeNexus:
         result = {
             "disposition": disposition,
             "tally": tally,
-            "consensus_label": "CONSENSUS",
+            "consensus_label": consensus_label,
             "consensus_threshold": threshold,
             "evidence_state": evidence_state,
             "minority_reports": minority,
         }
+        telemetry: dict[str, Any] = {"authority": "observational_only"}
+        if self.tamper == "credential_output":
+            telemetry["api_key"] = "secret-value-without-known-prefix"
         session_payload: dict[str, Any] = {
             **frozen,
             "session_id": session_id,
@@ -265,7 +303,7 @@ class FakeNexus:
             "ballot_commitments": commitments,
             "revealed_ballots": revealed,
             "result": result,
-            "telemetry": {"authority": "observational_only"},
+            "telemetry": telemetry,
             "failsafe": {"policy": {"enabled": True}, "outcomes": []},
         }
         if self.tamper == "hidden_reasoning":
@@ -290,7 +328,7 @@ class FakeNexus:
                 "question_ref": question_obj["object_id"],
                 "evidence_snapshot_ref": evidence_obj["object_id"],
                 "world_presence_ref": presence["object_id"],
-                "mode_id": mode,
+                "mode_id": committed_mode,
                 "geometry_region_id": "observatory",
                 "session_ref": session["object_id"],
                 "receipt_ref": receipt["object_id"],
@@ -318,8 +356,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--log")
     parser.add_argument("--tamper")
+    parser.add_argument("--runtime-version", default="2.0.0")
     args = parser.parse_args()
-    nexus = FakeNexus(tamper=args.tamper)
+    nexus = FakeNexus(tamper=args.tamper, runtime_version=args.runtime_version)
     for raw in sys.stdin:
         line = raw.strip()
         if not line:
