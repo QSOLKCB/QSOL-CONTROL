@@ -101,18 +101,28 @@ ORACLE_REFERENCE != CONTROL_AUTHORITY
 
 ## Phase 3 — NEXUS Council adapter
 
-- [ ] Discover NEXUS `system.health` and `system.operations` rather than hard-coding capabilities.
-- [ ] Implement local JSONL/stdio adapter.
-- [ ] Submit Council questions with admitted evidence references.
-- [ ] Preserve canonical roster and phase ordering returned by NEXUS.
-- [ ] Render sealed votes and exact consensus threshold.
-- [ ] Preserve minority reports.
-- [ ] Store NEXUS receipts and externally visible outputs.
-- [ ] Never capture hidden chain-of-thought.
+- [x] Discover NEXUS `system.health` and `system.operations` rather than hard-coding capabilities.
+- [x] Implement local JSONL/stdio adapter.
+- [x] Submit Council questions with admitted evidence references.
+- [x] Preserve canonical roster and phase ordering returned by NEXUS.
+- [x] Render sealed votes and exact consensus threshold.
+- [x] Preserve minority reports.
+- [x] Store NEXUS receipts and externally visible outputs.
+- [x] Never capture hidden chain-of-thought.
 
 ### Governance gate
 
-CONTROL may invoke Council operations but cannot alter NEXUS vote weights, ballot contents, roster authority, consensus threshold, or WorldStore history.
+**Satisfied by `qsol-control-nexus-adapter/1`.** CONTROL discovers the live NEXUS operation surface, exposes only `council.run` as a governance-bearing mutation, then resolves and verifies the committed NEXUS session and receipts before rendering or storing results. It does not expose direct WorldStore creation, generic operation passthrough, ballot mutation, roster-authority mutation, vote-weight mutation, or consensus-threshold mutation.
+
+```text
+CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
+CONTROL_CAN_WORLD_CREATE = false
+CONTROL_CAN_OVERRIDE_VOTE_WEIGHT = false
+CONTROL_CAN_OVERRIDE_BALLOTS = false
+CONTROL_CAN_OVERRIDE_CONSENSUS_THRESHOLD = false
+NEXUS_OWNS_WORLDSTORE_HISTORY = true
+VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+```
 
 ## Phase 4 — AI model-state registry
 
