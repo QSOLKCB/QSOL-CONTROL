@@ -2,6 +2,7 @@
   "type": "qsol-control-model-state-contract",
   "protocol": "qsol-control-model-state/1",
   "runtime": "storage/model_state_registry.py",
+  "public_runtime_facade": "storage/model_state.py",
   "cli": "tools/model_state.py",
   "purpose": "externally inspectable reproducibility metadata and future computational archaeology",
   "epistemic_boundary": "MODEL_STATE != MODEL_MIND",
@@ -10,6 +11,16 @@
     "state_id": "sha256(canonical record payload without state_id)",
     "immutable": true,
     "canonical_serialization": "utf-8 canonical JSON with sorted keys and compact separators"
+  },
+  "run_linkage": {
+    "canonical_binding": "system.control_run_id",
+    "interaction_event_kind": "model_state",
+    "interaction_event_payload": "backward-compatible Phase-1B projection",
+    "interaction_event_record_ref": "canonical state_id",
+    "full_registry_record_is_canonical": true,
+    "event_projection_is_canonical_record": false,
+    "event_projection_coarse_metadata_provenance": "unknown",
+    "reason": "do not collapse field-level Phase-4 provenance into a stronger legacy single provenance label"
   },
   "capture": {
     "model_identity": [
