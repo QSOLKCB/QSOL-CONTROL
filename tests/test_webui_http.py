@@ -66,7 +66,7 @@ class WebUIHttpTests(unittest.TestCase):
         status, _, session = self.request("/api/session")
         self.assertEqual(status, 200)
         token = session["session_token"]
-        status, _, error = self.request("/api/collections", method="POST", token=token, body={"name": "Cross origin"}, extra_headers={"Origin": "https://attacker.example"})
+        status, _, error = self.request("/api/collections", method="POST", token=token, body={"name": "Cross origin"}, extra_headers={"Origin": "http://attacker.example"})
         self.assertEqual(status, 400)
         self.assertIn("Origin must be loopback", error["error"])
 
