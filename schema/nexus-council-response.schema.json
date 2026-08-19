@@ -39,7 +39,10 @@
     "protocol": {"const": "qsol-control-nexus-council-response/1"},
     "availability": {"const": "available"},
     "nexus_protocol": {"type": "string", "pattern": "^nexus/[0-9]+\\.[0-9]+$"},
-    "nexus_runtime_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "nexus_runtime_version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
     "session_id": {"type": "string", "minLength": 1},
     "session_ref": {"type": "string", "pattern": "^object:[0-9a-f]{64}$"},
     "receipt_ref": {"type": "string", "pattern": "^object:[0-9a-f]{64}$"},
@@ -112,9 +115,19 @@
     "consensus": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["disposition", "tally", "consensus_label", "consensus_threshold", "evidence_state"],
+      "required": [
+        "disposition",
+        "consensus_outcome",
+        "threshold_met",
+        "tally",
+        "consensus_label",
+        "consensus_threshold",
+        "evidence_state"
+      ],
       "properties": {
         "disposition": {"type": ["string", "null"]},
+        "consensus_outcome": {"type": "string", "minLength": 1},
+        "threshold_met": {"type": "boolean"},
         "tally": {"type": "object"},
         "consensus_label": {"type": ["string", "null"]},
         "consensus_threshold": {
