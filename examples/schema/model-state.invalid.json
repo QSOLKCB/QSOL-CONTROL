@@ -83,7 +83,7 @@
   },
   "privacy_class": "INTERNAL",
   "epistemic_boundary": "MODEL_STATE != MODEL_MIND",
-  "hidden_chain_of_thought_captured": false,
+  "hidden_chain_of_thought_captured": true,
   "model_mind_captured": true,
   "authority": "reproducibility-metadata-only"
 }
