@@ -1,15 +1,89 @@
 {
-  "protocol": "qsol-control-model-state/1",
   "state_id": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "protocol": "qsol-control-model-state/1",
   "captured_at": "2026-08-18T07:27:00+09:30",
   "model": {
     "provider": "cloud",
     "runtime": "example",
-    "model_id": "example-model"
+    "runtime_version": "2.0.0",
+    "model_id": "example-model",
+    "revision": null,
+    "model_hash": null,
+    "weight_hash": null,
+    "tokenizer_identity": null,
+    "tokenizer_hash": null,
+    "quantization": null,
+    "artifacts": {
+      "model": null,
+      "weights": null,
+      "tokenizer": null
+    }
   },
-  "execution": {},
+  "execution": {
+    "council_seat": null,
+    "mode": null,
+    "stochastic": null,
+    "seed": null,
+    "context_limit": null,
+    "sampling": {},
+    "tool_permissions": [],
+    "tool_permission_envelope": {
+      "filesystem": "unknown",
+      "network": "unknown",
+      "tools": [],
+      "mcp_plugins": [],
+      "external_execution": null
+    }
+  },
   "system": {
-    "control_run_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    "control_run_id": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "control_manifest_identity": null,
+    "nexus_identity": null,
+    "oracle_refs": [],
+    "substrate_identity": null,
+    "ark_identity": null,
+    "int_identity": null,
+    "collection_snapshot_id": null,
+    "evidence_snapshot_ref": null,
+    "hardware_runtime_metadata": {}
   },
-  "hidden_chain_of_thought_captured": true
+  "field_provenance": {
+    "captured_at": "observed",
+    "model.provider": "unknown",
+    "model.runtime": "unknown",
+    "model.runtime_version": "unknown",
+    "model.model_id": "unknown",
+    "model.revision": "unknown",
+    "model.model_hash": "unknown",
+    "model.weight_hash": "unknown",
+    "model.tokenizer_identity": "unknown",
+    "model.tokenizer_hash": "unknown",
+    "model.quantization": "unknown",
+    "model.artifacts.model": "unknown",
+    "model.artifacts.weights": "unknown",
+    "model.artifacts.tokenizer": "unknown",
+    "execution.council_seat": "unknown",
+    "execution.mode": "unknown",
+    "execution.stochastic": "unknown",
+    "execution.seed": "unknown",
+    "execution.context_limit": "unknown",
+    "execution.sampling": "unknown",
+    "execution.tool_permissions": "unknown",
+    "execution.tool_permission_envelope": "unknown",
+    "system.control_run_id": "locally_verified",
+    "system.control_manifest_identity": "unknown",
+    "system.nexus_identity": "unknown",
+    "system.oracle_refs": "unknown",
+    "system.substrate_identity": "unknown",
+    "system.ark_identity": "unknown",
+    "system.int_identity": "unknown",
+    "system.collection_snapshot_id": "unknown",
+    "system.evidence_snapshot_ref": "unknown",
+    "system.hardware_runtime_metadata": "unknown"
+  },
+  "privacy_class": "INTERNAL",
+  "epistemic_boundary": "MODEL_STATE != MODEL_MIND",
+  "hidden_chain_of_thought_captured": false,
+  "model_mind_captured": true,
+  "authority": "reproducibility-metadata-only"
 }
