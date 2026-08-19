@@ -1,18 +1,31 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from adapters.nexus import NexusAdapterError, NexusCouncilAdapter
 from adapters.oracle import OracleAdapter, OracleAdapterError
 from storage.control_store import StorageError
 
-from .common import OBJECT_REF_RE, WebUIError, _canonical_strings, _require_sha_ref, _require_string, _reject_truth_fields, _utc_now
+from .common import (
+    OBJECT_REF_RE,
+    WebUIError,
+    _canonical_strings,
+    _require_sha_ref,
+    _require_string,
+    _reject_truth_fields,
+    _utc_now,
+)
+
+COUNCIL_STATUS_PROTOCOL = "qsol-control-webui-council-status/1"
+MAX_QUESTION_CHARACTERS = 2048
+
 
 class QueryRuntimeMixin:
     def ask(self, request: dict[str, Any]) -> dict[str, Any]:
         _reject_truth_fields(request)
-        question = _require_string(request.get("question"), "question", maximum=32768)
+        question = _require_string(
+            request.get("question"), "question", maximum=MAX_QUESTION_CHARACTERS
+        )
         mode = request.get("mode")
         if mode not in {"evidence_only", "council"}:
             raise WebUIError("mode must be evidence_only or council")
@@ -76,7 +89,7 @@ class QueryRuntimeMixin:
             },
             key=lambda value: value.encode("utf-8"),
         )
-        self.interactions.append_event(
+        evidence_event = self.interactions.append_event(
             run["run_id"],
             kind="evidence",
             payload=oracle_response,
@@ -94,6 +107,16 @@ class QueryRuntimeMixin:
                 run=run,
                 oracle_response=oracle_response,
             )
+            if council_response.get("availability") != "available":
+                self.interactions.append_event(
+                    run["run_id"],
+                    kind="response",
+                    payload=council_response,
+                    occurred_at=_utc_now(),
+                    epistemic_role="unresolved",
+                    temporal_role="current",
+                    parent_event_ids=[evidence_event["event_id"]],
+                )
 
         return {
             "protocol": "qsol-control-webui-ask-response/1",
@@ -160,6 +183,7 @@ class QueryRuntimeMixin:
     ) -> dict[str, Any]:
         if self.config.nexus_command is None:
             return {
+                "protocol": COUNCIL_STATUS_PROTOCOL,
                 "availability": "unconfigured",
                 "authority": "none",
                 "hidden_chain_of_thought_captured": False,
@@ -204,6 +228,7 @@ class QueryRuntimeMixin:
                 )
         except (NexusAdapterError, StorageError, OSError, ValueError) as exc:
             return {
+                "protocol": COUNCIL_STATUS_PROTOCOL,
                 "availability": "unavailable",
                 "error": str(exc),
                 "authority": "none",

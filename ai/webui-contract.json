@@ -8,11 +8,7 @@
   "authority": "orchestration_display_and_control_owned_storage_only",
   "bind_policy": {
     "default": "127.0.0.1",
-    "allowed": [
-      "127.0.0.1",
-      "::1",
-      "localhost"
-    ],
+    "allowed": ["127.0.0.1", "::1", "localhost"],
     "remote_multi_user_deployment": false,
     "reason": "Phase 5 implements a local operator surface; network deployment remains deferred."
   },
@@ -31,14 +27,13 @@
     "state_changing_origin_must_match_loopback_server": true
   },
   "question_composer": {
-    "modes": [
-      "evidence_only",
-      "council"
-    ],
+    "modes": ["evidence_only", "council"],
+    "max_question_characters": 2048,
     "file_attachments": "content-addressed CONTROL Files",
     "collection_binding": "exact Collection snapshot at submission",
     "oracle_behavior": "read-only query when configured; unavailable/unconfigured preserved as unknown",
     "nexus_behavior": "existing governance-preserving Council adapter only",
+    "council_unconfigured_or_unavailable_persisted_as_response_event": true,
     "generic_parent_operation_passthrough": false
   },
   "panels": [
@@ -87,19 +82,34 @@
   },
   "council": {
     "canonical_roster_preserved": true,
+    "canonical_roster_rendered": true,
     "canonical_phase_order_preserved": true,
     "sealed_ballot_rendered_separately": true,
     "exact_threshold_rendered": true,
     "minority_reports_preserved": true,
+    "receipt_verification_rendered": true,
     "vote_is_evidence": false,
     "consensus_is_truth": false
+  },
+  "oracle_display": {
+    "freshness_fields_rendered_structurally": true,
+    "observation_timestamps_rendered_separately_from_control_event_times": true,
+    "health_independent_from_timelock_rendering": true
+  },
+  "sources": {
+    "control_file_source_rendered": true,
+    "control_file_privacy_class_rendered": true,
+    "oracle_source_rendered": true,
+    "oracle_provenance_kind_rendered": true
   },
   "collections": {
     "create_browse_search": true,
     "exact_snapshot_visible": true,
     "lexical_score_label": "retrieval_similarity_not_truth_or_evidence_strength",
     "membership_updates_create_immutable_snapshots": true,
-    "membership_update_compare_and_swap": true
+    "membership_update_compare_and_swap": true,
+    "membership_update_requires_expected_head_snapshot_id": true,
+    "search_serialized_against_collection_head_updates": true
   },
   "lattice": {
     "top_level_cells": 27,
@@ -112,10 +122,12 @@
     "raw_bytes_canonical": true,
     "projection_derived": true,
     "codon_frequency_is_evidence": false,
-    "restricted_export_requires_explicit_acknowledgement": true
+    "restricted_export_requires_explicit_acknowledgement": true,
+    "restricted_export_requires_explicit_actor": true
   },
   "replay_compare": {
     "immutable_run_comparison": true,
+    "nexus_refs_derived_from_immutable_events": true,
     "phase7_replay_execution_implemented": false,
     "comparison_is_replay_execution": false
   },

@@ -45,7 +45,7 @@
           <label><input type="radio" name="mode" value="evidence_only" checked><strong>Evidence only</strong><span>Query ORACLE when configured. Do not invoke Council.</span></label>
           <label><input type="radio" name="mode" value="council"><strong>Ask Council</strong><span>Preserve evidence separately, then invoke verified NEXUS Council.</span></label>
         </fieldset>
-        <label class="field"><span>Question</span><textarea id="question" rows="5" maxlength="32768" required placeholder="What do you want CONTROL to inspect?"></textarea></label>
+        <label class="field"><span>Question</span><textarea id="question" rows="5" maxlength="2048" required placeholder="What do you want CONTROL to inspect?"></textarea><small>Maximum 2,048 characters, matching the ORACLE subject contract.</small></label>
         <div class="two-col">
           <label class="field"><span>Persistent Collection</span><select id="ask-collection"><option value="">No Collection</option></select><small>The exact current snapshot is frozen into the run at submission.</small></label>
           <label class="field"><span>Immediate File context</span><input id="file-input" type="file" multiple><small>Files are content-addressed before the run is created.</small></label>
@@ -78,7 +78,11 @@
 
     <section id="panel-dna" role="tabpanel" aria-labelledby="tab-dna" data-view="dna" hidden>
       <div class="panel-heading"><div><p class="eyebrow">REVERSIBLE RECOVERY PROJECTION</p><h2>DNA / lattice inspector</h2></div><span class="status-chip">CODON FREQUENCY ≠ EVIDENCE</span></div>
-      <div class="two-col"><label class="field"><span>File ID</span><input id="dna-file-id" placeholder="sha256:..."></label><label class="field"><span>Traversal</span><select id="dna-traversal"><option value="qsol.phi-stride-27/1">φ stride 17</option><option value="qsol.lexicographic-27/1">Lexicographic</option></select></label></div>
+      <div class="two-col">
+        <label class="field"><span>File ID</span><input id="dna-file-id" placeholder="sha256:..."></label>
+        <label class="field"><span>Traversal</span><select id="dna-traversal"><option value="qsol.phi-stride-27/1">φ stride 17</option><option value="qsol.lexicographic-27/1">Lexicographic</option></select></label>
+      </div>
+      <label class="field"><span>Operator / audit identity</span><input id="dna-actor" maxlength="256" placeholder="local operator identity"><small>Required for RESTRICTED reversible exports so the audit record attributes the authorization to an explicit operator.</small></label>
       <div class="button-row"><button id="dna-inspect" type="button">Inspect projection</button><button id="dna-export" type="button">Export projection JSON</button></div>
       <label class="checkline"><input id="dna-restricted-ack" type="checkbox"> I acknowledge that a RESTRICTED DNA projection is reversible sensitive data.</label>
       <div id="dna-view" class="stack empty-state">Choose a CONTROL File to inspect.</div>

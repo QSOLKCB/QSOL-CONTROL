@@ -19,9 +19,8 @@ from storage.model_state import ModelStateError
 from .common import MAX_JSON_BODY_BYTES, WebUIConfig, WebUIError, _reject_truth_fields
 from .runtime import ControlWebUIRuntime
 
-class ControlWebUIHandler(BaseHTTPRequestHandler):
-    """HTTP boundary for ControlWebUIRuntime."""
 
+class ControlWebUIHandler(BaseHTTPRequestHandler):
     server_version = "QSOL-CONTROL-WebUI/1"
 
     @property
@@ -230,8 +229,16 @@ class ControlWebUIHandler(BaseHTTPRequestHandler):
                 self._error(HTTPStatus.NOT_FOUND, "API route not found")
                 return
             self._serve_static(path)
-        except (WebUIError, StorageError, OracleAdapterError, NexusAdapterError,
-                ModelStateError, DnaLatticeError, OSError, ValueError) as exc:
+        except (
+            WebUIError,
+            StorageError,
+            OracleAdapterError,
+            NexusAdapterError,
+            ModelStateError,
+            DnaLatticeError,
+            OSError,
+            ValueError,
+        ) as exc:
             self._error(HTTPStatus.BAD_REQUEST, str(exc))
 
     def do_POST(self) -> None:  # noqa: N802
@@ -239,8 +246,7 @@ class ControlWebUIHandler(BaseHTTPRequestHandler):
             self._require_local_host()
             self._require_same_origin_mutation()
             self._require_session_token()
-            parsed = urlparse(self.path)
-            path = parsed.path
+            path = urlparse(self.path).path
             request = self._read_json()
             if path == "/api/files":
                 self._json(HTTPStatus.CREATED, self.runtime.upload_file(request))
@@ -265,8 +271,16 @@ class ControlWebUIHandler(BaseHTTPRequestHandler):
                 self._json(HTTPStatus.OK, self.runtime.dna_export(request))
                 return
             self._error(HTTPStatus.NOT_FOUND, "API route not found")
-        except (WebUIError, StorageError, OracleAdapterError, NexusAdapterError,
-                ModelStateError, DnaLatticeError, OSError, ValueError) as exc:
+        except (
+            WebUIError,
+            StorageError,
+            OracleAdapterError,
+            NexusAdapterError,
+            ModelStateError,
+            DnaLatticeError,
+            OSError,
+            ValueError,
+        ) as exc:
             self._error(HTTPStatus.BAD_REQUEST, str(exc))
 
 
@@ -283,9 +297,12 @@ def _single_query(
     return values[0]
 
 
-class ControlWebUIServer(ThreadingHTTPServer):
-    """Threaded local server carrying immutable configuration/runtime state."""
+def webui_url(host: str, port: int) -> str:
+    display_host = f"[{host}]" if ":" in host else host
+    return f"http://{display_host}:{port}"
 
+
+class ControlWebUIServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
@@ -307,10 +324,7 @@ class ControlWebUIServer(ThreadingHTTPServer):
 def serve(config: WebUIConfig) -> None:
     server = ControlWebUIServer(config)
     actual_port = int(server.server_address[1])
-    print(
-        f"QSOL-CONTROL WebUI listening on http://{config.bind}:{actual_port} "
-        "(loopback-only)"
-    )
+    print(f"QSOL-CONTROL WebUI listening on {webui_url(config.bind, actual_port)} (loopback-only)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

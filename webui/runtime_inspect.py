@@ -1,11 +1,25 @@
 from __future__ import annotations
 
-import binascii
 from typing import Any
 
-from storage.dna_lattice import LEXICOGRAPHIC_TRAVERSAL, PHI_GATED_TRAVERSAL, encode_projection, lexicographic_cells
+from storage.dna_lattice import (
+    LEXICOGRAPHIC_TRAVERSAL,
+    PHI_GATED_TRAVERSAL,
+    encode_projection,
+    lexicographic_cells,
+)
 
-from .common import LATTICE_RE, MAX_DNA_EXPORT_BYTES, WEBUI_LATTICE_PROTOCOL, WEBUI_RUN_COMPARISON_PROTOCOL, WebUIError, _require_sha_ref, _require_string
+from .common import (
+    LATTICE_RE,
+    MAX_DNA_EXPORT_BYTES,
+    OBJECT_REF_RE,
+    WEBUI_LATTICE_PROTOCOL,
+    WEBUI_RUN_COMPARISON_PROTOCOL,
+    WebUIError,
+    _require_sha_ref,
+    _require_string,
+)
+
 
 class InspectRuntimeMixin:
     def list_model_states(self, run_id: str | None = None) -> list[dict[str, Any]]:
@@ -21,8 +35,6 @@ class InspectRuntimeMixin:
             _require_sha_ref(left, "left_state_id"),
             _require_sha_ref(right, "right_state_id"),
         )
-
-    # ---------- Lattice ----------
 
     def lattice_view(self, run_id: str | None = None) -> dict[str, Any]:
         cells = {
@@ -67,8 +79,6 @@ class InspectRuntimeMixin:
             "authority": "navigation-and-storage-addressing-only",
         }
 
-    # ---------- DNA projection ----------
-
     def dna_inspect(self, request: dict[str, Any]) -> dict[str, Any]:
         file_id = _require_sha_ref(request.get("file_id"), "file_id")
         traversal = request.get("traversal_id", PHI_GATED_TRAVERSAL)
@@ -112,19 +122,27 @@ class InspectRuntimeMixin:
             raise WebUIError("unknown DNA traversal")
         record = self.store.get_file_record(file_id)
         restricted = record["privacy_class"] == "RESTRICTED"
+        actor_value = request.get("actor")
+        actor = (
+            _require_string(actor_value, "actor", maximum=256)
+            if actor_value is not None
+            else None
+        )
         if restricted and request.get("allow_restricted") is not True:
             raise WebUIError("RESTRICTED DNA export requires explicit allow_restricted")
         if restricted and request.get("acknowledge_reversible_sensitive_export") is not True:
             raise WebUIError(
                 "RESTRICTED DNA export requires reversible-sensitive-export acknowledgement"
             )
+        if restricted and actor is None:
+            raise WebUIError("RESTRICTED DNA export requires explicit actor attribution")
         raw = self.store.read_file(file_id)
         if len(raw) > MAX_DNA_EXPORT_BYTES:
             raise WebUIError(f"DNA projection exceeds {MAX_DNA_EXPORT_BYTES} input bytes")
         projection = encode_projection(raw, traversal_id=traversal)
         self.store.record_audit_event(
             "webui-dna-export",
-            actor="webui-local-operator",
+            actor=actor or "webui-local-operator",
             details={
                 "file_id": file_id,
                 "privacy_class": record["privacy_class"],
@@ -138,7 +156,29 @@ class InspectRuntimeMixin:
         )
         return projection
 
-    # ---------- Replay / compare ----------
+    @staticmethod
+    def _nexus_refs_from_events(events: list[dict[str, Any]]) -> list[str]:
+        refs: set[str] = set()
+        keys = (
+            "session_ref",
+            "receipt_ref",
+            "epoch_admission_receipt_ref",
+            "nexus_session_ref",
+            "nexus_receipt_ref",
+        )
+        for event in events:
+            if event.get("kind") not in {"receipt", "response"}:
+                continue
+            payload = event.get("payload")
+            if isinstance(payload, dict):
+                for key in keys:
+                    value = payload.get(key)
+                    if isinstance(value, str) and OBJECT_REF_RE.fullmatch(value):
+                        refs.add(value)
+            for value in event.get("record_refs", []):
+                if isinstance(value, str) and OBJECT_REF_RE.fullmatch(value):
+                    refs.add(value)
+        return sorted(refs, key=lambda value: value.encode("ascii"))
 
     def compare_runs(self, left_run_id: str, right_run_id: str) -> dict[str, Any]:
         left_run_id = _require_sha_ref(left_run_id, "left_run_id")
@@ -154,7 +194,6 @@ class InspectRuntimeMixin:
             "mode",
             "evidence_state",
             "oracle_refs",
-            "nexus_refs",
             "file_ids",
             "collection_ref",
             "replayability",
@@ -164,11 +203,23 @@ class InspectRuntimeMixin:
             for field in fields
             if left.get(field) != right.get(field)
         ]
+        left_nexus_refs = self._nexus_refs_from_events(left_events)
+        right_nexus_refs = self._nexus_refs_from_events(right_events)
+        if left_nexus_refs != right_nexus_refs:
+            changed.append(
+                {
+                    "field": "nexus_event_refs",
+                    "left": left_nexus_refs,
+                    "right": right_nexus_refs,
+                }
+            )
         return {
             "protocol": WEBUI_RUN_COMPARISON_PROTOCOL,
             "left_run_id": left_run_id,
             "right_run_id": right_run_id,
             "changed_run_fields": changed,
+            "left_nexus_refs": left_nexus_refs,
+            "right_nexus_refs": right_nexus_refs,
             "left_event_ids": [event["event_id"] for event in left_events],
             "right_event_ids": [event["event_id"] for event in right_events],
             "model_state_comparison": model_comparison,

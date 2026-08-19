@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import binascii
-import json
 import re
 from pathlib import Path
 from typing import Any
@@ -13,7 +12,24 @@ from storage.control_store import ControlStore, StorageError
 from storage.interaction_store import InteractionStore
 from storage.model_state import ModelStateRegistry
 
-from .common import (MAX_DNA_EXPORT_BYTES, MAX_LIST_ITEMS, MAX_UPLOAD_BYTES, MODEL_STATE_LABELS, UI_INVARIANTS, WEBUI_PROTOCOL, WEBUI_SESSION_PROTOCOL, WEBUI_RUN_VIEW_PROTOCOL, WEBUI_HEALTH_PROTOCOL, WebUIConfig, WebUIError, _canonical_strings, _require_sha_ref, _require_string, _utc_now)
+from .common import (
+    MAX_DNA_EXPORT_BYTES,
+    MAX_LIST_ITEMS,
+    MAX_UPLOAD_BYTES,
+    MODEL_STATE_LABELS,
+    UI_INVARIANTS,
+    WEBUI_HEALTH_PROTOCOL,
+    WEBUI_PROTOCOL,
+    WEBUI_RUN_VIEW_PROTOCOL,
+    WEBUI_SESSION_PROTOCOL,
+    WebUIConfig,
+    WebUIError,
+    _canonical_strings,
+    _require_sha_ref,
+    _require_string,
+    _utc_now,
+)
+
 
 class StorageRuntimeMixin:
     def __init__(self, config: WebUIConfig):
@@ -23,13 +39,12 @@ class StorageRuntimeMixin:
         self.interactions = InteractionStore(self.control_root)
         self.models = ModelStateRegistry(self.control_root)
 
-    # ---------- Session / health ----------
-
     def session_contract(self) -> dict[str, Any]:
         return {
             "protocol": WEBUI_SESSION_PROTOCOL,
             "webui_protocol": WEBUI_PROTOCOL,
             "question_modes": ["evidence_only", "council"],
+            "max_question_characters": 2048,
             "max_upload_bytes": MAX_UPLOAD_BYTES,
             "max_dna_export_bytes": MAX_DNA_EXPORT_BYTES,
             "model_state_labels": MODEL_STATE_LABELS,
@@ -118,8 +133,6 @@ class StorageRuntimeMixin:
             }
         return OracleAdapter(self.config.oracle_root).timelock_status()
 
-    # ---------- Files / Collections ----------
-
     def upload_file(self, request: dict[str, Any]) -> dict[str, Any]:
         filename = _require_string(request.get("filename"), "filename", maximum=512)
         media_type = _require_string(
@@ -136,15 +149,13 @@ class StorageRuntimeMixin:
             raise WebUIError("content_base64 is not valid base64") from exc
         if len(content) > MAX_UPLOAD_BYTES:
             raise WebUIError(f"file upload exceeds {MAX_UPLOAD_BYTES} bytes")
-        privacy = request.get("privacy_class", "INTERNAL")
-        retention = request.get("retention_class", "SESSION")
         record = self.store.put_file(
             content,
             filename=filename,
             media_type=media_type,
             created_at=_utc_now(),
-            privacy_class=privacy,
-            retention_class=retention,
+            privacy_class=request.get("privacy_class", "INTERNAL"),
+            retention_class=request.get("retention_class", "SESSION"),
             source={"kind": "webui-upload", "locator": "browser-session"},
             metadata={"immediate_context": True},
         )
@@ -190,8 +201,11 @@ class StorageRuntimeMixin:
         for file_id in add + remove:
             _require_sha_ref(file_id, "file_id")
         expected = request.get("expected_head_snapshot_id")
-        if expected is not None:
-            _require_sha_ref(expected, "expected_head_snapshot_id")
+        if expected is None:
+            raise WebUIError(
+                "expected_head_snapshot_id is required for WebUI Collection updates"
+            )
+        expected = _require_sha_ref(expected, "expected_head_snapshot_id")
         return self.store.update_collection(
             collection_id,
             add=add,
@@ -205,21 +219,28 @@ class StorageRuntimeMixin:
         query = _require_string(query, "query", maximum=32768)
         if not isinstance(limit, int) or not 1 <= limit <= 100:
             raise WebUIError("limit must be 1..100")
-        snapshot = self.store.get_collection_snapshot(collection_id)
-        results = self.store.search_lexical(collection_id, query, limit=limit)
-        enriched = []
-        for result in results:
-            row = dict(result)
-            row["file"] = self.store.get_file_record(result["file_id"])
-            enriched.append(row)
+
+        # Serialize the WebUI's exact-snapshot search against the same Collection
+        # HEAD lock used by membership updates. Contention fails closed rather than
+        # allowing results from one snapshot to be labelled as another.
+        with self.store._exclusive_lock(f"collection-head:{collection_id}"):
+            snapshot = self.store.get_collection_snapshot(collection_id)
+            results = self.store.search_lexical(collection_id, query, limit=limit)
+            result_snapshots = {row.get("snapshot_id") for row in results}
+            if result_snapshots and result_snapshots != {snapshot["snapshot_id"]}:
+                raise WebUIError("lexical search result snapshot does not match locked Collection HEAD")
+            enriched = []
+            for result in results:
+                row = dict(result)
+                row["file"] = self.store.get_file_record(result["file_id"])
+                enriched.append(row)
+
         return {
             "collection_id": collection_id,
             "snapshot_id": snapshot["snapshot_id"],
             "results": enriched,
             "score_meaning": "retrieval_similarity_not_truth_or_evidence_strength",
         }
-
-    # ---------- Runs / question composer ----------
 
     def _list_run_ids(self) -> list[str]:
         root = self.control_root / "records" / "runs"
@@ -278,9 +299,7 @@ class StorageRuntimeMixin:
         receipt_events = [event for event in events if event["kind"] == "receipt"]
         response_events = [event for event in events if event["kind"] == "response"]
         model_events = [event for event in events if event["kind"] == "model_state"]
-        sources = self._sources_for_run(
-            attached_files, collection_files, evidence_events
-        )
+        sources = self._sources_for_run(attached_files, collection_files, evidence_events)
         return {
             "protocol": WEBUI_RUN_VIEW_PROTOCOL,
             "run": run,
