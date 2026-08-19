@@ -26,15 +26,17 @@ class NexusCouncilAdapterTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def adapter(self, *, tamper=None, log=None):
+    def adapter(self, *, tamper=None, log=None, runtime_version=None):
         command = [sys.executable, str(self.fake)]
         if tamper is not None:
             command += ["--tamper", tamper]
         if log is not None:
             command += ["--log", str(log)]
+        if runtime_version is not None:
+            command += ["--runtime-version", runtime_version]
         return NexusCouncilAdapter.from_command(command, timeout_seconds=10)
 
-    def run_council(self, adapter, **kwargs):
+    def council_run(self, adapter, **kwargs):
         return adapter.run_council(
             question="Does the admitted evidence support the proposition?",
             members=self.members,
@@ -57,9 +59,24 @@ class NexusCouncilAdapterTests(unittest.TestCase):
         self.assertEqual(discovery["governance_override_operations"], [])
         self.assertFalse(discovery["hidden_chain_of_thought_capture"])
 
+    def test_semver_prerelease_and_build_runtime_versions_are_accepted(self):
+        with self.adapter(runtime_version="2.0.0-rc.1+build.7") as adapter:
+            discovery = adapter.discover()
+        self.assertEqual(discovery["nexus_runtime_version"], "2.0.0-rc.1+build.7")
+
+    def test_transport_close_closes_stdout_pipe(self):
+        adapter = self.adapter()
+        adapter.discover()
+        process = adapter._transport._process
+        self.assertIsNotNone(process)
+        stdout = process.stdout
+        self.assertIsNotNone(stdout)
+        adapter.close()
+        self.assertTrue(stdout.closed)
+
     def test_council_render_preserves_roster_phases_sealed_ballot_and_minority(self):
         with self.adapter() as adapter:
-            result = self.run_council(adapter)
+            result = self.council_run(adapter)
         self.assertEqual([row["member_id"] for row in result["roster"]], ["A", "B", "C"])
         self.assertEqual(
             result["phase_order"],
@@ -81,6 +98,8 @@ class NexusCouncilAdapterTests(unittest.TestCase):
             result["consensus"]["consensus_threshold"],
             {"numerator": 2, "denominator": 3},
         )
+        self.assertTrue(result["consensus"]["threshold_met"])
+        self.assertEqual(result["consensus"]["consensus_outcome"], "ACCEPT")
         self.assertEqual(result["consensus"]["tally"], {"ACCEPT": 2, "TEST_FURTHER": 1})
         self.assertEqual(
             result["minority_reports"],
@@ -91,10 +110,43 @@ class NexusCouncilAdapterTests(unittest.TestCase):
         self.assertFalse(result["governance"]["control_threshold_override"])
         self.assertFalse(result["governance"]["control_vote_weight_override"])
 
+    def test_below_threshold_plurality_is_rendered_as_no_consensus(self):
+        members = [
+            *self.members,
+            {"member_id": "D", "model_id": "mock-d", "profile": "balanced"},
+        ]
+        with self.adapter(tamper="below_threshold") as adapter:
+            result = adapter.run_council(
+                question="Does the admitted evidence support the proposition?",
+                members=members,
+                evidence_refs=[EVIDENCE_REF],
+                evidence_state="known",
+                mode="analytical",
+            )
+        self.assertEqual(result["consensus"]["disposition"], "ACCEPT")
+        self.assertFalse(result["consensus"]["threshold_met"])
+        self.assertEqual(result["consensus"]["consensus_outcome"], "NO_CONSENSUS")
+        self.assertEqual(result["consensus"]["consensus_label"], "NO_CONSENSUS")
+
+    def test_false_consensus_label_below_threshold_fails_closed(self):
+        members = [
+            *self.members,
+            {"member_id": "D", "model_id": "mock-d", "profile": "balanced"},
+        ]
+        with self.adapter(tamper="false_consensus") as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "consensus label"):
+                adapter.run_council(
+                    question="Does the admitted evidence support the proposition?",
+                    members=members,
+                    evidence_refs=[EVIDENCE_REF],
+                    evidence_state="known",
+                    mode="analytical",
+                )
+
     def test_adapter_never_uses_world_create_or_stenographer_operations(self):
         log = self.root / "operations.log"
         with self.adapter(log=log) as adapter:
-            self.run_council(adapter)
+            self.council_run(adapter)
         operations = log.read_text(encoding="utf-8").splitlines()
         self.assertIn("council.run", operations)
         self.assertIn("world.inspect", operations)
@@ -131,49 +183,103 @@ class NexusCouncilAdapterTests(unittest.TestCase):
                             evidence_state="known",
                         )
 
+    def test_hidden_reasoning_member_field_is_rejected_before_submission(self):
+        log = self.root / "hidden-request.log"
+        members = [dict(item) for item in self.members]
+        members[0]["capability_metadata"] = {"chain_of_thought": True}
+        with self.adapter(log=log) as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "hidden-reasoning"):
+                adapter.run_council(
+                    question="test",
+                    members=members,
+                    evidence_refs=[EVIDENCE_REF],
+                    evidence_state="known",
+                )
+        operations = log.read_text(encoding="utf-8").splitlines()
+        self.assertNotIn("council.run", operations)
+
+    def test_credential_labelled_member_field_is_rejected_before_submission(self):
+        log = self.root / "credential-request.log"
+        members = [dict(item) for item in self.members]
+        members[0]["deployment_metadata"] = {"api_key": "secret-with-no-known-prefix"}
+        with self.adapter(log=log) as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "credential-labelled field"):
+                adapter.run_council(
+                    question="test",
+                    members=members,
+                    evidence_refs=[EVIDENCE_REF],
+                    evidence_state="known",
+                )
+        operations = log.read_text(encoding="utf-8").splitlines()
+        self.assertNotIn("council.run", operations)
+
+    def test_credential_labelled_parent_output_is_rejected(self):
+        with self.adapter(tamper="credential_output") as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "credential-labelled field"):
+                self.council_run(adapter)
+
+    def test_committed_question_must_match_submitted_question(self):
+        with self.adapter(tamper="question_binding") as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "committed question differs"):
+                self.council_run(adapter)
+
+    def test_committed_mode_must_match_submitted_mode(self):
+        with self.adapter(tamper="mode_binding") as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "mode differs"):
+                self.council_run(adapter)
+
     def test_tampered_threshold_fails_closed(self):
         with self.adapter(tamper="threshold") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "consensus threshold"):
-                self.run_council(adapter)
+                self.council_run(adapter)
 
     def test_tampered_ballot_commitment_fails_closed(self):
         with self.adapter(tamper="commitment") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "commitment"):
-                self.run_council(adapter)
+                self.council_run(adapter)
 
     def test_phase_join_order_tampering_fails_closed(self):
         with self.adapter(tamper="phase_order") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "canonical roster join order"):
-                self.run_council(adapter)
+                self.council_run(adapter)
+
+    def test_roster_schema_fields_are_required(self):
+        with self.adapter(tamper="roster_missing_model") as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "roster model_id"):
+                self.council_run(adapter)
+        with self.adapter(tamper="roster_bad_adapter") as adapter:
+            with self.assertRaisesRegex(NexusAdapterError, "roster adapter_id"):
+                self.council_run(adapter)
 
     def test_hidden_reasoning_field_is_rejected(self):
         with self.adapter(tamper="hidden_reasoning") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "hidden-reasoning"):
-                self.run_council(adapter)
+                self.council_run(adapter)
 
     def test_additional_vote_creation_is_rejected(self):
         with self.adapter(tamper="extra_votes") as adapter:
             with self.assertRaisesRegex(NexusAdapterError, "additional votes"):
-                self.run_council(adapter)
+                self.council_run(adapter)
 
     def test_failed_receipt_verification_is_rejected(self):
         with self.adapter(tamper="receipt_missing") as adapter:
             with self.assertRaises(NexusAdapterError):
-                self.run_council(adapter)
+                self.council_run(adapter)
 
     def test_verified_artifacts_persist_to_control_and_link_interaction(self):
         control_root = self.root / "control"
         interaction = InteractionStore(control_root)
         run = interaction.create_run(
-            question="CONTROL parent question",
+            question="Does the admitted evidence support the proposition?",
             mode="council",
             requester_kind="human",
             created_at=FIXED_TIME,
-            evidence_state="unknown",
+            evidence_state="known",
+            oracle_refs=["oracle:fixture:known"],
             replayability="R3",
         )
         with self.adapter() as adapter:
-            result = self.run_council(
+            result = self.council_run(
                 adapter,
                 control_root=control_root,
                 control_run_id=run["run_id"],
@@ -197,6 +303,55 @@ class NexusCouncilAdapterTests(unittest.TestCase):
         self.assertEqual([event["kind"] for event in events[-2:]], ["receipt", "response"])
         self.assertEqual(events[-1]["payload"]["session_ref"], result["session_ref"])
         self.assertFalse(events[-1]["payload"]["hidden_chain_of_thought_captured"])
+
+    def test_target_run_inputs_must_match_before_artifact_persistence(self):
+        cases = [
+            {
+                "question": "different CONTROL question",
+                "mode": "council",
+                "evidence_state": "known",
+                "oracle_refs": ["oracle:fixture:known"],
+                "error": "question does not match",
+            },
+            {
+                "question": "Does the admitted evidence support the proposition?",
+                "mode": "evidence_only",
+                "evidence_state": "known",
+                "oracle_refs": ["oracle:fixture:known"],
+                "error": "not a council-mode",
+            },
+            {
+                "question": "Does the admitted evidence support the proposition?",
+                "mode": "council",
+                "evidence_state": "unknown",
+                "oracle_refs": [],
+                "error": "evidence_state does not match",
+            },
+        ]
+        for index, case in enumerate(cases):
+            with self.subTest(case=index):
+                control_root = self.root / f"mismatch-{index}"
+                interaction = InteractionStore(control_root)
+                run = interaction.create_run(
+                    question=case["question"],
+                    mode=case["mode"],
+                    requester_kind="human",
+                    created_at=FIXED_TIME,
+                    evidence_state=case["evidence_state"],
+                    oracle_refs=case["oracle_refs"],
+                    replayability="R3",
+                )
+                with self.adapter() as adapter:
+                    with self.assertRaisesRegex(NexusAdapterError, case["error"]):
+                        self.council_run(
+                            adapter,
+                            control_root=control_root,
+                            control_run_id=run["run_id"],
+                            created_at=FIXED_TIME,
+                        )
+                files_dir = control_root / "records" / "files"
+                self.assertFalse(files_dir.exists() and any(files_dir.iterdir()))
+                self.assertEqual(interaction.list_events(run["run_id"]), [])
 
     def test_admitted_evidence_reference_order_is_preserved(self):
         refs = ["object:" + "a" * 64, "object:" + "b" * 64]
