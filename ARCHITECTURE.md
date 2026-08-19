@@ -2,21 +2,19 @@
 
 ## Purpose
 
-QSOL-CONTROL is the human and machine **operator plane** for the QSOL ecosystem. It connects interfaces to existing authorities without absorbing those authorities.
-
-The architectural verbs are:
+QSOL-CONTROL is the human and machine **operator plane** for the QSOL ecosystem. It connects operator interfaces to existing authorities without absorbing those authorities.
 
 ```text
-SUBSTRATE  — KNOWS
-ARK        — SURVIVES
-INT        — COMPOSES
-ORACLE     — WITNESSES
-NEXUS      — REASONS
-CONTROL    — OPERATES
-LATTICE    — REMEMBERS
+SUBSTRATE  - KNOWS
+ARK        - SURVIVES
+INT        - COMPOSES
+ORACLE     - WITNESSES
+NEXUS      - REASONS
+CONTROL    - OPERATES
+LATTICE    - REMEMBERS
 ```
 
-The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the evidentiary/reasoning membrane. CONTROL is the operator surface. Lattice memory, persistent Files/Collections, and the model-state registry are storage/reproducibility mechanisms within CONTROL, not additional authority-bearing pillars.
+The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the witness/reasoning membrane. CONTROL is the operator surface. Lattice memory, persistent Files/Collections, search indexes, the model-state registry, and DNA projections are storage or reproducibility mechanisms inside CONTROL, not authority-bearing pillars.
 
 ## Authority matrix
 
@@ -28,44 +26,61 @@ The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the
 | Witness observations / temporal contracts | QSOL-ORACLE | read/query/store refs only |
 | Council reasoning / vote mechanics / WorldStore history | QSOL-NEXUS | discover/invoke/verify/render/store refs only |
 | Human + AI orchestration | QSOL-CONTROL | owner |
-| Persistent File/Collection mechanics | QSOL-CONTROL | owner of storage mechanics only |
-| Interaction/model-state lattice placement | CONTROL lattice layer | owner of storage mechanics only |
-| Model-state reproducibility registry | QSOL-CONTROL | metadata storage/comparison only; zero mind/truth authority |
+| Persistent File/Collection mechanics | QSOL-CONTROL | storage mechanics only |
+| Human WebUI | QSOL-CONTROL | local operator interface only |
+| Interaction/lattice placement | CONTROL lattice layer | storage/addressing only |
+| Model-state reproducibility registry | QSOL-CONTROL | metadata storage/comparison only |
 | Minimum CONTROL recovery packaging | QSOL-CONTROL | packaging/verifier only; ARK retains recovery authority |
 | Lexical/vector indexes | CONTROL derived storage | zero semantic authority |
 | DNA/codon projection | CONTROL recovery projection | zero semantic authority |
 
-Ownership of storage mechanics does not confer authority over the truth of stored content. Invocation authority does not confer authority to rewrite the invoked system's governance. Recording model/runtime metadata does not confer access to hidden cognition.
+Ownership of storage mechanics does not confer truth authority. Invocation authority does not confer authority to rewrite the invoked system. Recording model/runtime metadata does not confer access to hidden cognition.
 
 ## Control surfaces
 
-### Human surface
+### Human surface: implemented Phase 5
 
-The planned WebUI should expose:
+The Human WebUI is implemented as `qsol-control-webui/1`:
 
 ```text
-Ask
-Evidence
-Council
-Votes
-Minority reports
-Sources
-Files
-Collections
-Search
-Timeline
-Receipts
-Model states
-Lattice memory
-Replay
-System health
+webui/server.py
+tools/webui.py
+webui/static/
+ai/webui-contract.json
 ```
 
-The UI should make uncertainty and provenance visible rather than hiding them behind a generic answer card. The Phase 4 model-state label contract is already fixed even though Phase 5 has not yet implemented the WebUI.
+The server is local and loopback-only. It reuses the existing CONTROL storage, ORACLE, NEXUS, model-state, lattice, and DNA runtimes instead of creating a parallel application authority layer.
 
-### Machine surface
+Implemented views:
 
-The planned network AI/agent interface should provide structured operations such as:
+```text
+ASK
+EVIDENCE
+COUNCIL
+MINORITY
+SOURCES
+TIMELINE
+RECEIPTS
+MODELS
+MEMORY
+DNA
+REPLAY / COMPARE
+COLLECTIONS
+HEALTH
+```
+
+The composer exposes exactly:
+
+```text
+Evidence only
+Ask Council
+```
+
+The UI shows provenance and uncertainty explicitly and never derives a synthetic truth percentage from votes, confidence, model count, consensus, search similarity, codon frequency, or lattice position.
+
+### Machine surface: planned Phase 6
+
+The structured network AI/agent interface remains planned. Candidate operations include:
 
 ```text
 control.health
@@ -86,36 +101,52 @@ control.memory.trace
 control.replay
 ```
 
-The implemented local standard-library layer now includes File/Collection storage, interaction persistence, minimum offline ARK recovery packaging, a read-only ORACLE adapter, a governance-preserving NEXUS Council adapter over local JSONL/stdio, and a persistent model-state registry with comparisons/archaeology export. It is still not a network CONTROL service.
+Phase 5's browser JSON routes are a local Human WebUI implementation detail. They are not declared to be the final Phase 6 public machine API.
+
+## Local WebUI security boundary
+
+Phase 5 adds a concrete local browser boundary:
+
+```text
+DEFAULT_BIND = 127.0.0.1
+REMOTE_MULTI_USER_DEPLOYMENT = false
+CORS = disabled
+SESSION_TOKEN = required after bootstrap
+NON_LOOPBACK_HOST = rejected
+STATE_CHANGING_ORIGIN = same loopback host/port when supplied
+```
+
+Responses also use Content Security Policy, `nosniff`, no-referrer, same-origin resource policy, and `no-store` caching. Retrieved records enter the DOM through `textContent`; the client does not use `innerHTML` for untrusted records.
+
+The Host check is important because loopback binding alone does not prevent straightforward DNS-rebinding attacks where an attacker-controlled hostname resolves to `127.0.0.1`.
+
+This is a Phase 5 local baseline. The broader Phase 10 network/browser threat model remains open.
 
 ## Query lifecycle
 
-Implemented storage/adaptor lifecycle:
+Implemented Human WebUI lifecycle:
 
 ```text
-1. caller submits bounded question
-2. CONTROL normalizes request and assigns request identity
-3. optional Files / exact Collection snapshot are selected
-4. retrieval proposes candidate context
-5. ORACLE evidence path is queried or supplied
-6. evidence state and provenance remain explicit
-7. if mode=council, CONTROL discovers live NEXUS health/operations
-8. CONTROL submits question + admitted evidence refs through council.run
-9. NEXUS owns roster, phases, ballots, consensus mechanics, WorldStore and receipts
-10. CONTROL resolves committed session/receipt refs and verifies their identities/linkage
-11. CONTROL renders canonical roster, phases, sealed ballot, exact threshold and minority reports
-12. CONTROL may persist verified external artifacts as reference-only Files/events
-13. participating model executions may receive immutable qsol-control-model-state/1 records
-14. each model-state field carries explicit provenance and the state binds to its CONTROL run
-15. interaction/model-state lineage is preserved without copying ORACLE/NEXUS authority or model cognition
-16. UI/API renders dimensions without authority collapse
+1. human submits bounded question
+2. mode is explicit: evidence_only or council
+3. browser attachments become canonical CONTROL Files
+4. selected Collection binds to one exact immutable snapshot
+5. CONTROL queries read-only ORACLE when configured
+6. known / conflict / unknown remain explicit
+7. CONTROL creates immutable interaction record
+8. evidence event preserves the ORACLE result or explicit unknown
+9. if mode=council, CONTROL invokes existing verified NEXUS council.run path
+10. NEXUS owns roster, phases, ballots, threshold, WorldStore, and receipts
+11. CONTROL renders verified externally visible output
+12. CONTROL may persist reference-only NEXUS artifacts/events
+13. participating executions may have Phase 4 model-state records
+14. model-state provenance remains field-specific
+15. UI renders evidence, Council, provenance, model metadata, memory, and comparisons without authority collapse
 ```
 
-Retrieval occurs before reasoning only as context selection. Retrieval rank is not evidence status. Council consensus is not evidence status. Model identity/configuration is not evidence status.
+Retrieval rank is not evidence status. Council consensus is not evidence status. Model identity/configuration is not evidence status.
 
 ## Persistent Files and Collections
-
-Phase 1 introduces two durable objects.
 
 ```text
 FILE
@@ -123,52 +154,27 @@ FILE
   immutable metadata -> file_id
 
 COLLECTION
-  named persistent corpus
+  persistent named set of File references
   immutable membership snapshots
   atomic HEAD pointer
 ```
 
-The same raw bytes may legitimately have multiple File records when provenance/metadata differ. The same File may belong to multiple Collections without duplication of raw content.
+A File may belong to several Collections without duplicating raw bytes. Collection membership cannot reduce privacy classification.
 
-Collection member lists are lexicographically ordered by `file_id`.
+The WebUI supports Collection creation, exact snapshot inspection, add/remove membership through compare-and-swap, and deterministic lexical search.
 
-### Privacy monotonicity
+A run stores the exact Collection snapshot used. Later movement of the Collection `HEAD` does not rewrite historical run context.
 
 ```text
-PUBLIC < INTERNAL < RESTRICTED
+RUN_COLLECTION_SNAPSHOT != CURRENT_COLLECTION_HEAD
+COLLECTION_MEMBERSHIP != ENDORSEMENT
 ```
-
-A Collection may be more restrictive than its Files, never less restrictive.
-
-This prevents Collection membership from silently declassifying a File.
 
 ## Search architecture
 
-Search indexes are projections over one exact Collection snapshot.
+Search indexes are projections over exact Collection snapshots.
 
-```text
-Collection snapshot
-      |
-      +--> deterministic lexical index
-      |
-      +--> semantic vector index
-```
-
-Implemented search modes:
-
-```text
-qsol.term-frequency-cosine/1
-qsol.cosine-vector-search/1
-```
-
-Semantic embedding generation is deliberately external to the canonical storage core. The index must identify provider/model/revision/dimensions.
-
-When Collection membership changes:
-
-- the old snapshot remains immutable;
-- old indexes remain historical projections;
-- semantic search against the new `HEAD` fails closed until a matching index exists;
-- the deterministic lexical baseline may be rebuilt from canonical bytes.
+Implemented storage includes a deterministic lexical baseline and externally supplied semantic vector indexes. Embedding generation remains outside canonical storage.
 
 ```text
 SEARCH_SCORE != TRUTH
@@ -178,23 +184,21 @@ INDEX != CANONICAL_MEMORY
 
 ## ORACLE boundary
 
-ORACLE is the evidence/witness path around NEXUS. CONTROL implements a **read-only** `qsol-control-oracle-adapter/1` for stable parent protocol `QSOL-ORACLE/1`.
+CONTROL's `qsol-control-oracle-adapter/1` is read-only.
 
-Before evidence queries, CONTROL discovers the parent manifest at runtime and verifies the append-only ledger hash chain. Evidence queries return exact `known`, `conflict`, or `unknown` states while preserving ORACLE event hashes, source references, provenance class, timestamps and payload identities.
+Before evidence queries it discovers the parent contract and verifies ORACLE's append-only ledger. Queries preserve exact `known`, `conflict`, or `unknown`, observation refs, provenance, timestamps, freshness, and missing-evidence/search-suggestion state.
 
-The adapter also reports availability/freshness and the QSOL-CONTEXT 2056 timelock view. Search suggestions remain explicitly non-evidence.
-
-CONTROL may store exact verified ORACLE payload bytes in its own store as `reference-only` material, but that storage root must not overlap the ORACLE repository.
+The WebUI uses this adapter. It has no alternative ORACLE mutation path.
 
 CONTROL may not:
 
-- manufacture an ORACLE event;
-- append, correct, supersede, rewrite or relabel the ORACLE ledger;
-- upgrade a CONTROL receipt copy into ORACLE authority;
-- upgrade a NEXUS answer into a primary observation;
+- manufacture or append ORACLE history;
+- relabel ORACLE history;
+- upgrade a copied receipt into ORACLE authority;
+- promote NEXUS output into primary evidence;
 - treat a suggested search as evidence;
-- interpret freshness or hash integrity as semantic truth;
-- treat timelock eligibility as execution authorization.
+- treat freshness as truth;
+- treat timelock eligibility as publication execution.
 
 ```text
 ORACLE_REFERENCE != CONTROL_AUTHORITY
@@ -205,54 +209,25 @@ SUGGESTED_SEARCH != EVIDENCE
 ELIGIBLE != EXECUTED
 ```
 
-The adapter exposes no ORACLE write operation. Unknown ORACLE protocol majors fail closed.
-
 ## NEXUS governance boundary
 
-CONTROL implements `qsol-control-nexus-adapter/1` against NEXUS's local JSONL/stdio control plane.
+CONTROL implements `qsol-control-nexus-adapter/1` over NEXUS local JSONL/stdio.
 
-The adapter does not hard-code the full parent capability inventory. Every adapter session asks:
-
-```text
-system.health
-system.operations
-```
-
-and requires the live parent to advertise the Council operations CONTROL actually needs. An unknown NEXUS protocol major fails closed.
-
-CONTROL's public NEXUS mutation surface contains exactly:
+Each adapter session discovers parent health/operations and requires the operations needed for Council verification. The CONTROL mutation surface exposes only:
 
 ```text
 council.run
 ```
 
-The adapter does **not** expose generic NEXUS operation passthrough or direct `world.create`. `council.run` may cause NEXUS itself to append its immutable WorldStore objects; that is NEXUS executing its own protocol, not CONTROL rewriting WorldStore history.
+The adapter does not expose generic operation passthrough, `world.create`, Stenographer reads, vote-weight mutation, ballot mutation, roster-authority mutation, or consensus-threshold mutation.
 
-After a run, CONTROL resolves `session_ref` and `receipt_ref`, verifies the content-addressed WorldStore objects, calls `receipt.verify`, and checks the committed Council state before rendering it. Verification includes:
+After Council execution CONTROL resolves and verifies committed WorldStore session/receipt objects, ballot commitments, tally, exact threshold, minority reports, and optional epoch admission evidence before rendering/persistence.
 
-- canonical roster ordering and ordinary vote weight `1` / epistemic privilege `none`;
-- phase order from the committed session policy;
-- same roster join order at every committed phase;
-- ballot commitment/reveal integrity;
-- tally computed from revealed ballots;
-- exact consensus numerator/denominator from the committed policy;
-- minority reports preserved against the revealed ballot record;
-- exact admitted-evidence snapshot refs/state;
-- receipt result/ref/replayability linkage;
-- optional Council Chair / Compute Epoch admission evidence when the parent advertises it.
-
-The committed NEXUS policy currently exposes six deliberation phases. CONTROL preserves that exact `phase_order` and renders the subsequent commitment/reveal step separately as `SEALED_BALLOT`.
-
-Requested Council member descriptors are not governance override envelopes. CONTROL rejects fields such as `vote_weight`, `epistemic_privilege`, direct ballot data, consensus-threshold controls, roster authority, or WorldStore state before calling NEXUS.
-
-CONTROL may persist externally visible NEXUS artifacts into its own storage as `reference-only` Files and link them into interaction receipt/response events. Such copies explicitly do not acquire NEXUS governance authority.
-
-The adapter never calls NEXUS Stenographer operations and never requests hidden chain-of-thought. Visible phase submissions and ballot rationales are public/runtime-visible NEXUS outputs. If a parent response exposes fields labelled as hidden/private reasoning, scratchpad, reasoning trace, or chain-of-thought, CONTROL fails closed rather than persisting them.
+The WebUI delegates Council work to this adapter. It does not create a second governance path.
 
 ```text
 CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
-NEXUS_SESSION != CONTROL_REINTERPRETATION
-CONTROL_RECEIPT_COPY != NEXUS_WORLDSTORE_WRITE
+CONTROL_CAN_WORLD_CREATE = false
 CONTROL_CAN_OVERRIDE_VOTE_WEIGHT = false
 CONTROL_CAN_OVERRIDE_BALLOTS = false
 CONTROL_CAN_OVERRIDE_CONSENSUS_THRESHOLD = false
@@ -262,22 +237,11 @@ VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 
 ## Model-state reproducibility boundary
 
-Phase 4 implements an immutable `qsol-control-model-state/1` registry for externally inspectable computational circumstances.
+Phase 4 implements immutable `qsol-control-model-state/1` records.
 
-A canonical state may record:
+A record may contain externally inspectable provider/runtime/model/revision/quantization data, local artifact hashes, sampling/context/seed data, Council seat/mode, tool permission envelope, system snapshot identities, and relevant runtime hardware metadata.
 
-```text
-model provider/runtime/version/id/revision/quantization
-model/weight/tokenizer hashes when locally verifiable
-sampling/context/seed/stochastic metadata
-Council seat and NEXUS mode
-tool/filesystem/network/plugin permission envelope
-CONTROL/NEXUS/ORACLE/SUBSTRATE/ARK/INT identities
-exact Collection snapshot identity
-hardware/runtime metadata
-```
-
-Every canonical field has one provenance class:
+Every canonical field uses one provenance class:
 
 ```text
 observed
@@ -287,53 +251,16 @@ inferred
 unknown
 ```
 
-Unclassified fields become `unknown`. A provider-reported identifier is not promoted to locally verified merely because CONTROL stored it.
-
-### Artifact identity boundary
-
-Local model, weights, or tokenizer paths may be inspected for hashing. The paths and bytes do not enter canonical records.
-
-```text
-regular file     -> sha256(exact file bytes)
-sharded directory -> sha256(canonical relative-path/file-hash/size manifest)
-```
-
-Directory identity is explicitly a manifest identity, not a fabricated byte-stream hash.
-
-```text
-HASH_IDENTITY != ARTIFACT_BYTES
-PROVIDER_REPORTED != LOCALLY_VERIFIED
-```
-
-### Run linkage
-
-The full Phase 4 registry record is canonical and is bound to `system.control_run_id`.
-
-Phase 1B already has a compact `model_state` event shape. The public Phase 4 runtime therefore appends a backward-compatible event **projection** with `record_refs=[state_id]`; it does not redefine the older event schema in place.
-
-```text
-CANONICAL_REGISTRY_RECORD != RUN_EVENT_PROJECTION
-COARSE_PROVENANCE != FIELD_LEVEL_PROVENANCE
-```
-
-The projection's legacy coarse provenance field is `unknown`, preventing a many-field provenance map from being collapsed into an unjustified stronger label.
-
-### Comparison and archaeology
-
-`qsol-control-model-state-comparison/1` and `qsol-control-model-state-run-comparison/1` compare recorded values and their provenance. They explicitly set model-mind inference to false.
-
-`qsol-control-model-state-archaeology/1` is a deterministic self-describing export. It declares that model artifact bytes and local paths are absent and that hidden chain-of-thought/model-mind capture are false. RESTRICTED exports require explicit acknowledgement.
-
-The future WebUI must use the pinned labels:
+The Phase 5 model-state inspector loads the labels directly from `ai/model-state-contract.json` and fails if they drift:
 
 ```text
 Model-state reproducibility metadata
 Not model mind
 Metadata provenance
 Unknown / not established
-Provider reported
 Locally verified
-Inferred — not verified
+Provider reported
+Inferred - not verified
 Observed
 ```
 
@@ -341,55 +268,14 @@ Observed
 MODEL_STATE != MODEL_MIND
 VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 RUNTIME_METADATA != CONSCIOUSNESS
+PROVIDER_REPORTED != LOCALLY_VERIFIED
+HASH_IDENTITY != ARTIFACT_BYTES
 MODEL_STATE_COMPARISON != MIND_COMPARISON
 ```
 
-## Minimum ARK recovery gate
+The full registry record remains canonical. The older Phase 1B model-state event is a compact backward-compatible lineage projection that references the canonical `state_id`.
 
-`qsol-control-ark-minimum-bundle/1` closes the Phase 1B offline persistence gate by reusing `QSOL-RESTORE-DAT/1` as the deterministic container for one interaction run and the canonical storage records required to verify it.
-
-The minimum package includes:
-
-```text
-CONTROL-RECOVERY.json
-lattice/profile.json
-run record
-complete append-only event chain
-referenced File records
-referenced raw objects
-exact bound Collection descriptor + snapshot lineage to revision 0, when applicable
-```
-
-Derived search indexes, optional DNA projections, WebUI state and live service connections are not part of the minimum proof.
-
-Verification reconstructs a fresh local CONTROL store and requires the recovered run fingerprint to match the source run fingerprint. If the source Collection has advanced since the run, the recovery store's local `HEAD` points to the **exact historical snapshot used by the run**, not the source store's newer `HEAD`.
-
-```text
-RECOVERY_BUNDLE != SEMANTIC_AUTHORITY
-RECOVERY_HEAD != SOURCE_CURRENT_HEAD
-HASH_INTEGRITY != EVIDENCE_AUTHORITY
-RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
-```
-
-CONTROL owns this packaging/verifier mechanism. QSOL-ARK remains the recovery-semantics authority.
-
-## Lattice memory placement
-
-The logical interaction-memory membrane sits between ORACLE/NEXUS outputs and long-horizon recovery:
-
-```text
-ORACLE -----------+
-                  |
-                  v
-             LATTICE MEMORY -----> persistent refs -----> ARK recovery
-                  ^
-                  |
-NEXUS -------------+
-```
-
-CONTROL owns addressing and interaction packaging. ORACLE remains authoritative only for its own witnessed events; NEXUS remains authoritative only for its own WorldStore/governance mechanics. Model-state records provide reproducibility metadata and do not become evidence authority merely because they share run lineage.
-
-## 3×3×3 Sierpinski-derived addressing
+## Lattice memory
 
 Top-level coordinate axes:
 
@@ -410,156 +296,141 @@ Z temporal_role
 2 recovery
 ```
 
-Examples:
-
-```text
-new human question        -> L[0,1,0]
-Council answer            -> L[1,1,0]
-ORACLE observation ref    -> L[2,0,0]
-unresolved evidence gap   -> L[2,2,0]
-archived historical reply -> L[1,1,1]
-future recovery package   -> L[2,0,2]
-```
-
-The address must never replace content hash, provenance, source identity or lineage.
+The WebUI renders all 27 top-level logical cells and resolves them to ordinary run/event records.
 
 ```text
 LATTICE_ADDRESS != COLLECTION_MEMBERSHIP
+LATTICE_ADDRESS != TRUTH
 GEOMETRY != TRUTH
 ```
 
-Recursive child coordinates may be added only under a versioned storage profile.
+## DNA / codon recovery projection
 
-## DNA/codon recovery projection
-
-Phase 1 also defines a reversible projection of File bytes through the 27-cell lattice.
-
-### Payload radix
-
-```text
-A=00 C=01 G=10 T=11
-4 bases = 1 byte
-3 bases = 6 bits = 64 codon slots
-```
-
-### Outer radix
-
-```text
-3 axes x 3 values x 3 values = 27 lattice cells
-```
-
-### Traversals
+The reversible codec maps File bytes into `A/C/G/T`, codons, and one of two versioned traversals:
 
 ```text
 qsol.lexicographic-27/1
 qsol.phi-stride-27/1
 ```
 
-The φ-gated profile uses fixed modular stride 17:
-
-```text
-index(n) = (17 * n) mod 27
-```
-
-Since `gcd(17,27)=1`, it forms a single complete path over all 27 cells before repeating.
-
-The traversal is versioned addressing only. It does not claim physical optimality, cognitive geometry or biological meaning.
-
-The projection is accepted only after byte-exact reconstruction and SHA-256 verification.
+The WebUI can inspect and export projections. A RESTRICTED export requires explicit acknowledgement that the projection is reversible sensitive data and emits a CONTROL audit event.
 
 ```text
 RAW_BYTES = CANONICAL
 DNA_PROJECTION = DERIVED
 DNA_ENCODING != BIOLOGICAL_CLAIM
 PHI_TRAVERSAL != PHYSICAL_TRUTH
+CODON_FREQUENCY != EVIDENCE
 ```
 
-## Interaction record
+## Interaction and recovery
 
-The implemented Phase 1B interaction core binds:
+The Phase 1B interaction core preserves content-addressed runs plus append-only events, exact File refs, exact Collection snapshot refs, ORACLE/NEXUS refs, model-state refs, lattice addresses, timestamps, and replayability class.
+
+The minimum ARK bundle packages one run, its event chain, referenced File/raw objects, exact Collection snapshot lineage, and lattice profile inside `QSOL-RESTORE-DAT/1`, then proves reconstruction with run fingerprint equality.
 
 ```text
-run_id
-question payload/hash
-requester_kind
-requested_mode
-file_refs
-exact collection_snapshot_ref
-oracle/nexus external refs when supplied
-visible event payloads
-model_state_refs when supplied
-lattice_addresses
-timestamps
-replayability classification
+RECOVERY_BUNDLE != SEMANTIC_AUTHORITY
+RECOVERY_HEAD != SOURCE_CURRENT_HEAD
+HASH_INTEGRITY != EVIDENCE_AUTHORITY
+RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
 ```
 
-Phase 3 supplies verified NEXUS session/receipt references and externally visible Council response artifacts that may be attached to an existing run through receipt and derived response events. Phase 4 supplies canonical model-state records bound by `system.control_run_id` plus compact `model_state` event projections referencing their `state_id`.
+ARK remains the recovery-semantics authority.
 
-The immutable run record remains content-addressed. Its separate event chain is append-only with an atomic `HEAD`, explicit parent lineage, and stable event identities.
+## Replay / compare boundary
 
-## Model-state record
+Phase 5 implements a view comparing two immutable stored runs and their model-state metadata.
 
-Model-state capture is now implemented as a persistent reproducibility registry. It separates values from how those values were established and refuses hidden-cognition claims.
-
-A future AI should be able to answer:
-
-> What models participated, under what externally recorded conditions, which fields were actually verified, with what evidence/system versions, and what changed between runs?
-
-It should **not** be told that CONTROL preserved private reasoning, consciousness, or an internal mind state that was never exposed.
-
-## Replay classes
+It does not execute Phase 7 replay:
 
 ```text
-R0 exact deterministic replay
-R1 deterministic re-execution from preserved inputs
-R2 same declared configuration but stochastic/live inference
-R3 rerun with changed evidence/model/runtime state
+comparison_is_replay_execution = false
+phase7_replay_execution_implemented = false
 ```
 
-Future replay must bind to exact historical Collection snapshots and verified external NEXUS/ORACLE references rather than current live state. Model-state metadata can explain configuration drift but does not upgrade stochastic execution into deterministic replay.
+A later run never overwrites an earlier run.
+
+## UI invariant
+
+The Human WebUI never displays a synthetic truth percentage derived from:
+
+```text
+votes
+confidence
+entropy
+model count
+consensus
+retrieval score
+embedding similarity
+codon frequency
+lattice position
+```
+
+```text
+CONTROL_DISPLAY != AUTHORITY
+CONTROL_OPERATION != TRUTH
+VOTE != EVIDENCE
+CONSENSUS != TRUTH
+SEARCH_SCORE != TRUTH
+SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
+CODON_FREQUENCY != EVIDENCE
+LATTICE_ADDRESS != TRUTH
+```
 
 ## Failure behavior
 
-CONTROL should fail closed for authority-sensitive or ambiguous state and fail visibly for observational/display gaps.
+CONTROL fails closed for authority-sensitive ambiguity and visibly for display gaps.
 
 Examples:
 
-- unavailable/tampered ORACLE parent -> evidence adapter unavailable, not invented evidence;
-- unknown ORACLE major -> fail closed, do not guess semantics;
-- stale ORACLE evidence -> stale indicator, not automatically false;
-- missing ORACLE evidence -> `unknown`, not invented evidence;
-- unknown NEXUS major or missing required operation -> Council adapter unavailable;
-- NEXUS session/receipt content-address mismatch -> reject the run render;
-- NEXUS threshold/tally/ballot-commitment/minority mismatch -> reject rather than normalize;
-- hidden-reasoning-labelled field from NEXUS -> reject rather than persist;
-- model-state credential/hidden-reasoning-labelled field -> reject before persistence;
-- contradictory model-state Collection snapshot -> reject rather than detach state from its run;
-- local artifact symlink/unsafe entry -> reject rather than hash ambiguous content;
-- ambiguous cross-run model-state alignment key -> reject rather than guess correspondence;
-- stale semantic index -> unavailable until rebuilt, not silently searched against wrong membership;
-- Collection privacy mismatch -> membership update rejected;
-- corrupt raw object -> verification failure;
-- incomplete minimum ARK bundle -> offline reconstruction failure even if the outer container hashes correctly;
-- malformed DNA projection -> decode failure, not partial reconstruction;
-- model metadata missing -> `unknown`, not guessed from model name;
-- replay mismatch -> explain changed inputs rather than claiming exact replay.
+- ORACLE unavailable -> evidence remains `unknown`, not invented;
+- unknown ORACLE major -> adapter unavailable;
+- stale ORACLE observation -> stale indicator, not automatically false;
+- NEXUS unavailable -> Council view unavailable, no fake Council result;
+- invalid/tampered NEXUS ballot/session/receipt -> reject render/persistence;
+- hidden-reasoning-labelled NEXUS field -> reject;
+- missing model metadata -> `unknown`;
+- provider-reported model metadata -> never auto-promote to locally verified;
+- stale semantic index -> unavailable for new snapshot;
+- corrupt raw File object -> verification failure;
+- malformed DNA projection -> decode failure;
+- non-loopback WebUI bind or Host -> reject;
+- invalid WebUI session token -> reject API access;
+- cross-origin browser mutation -> reject;
+- replay comparison -> comparison only, not replay execution.
 
 ## Non-goals
 
 QSOL-CONTROL is not:
 
-- another AI Council;
-- another ORACLE or an ORACLE ledger writer;
-- a replacement for SUBSTRATE;
-- a replacement for ARK recovery authority;
-- a NEXUS governance fork or WorldStore editor;
-- a truth-scoring engine;
+- another truth engine;
+- another ORACLE ledger writer;
+- a NEXUS governance fork;
 - a hidden chain-of-thought recorder;
-- a model-mind, consciousness, or sentience detector;
-- a model-weight archive merely because it can hash local model artifacts;
-- a blockchain;
-- a vector database promoted to epistemic authority;
-- a biological DNA storage claim;
-- a claim that φ is physically optimal for data storage;
-- a geometric theory of cognition;
-- a reason to duplicate NEXUS in a frontend framework.
+- a model-mind or consciousness capture system;
+- an embedding provider;
+- a literal cognitive geometry claim;
+- a biological interpretation of the DNA codec;
+- a remote multi-user WebUI service in Phase 5;
+- the Phase 6 public AI API;
+- the Phase 7 replay engine.
+
+## Implementation map
+
+```text
+storage/control_store.py          persistent Files / Collections / indexes
+storage/interaction_store.py      immutable runs / append-only events
+storage/model_state_registry.py   Phase 4 model-state registry
+adapters/oracle.py                read-only ORACLE adapter
+adapters/nexus.py                 verified NEXUS Council adapter
+storage/dna_lattice.py            reversible DNA/lattice projection
+webui/server.py                   public Phase 5 Human WebUI facade
+webui/http.py                     browser / HTTP security boundary
+webui/runtime_*.py                WebUI orchestration and inspection
+webui/static/                     framework-free browser client
+tools/webui.py                    operator launcher
+ai/webui-contract.json            machine-readable Phase 5 boundary
+```
+
+See `README.md`, `README4AI.md`, `docs/WEBUI.md`, `docs/MODEL-STATE.md`, `AGENTS.md`, `SECURITY.md`, and `ROADMAP.md` for the corresponding human/machine surfaces.
