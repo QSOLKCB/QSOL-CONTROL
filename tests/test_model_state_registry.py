@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from storage.control_store import canonical_json_bytes
+from storage.control_store import StorageError, canonical_json_bytes
 from storage.interaction_store import InteractionStore
 from storage.model_state_registry import (
     EPISTEMIC_BOUNDARY,
@@ -217,7 +217,7 @@ class ModelStateRegistryTests(unittest.TestCase):
 
     def test_unknown_run_is_rejected(self):
         descriptor = self.descriptor("sha256:" + "f" * 64)
-        with self.assertRaises(ModelStateError):
+        with self.assertRaises(StorageError):
             self.capture(descriptor)
 
     def test_state_comparison_preserves_values_and_provenance_without_mind_inference(self):
