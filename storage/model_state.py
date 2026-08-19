@@ -17,6 +17,7 @@ from typing import Any
 from .model_state_registry import (
     ARCHAEOLOGY_PROTOCOL,
     EPISTEMIC_BOUNDARY,
+    MAX_RECORD_BYTES,
     MODEL_STATE_PROTOCOL,
     ModelStateError,
     ModelStateRegistry as _Registry,
@@ -56,6 +57,19 @@ class ModelStateRegistry(_Registry):
             field_provenance=field_provenance,
             **kwargs,
         )
+
+    def get_state(self, state_id: str) -> dict[str, Any]:
+        # Capture already enforces MAX_RECORD_BYTES. Re-check the persisted
+        # object before parsing so a locally tampered/hostile oversized record
+        # cannot turn registry inspection/listing into an unbounded JSON read.
+        path = self._path(state_id)
+        try:
+            size = path.stat().st_size
+        except OSError as exc:
+            raise ModelStateError(f"unknown state_id: {state_id}") from exc
+        if size > MAX_RECORD_BYTES:
+            raise ModelStateError("model-state record exceeds canonical byte limit")
+        return super().get_state(state_id)
 
     @staticmethod
     def _event_projection(record: dict[str, Any]) -> dict[str, Any]:
