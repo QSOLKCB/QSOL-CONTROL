@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-ark-repository-recovery-contract",
   "protocol": "qsol-control-ark-repository-recovery/1",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "container": "qsol-restore-dat/1",
   "runtime": "storage/ark_repository_bundle.py",
   "cli": "tools/repository_recovery.py",
@@ -12,7 +12,14 @@
     "plain_text_map": "RECOVERY-MAP.txt",
     "capsules": "capsules/NNNNNN.dat",
     "multi_capsule": true,
-    "large_object_transport_chunking": true
+    "maximum_capsules": 10000,
+    "maximum_capsule_file_bytes": 75497472,
+    "maximum_capsule_payload_bytes": 67108864,
+    "maximum_capsule_entries": 1000,
+    "maximum_bootstrap_bytes": 4194304,
+    "maximum_recovery_map_bytes": 4194304,
+    "large_object_transport_chunking": true,
+    "large_object_chunk_bytes": 33554432
   },
   "canonical_source": [
     "raw-object-bytes",
@@ -28,7 +35,7 @@
     "replay-reports"
   ],
   "supporting_recovery_contracts": [
-    "public-json-schemas",
+    "public-json-schemas-draft-2020-12",
     "qsol-3x3x3-sierpinski-derived-memory/1"
   ],
   "optional_derived_material": {
@@ -57,17 +64,24 @@
     "original_search_engine_required": false,
     "network_required": false,
     "fresh_target_required": true,
+    "source_root_must_preexist": true,
+    "raw_objects_streamed_during_export": true,
     "raw_object_hash_verified": true,
     "large_object_chunk_hashes_verified": true,
     "collection_lineage_verified": true,
     "run_event_lineage_verified": true,
     "model_state_identity_verified": true,
-    "replay_identity_verified": true,
-    "source_inventory_fingerprint_verified": true
+    "replay_identity_and_semantics_verified": true,
+    "orphan_canonical_records_rejected": true,
+    "support_contracts_semantically_revalidated": true,
+    "source_inventory_fingerprint_verified": true,
+    "untrusted_container_sizes_bounded_before_read": true
   },
   "privacy": {
     "minimum_package_class": "INTERNAL",
     "strictest_source_class_wins": true,
+    "strictest_restored_class_recomputed": true,
+    "bootstrap_privacy_must_match_recomputed_restored_class": true,
     "restricted_export_requires_allow_flag": true,
     "restricted_export_requires_acknowledgement": true,
     "restricted_export_requires_actor": true
