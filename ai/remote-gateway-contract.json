@@ -1,10 +1,11 @@
 {
   "type": "qsol-control-remote-gateway-contract",
   "protocol": "qsol-control-remote-gateway/1",
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "runtime": "api/remote_http.py",
   "cli": "tools/remote_gateway.py",
   "config_schema": "schema/remote-gateway-config.schema.json",
+  "audit_protocol": "qsol-control-remote-audit/1",
   "transport": {
     "request_protocol": "qsol-control-remote-request/1",
     "path": "/v1/agent",
@@ -25,6 +26,31 @@
     "per_principal_operation_allowlist": true,
     "client_can_self_award_caller_identity": false
   },
+  "authorization": {
+    "record_level_acl_required": true,
+    "privacy_ceiling_per_principal": true,
+    "public_files_and_collections_shareable_within_privacy_ceiling": true,
+    "nonpublic_files_and_collections_require_acl_or_audit_ownership": true,
+    "runs_replays_and_model_states_require_acl_or_audit_ownership": true,
+    "unscoped_remote_model_or_memory_listing": false
+  },
+  "audit": {
+    "durable": true,
+    "content_addressed": true,
+    "principal_id_recorded": true,
+    "operation_recorded": true,
+    "request_id_recorded": true,
+    "created_resource_ownership_recoverable": true,
+    "credential_material_captured": false,
+    "directory": "records/remote-audit"
+  },
+  "availability": {
+    "quota_policy": "renewable-window",
+    "quota_window_seconds": 60,
+    "maximum_concurrent_connections": 64,
+    "accepted_socket_timeout_seconds": 10,
+    "connection_slot_acquired_before_request_thread": true
+  },
   "network": {
     "loopback_plaintext_allowed": true,
     "non_loopback_requires_explicit_enable": true,
@@ -33,14 +59,16 @@
     "tls_private_key_resolves_to_regular_file": true,
     "tls_private_key_private_on_posix": true,
     "host_allowlist_required": true,
+    "programmatic_server_factory_revalidates_policy": true,
     "remote_webui_exposed": false
   },
-  "authority": "transport-only",
+  "authority": "transport-and-authorization-only",
   "epistemic_privilege_added": false,
   "remote_caller_can_override_oracle_or_nexus_authority": false,
   "boundaries": [
     "REMOTE_ACCESS != EPISTEMIC_PRIVILEGE",
     "AUTHENTICATED != AUTHORITATIVE",
+    "AUTHENTICATION != RECORD_AUTHORIZATION",
     "REMOTE_GATEWAY != REMOTE_WEBUI",
     "TOKEN_DIGEST != TOKEN",
     "CLIENT_IDENTITY != SELF_ASSERTED_CALLER_IDENTITY"
