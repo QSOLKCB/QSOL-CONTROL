@@ -26,5 +26,11 @@ jobs:
         run: python3 tools/agent_api.py --help
       - name: Validate INT composition batteries
         run: python3 tools/int_composition.py validate
+      - name: Validate migration policy
+        run: python3 tools/migration.py validate
+      - name: Run adversarial storage battery
+        run: python3 tools/adversarial_storage.py --iterations 256
+      - name: Validate release discipline
+        run: python3 tools/release_bundle.py check
       - name: Run tests
         run: python3 -W default -m unittest discover -s tests -v
