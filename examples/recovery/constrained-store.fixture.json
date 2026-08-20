@@ -1,0 +1,18 @@
+{
+  "protocol": "qsol-control-constrained-recovery-fixture/1",
+  "file": {
+    "filename": "field-note.txt",
+    "media_type": "text/plain",
+    "content": "A small canonical source survives without a browser or search engine."
+  },
+  "collection": {
+    "name": "Constrained recovery specimen"
+  },
+  "question": "Can this preserved research state be reconstructed offline?",
+  "constraints": {
+    "network_available": false,
+    "webui_available": false,
+    "search_engine_available": false,
+    "python_standard_library_only": true
+  }
+}
