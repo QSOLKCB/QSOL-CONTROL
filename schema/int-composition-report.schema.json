@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/int-composition-report.schema.json",
+  "title": "QSOL-CONTROL Phase 9 INT Composition Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "type",
+    "protocol",
+    "version",
+    "scope",
+    "int_methodology",
+    "parents",
+    "current_parent_observation",
+    "case_results",
+    "compatibility",
+    "summary",
+    "authority",
+    "int_authority_claimed",
+    "truth_claimed",
+    "invariants"
+  ],
+  "properties": {
+    "report_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "type": {"const": "qsol-control-int-composition-report"},
+    "protocol": {"const": "qsol-control-int-composition-report/1"},
+    "version": {"const": "1.0.0"},
+    "scope": {"const": "pinned_parent_evidence_only"},
+    "int_methodology": {"type": "object"},
+    "parents": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oracle", "nexus", "thoth"],
+      "properties": {
+        "oracle": {"$ref": "#/$defs/receipt"},
+        "nexus": {"$ref": "#/$defs/receipt"},
+        "thoth": {"$ref": "#/$defs/receipt"}
+      }
+    },
+    "current_parent_observation": {
+      "type": "object",
+      "required": ["status", "compatibility", "requires_review", "parents"],
+      "properties": {
+        "status": {"enum": ["NOT_OBSERVED", "OBSERVED"]},
+        "compatibility": {"enum": ["compatible", "incompatible", "untested", "unknown", "not_claimed"]},
+        "requires_review": {"type": "boolean"},
+        "parents": {"type": "object"}
+      }
+    },
+    "case_results": {
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "battery", "result", "failure_code", "observed"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^CONTROL-INT-[0-9]{3}$"},
+          "battery": {"type": "string", "minLength": 1},
+          "result": {"enum": ["pass", "fail"]},
+          "failure_code": {"type": ["string", "null"]},
+          "observed": {"type": "object"}
+        }
+      }
+    },
+    "compatibility": {"enum": ["compatible", "incompatible"]},
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_count", "passed", "failed", "current_parent_compatibility", "current_parent_review_required"],
+      "properties": {
+        "case_count": {"const": 11},
+        "passed": {"type": "integer", "minimum": 0, "maximum": 11},
+        "failed": {"type": "integer", "minimum": 0, "maximum": 11},
+        "current_parent_compatibility": {"enum": ["compatible", "incompatible", "untested", "unknown", "not_claimed"]},
+        "current_parent_review_required": {"type": "boolean"}
+      }
+    },
+    "authority": {"const": "conformance-only"},
+    "int_authority_claimed": {"const": false},
+    "truth_claimed": {"const": false},
+    "invariants": {
+      "type": "array",
+      "contains": {"const": "INTEGRATION_MUST_NOT_INCREASE_SEMANTIC_AUTHORITY"}
+    }
+  },
+  "$defs": {
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parent", "repository", "pinned_commit", "parent_artifact", "local_contract", "compatibility", "scope", "current_parent_compatibility", "authority"],
+      "properties": {
+        "parent": {"enum": ["oracle", "nexus", "thoth"]},
+        "repository": {"type": "string", "pattern": "^QSOLKCB/"},
+        "pinned_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "parent_artifact": {"type": "object"},
+        "local_contract": {"type": "object"},
+        "compatibility": {"const": "compatible"},
+        "scope": {"const": "pinned_parent_evidence_only"},
+        "current_parent_compatibility": {"const": "not_claimed"},
+        "authority": {"const": "compatibility-evidence-only"}
+      }
+    }
+  }
+}

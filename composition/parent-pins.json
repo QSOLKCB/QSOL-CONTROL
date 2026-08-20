@@ -1,0 +1,95 @@
+{
+  "protocol": "qsol-control-int-parent-pins/1",
+  "scope": "pinned_parent_evidence_only",
+  "phase8_base_commit": "bb12242908005295b2f067cefac3c55fa97d40f7",
+  "authority": "compatibility-evidence-only",
+  "int_methodology": {
+    "repository": "QSOLKCB/QSOL-INT",
+    "pinned_commit": "e8c509b93ae39ad784b4f739bf21b27aa41201bf",
+    "artifact": {
+      "path": "compatibility/reports/pinned-bootstrap.json",
+      "git_blob_sha1": "246c22a4fbddd7bb040a0346ead611dd7463dc4f"
+    },
+    "source_scope": "methodology-reference-only",
+    "rule": "INTEGRATION_MUST_NOT_INCREASE_SEMANTIC_AUTHORITY"
+  },
+  "parents": {
+    "oracle": {
+      "repository": "QSOLKCB/QSOL-ORACLE",
+      "pinned_commit": "3c8a0b39893bd3a7eeb0db6530aa5ed8ad0e664e",
+      "artifact": {
+        "path": "manifest.json",
+        "git_blob_sha1": "af6d99179ad152a359afbae5ef5f48db012d4c3d"
+      },
+      "expected": {
+        "protocol": "QSOL-ORACLE/1",
+        "schema_version": "1.2.0",
+        "semantic_authority": "none-by-default",
+        "reasoning_authority": "none",
+        "ledger_model": "single-writer-append-only",
+        "response_states": ["known", "conflict", "unknown"],
+        "search_suggestions_are_evidence": false
+      }
+    },
+    "nexus": {
+      "repository": "QSOLKCB/QSOL-NEXUS",
+      "pinned_commit": "839303ea512631e527073682343341742cead975",
+      "artifact": {
+        "path": "README4AI.md",
+        "git_blob_sha1": "6e1c0ef20582b8afc1ae3373d8fdf070964ccfb7"
+      },
+      "expected": {
+        "document_type": "qsol-nexus-ai-manifest",
+        "schema_version": 1,
+        "control_transport": "jsonl_stdio",
+        "release_protocol": "nexus/0.14",
+        "authority_invariants": [
+          "one_member_one_vote",
+          "vote_weight_equals_1_for_ordinary_council_members",
+          "epistemic_privilege_equals_none_for_ordinary_council_members",
+          "council_consensus_is_not_evidence_status",
+          "model_output_is_untrusted_input",
+          "live_stochastic_inference_is_not_falsely_marked_replayable"
+        ]
+      }
+    },
+    "thoth": {
+      "repository": "QSOLKCB/QSOL-THOTH",
+      "pinned_commit": "03f6bdf063b7fb36fb13cd3d12e6d89dc8407b47",
+      "artifact": {
+        "path": "ai/concap-compatibility.json",
+        "git_blob_sha1": "14b4c1b303320d27f7f17927ed73297b46f070c2"
+      },
+      "expected": {
+        "protocol": "QSOL-THOTH/CONCAP-COMPATIBILITY/1",
+        "schema_version": "1.0.0",
+        "semantic_change_requires_new_version": true,
+        "existing_version_semantics_immutable": true,
+        "new_version_backward_compatible_by_default": false,
+        "implicit_version_substitution": false,
+        "resolver_must_match_exact_declared_role_id": true
+      }
+    }
+  },
+  "local_contracts": {
+    "oracle": {
+      "path": "ai/oracle-adapter-contract.json",
+      "git_blob_sha1": "7647e3429b14ac5df7d95d76efe609aa8805ffc4"
+    },
+    "nexus": {
+      "path": "ai/nexus-adapter-contract.json",
+      "git_blob_sha1": "73229baa8601a6dc72ae610c447ab9208ff54882"
+    },
+    "thoth": {
+      "path": "ai/concap-bundle-contract.json",
+      "git_blob_sha1": "5bbf7e486a4d10bdfb47d2c1962b41dc83522461"
+    }
+  },
+  "invariants": [
+    "COMPATIBLE != TRUE",
+    "COMPATIBILITY_RECEIPT != PARENT_AUTHORITY",
+    "PINNED_PARENT_COMPATIBILITY != CURRENT_PARENT_COMPATIBILITY",
+    "DRIFT_IS_NEVER_SILENTLY_ACCEPTED",
+    "UNAVAILABLE != CONTRADICTED"
+  ]
+}

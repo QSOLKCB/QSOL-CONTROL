@@ -1,0 +1,66 @@
+{
+  "type": "qsol-control-int-composition-contract",
+  "protocol": "qsol-control-int-composition-report/1",
+  "schema_version": "1.1.0",
+  "runtime": "tools/int_composition.py",
+  "parent_pins": "composition/parent-pins.json",
+  "battery_index": "composition/cases.json",
+  "report_schema": "schema/int-composition-report.schema.json",
+  "authority": "conformance-only",
+  "int_authority_claimed": false,
+  "scope": "pinned_parent_evidence_only",
+  "parents": ["QSOL-ORACLE", "QSOL-NEXUS", "QSOL-THOTH"],
+  "methodology_source": {
+    "repository": "QSOLKCB/QSOL-INT",
+    "rule": "INTEGRATION_MUST_NOT_INCREASE_SEMANTIC_AUTHORITY",
+    "compatibility_inheritance": false,
+    "commit_and_artifact_identity_required": true
+  },
+  "receipts": {
+    "control_oracle": true,
+    "control_nexus": true,
+    "control_thoth_portable_concap": true,
+    "content_addressed": true,
+    "deterministic": true,
+    "live_parent_compatibility_inferred_from_pins": false,
+    "failure_reports_are_structurally_valid": true
+  },
+  "batteries": [
+    "authority_non_escalation",
+    "stale_parent_handling",
+    "vote_evidence_separation",
+    "memory_canonical_separation",
+    "model_state_identity_separation",
+    "collection_index_authority_separation",
+    "dna_raw_byte_separation",
+    "schema_version_drift"
+  ],
+  "drift": {
+    "observed_parent_input_optional": true,
+    "missing_observation": "current_parent_compatibility=not_claimed",
+    "source_unavailable": "unknown+review_required",
+    "content_change": "untested+review_required",
+    "schema_major_change": "untested+review_required",
+    "protocol_major_change": "incompatible+review_required",
+    "protocol_major_source": "final slash-delimited version component",
+    "exact_identity_with_contradictory_metadata": "reject-invalid-observation",
+    "silent_refresh": false
+  },
+  "cli_exit_codes": {
+    "0": "valid and no current-parent review required",
+    "1": "battery failure, incompatible report, or invalid input",
+    "2": "structurally valid current-parent observation requires review"
+  },
+  "invariants": [
+    "COMPATIBLE != TRUE",
+    "BATTERY_PASS != TRUTH",
+    "COMPATIBILITY_RECEIPT != PARENT_AUTHORITY",
+    "PINNED_PARENT_COMPATIBILITY != CURRENT_PARENT_COMPATIBILITY",
+    "DRIFT_IS_NEVER_SILENTLY_ACCEPTED",
+    "UNAVAILABLE != UNTESTED",
+    "VOTE != EVIDENCE",
+    "INDEX != CANONICAL_MEMORY",
+    "MODEL_STATE != MODEL_MIND",
+    "RAW_OBJECT_BYTES = CANONICAL"
+  ]
+}

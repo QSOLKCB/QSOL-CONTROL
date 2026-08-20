@@ -280,16 +280,38 @@ RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
 
 ## Phase 9 — INT composition batteries
 
-- [ ] Add cross-repo compatibility receipts for CONTROL↔ORACLE and CONTROL↔NEXUS.
-- [ ] Add CONTROL↔THOTH portable CONCAP compatibility receipts.
-- [ ] Test authority non-escalation.
-- [ ] Test stale-parent handling.
-- [ ] Test vote/evidence separation.
-- [ ] Test memory/canonical separation.
-- [ ] Test model-state/identity separation.
-- [ ] Test Collection/search-index authority separation.
-- [ ] Test DNA/lattice projection/raw-byte canonical separation.
-- [ ] Test schema/version drift.
+- [x] Add cross-repo compatibility receipts for CONTROL↔ORACLE and CONTROL↔NEXUS.
+- [x] Add CONTROL↔THOTH portable CONCAP compatibility receipts.
+- [x] Test authority non-escalation.
+- [x] Test stale-parent handling.
+- [x] Test vote/evidence separation.
+- [x] Test memory/canonical separation.
+- [x] Test model-state/identity separation.
+- [x] Test Collection/search-index authority separation.
+- [x] Test DNA/lattice projection/raw-byte canonical separation.
+- [x] Test schema/version drift.
+
+### Phase 9 gate
+
+**Satisfied by `qsol-control-int-composition-report/1`.** CONTROL runs eleven deterministic, standard-library conformance cases using exact parent and local-contract pins. The three cross-repository receipts cover CONTROL↔ORACLE, CONTROL↔NEXUS, and CONTROL↔THOTH portable CONCAP compatibility for the exact pinned commits/artifacts only. QSOL-INT's pinned compatibility report supplies the composition methodology and the governing rule `INTEGRATION_MUST_NOT_INCREASE_SEMANTIC_AUTHORITY`; CONTROL does not inherit or claim QSOL-INT composition authority.
+
+The default report scope is `pinned_parent_evidence_only`. Without a separately supplied current-parent observation, `current_parent_compatibility` remains `not_claimed`. If current identities are supplied, exact commit/blob equality yields `NO_DRIFT`; missing parents become `SOURCE_UNAVAILABLE`; changed content becomes `CONTENT_DRIFT`; schema-major drift remains untested pending review; and protocol-major drift is incompatible. Pins are never silently refreshed to make a battery green.
+
+The separation batteries independently preserve vote/evidence, lattice-memory/content identity, model-state/model-mind, Collection/index, and DNA/raw-byte boundaries. Passing a compatibility battery is conformance evidence, not truth, endorsement, or inherited authority.
+
+```text
+INTEGRATION_MUST_NOT_INCREASE_SEMANTIC_AUTHORITY
+COMPATIBLE != TRUE
+BATTERY_PASS != TRUTH
+COMPATIBILITY_RECEIPT != PARENT_AUTHORITY
+PINNED_PARENT_COMPATIBILITY != CURRENT_PARENT_COMPATIBILITY
+DRIFT_IS_NEVER_SILENTLY_ACCEPTED
+UNAVAILABLE != CONTRADICTED
+VOTE != EVIDENCE
+INDEX != CANONICAL_MEMORY
+MODEL_STATE != MODEL_MIND
+RAW_OBJECT_BYTES = CANONICAL
+```
 
 ## Phase 10 — Hardening and release discipline
 
