@@ -1,0 +1,87 @@
+{
+  "type": "qsol-control-replay-contract",
+  "protocol": "qsol-control-replay/1",
+  "schema_version": "1.0.0",
+  "classification_protocol": "qsol-control-replay-classification/1",
+  "basis_protocol": "qsol-control-replay-basis/1",
+  "record_protocol": "qsol-control-replay-record/1",
+  "report_protocol": "qsol-control-replay-report/1",
+  "link_protocol": "qsol-control-replay-link/1",
+  "timeline_protocol": "qsol-control-research-timeline/1",
+  "runtime": "webui/runtime_replay.py",
+  "storage": "storage/replay_store.py",
+  "record_schema": "schema/replay-record.schema.json",
+  "report_schema": "schema/replay-report.schema.json",
+  "timeline_schema": "schema/research-timeline.schema.json",
+  "authority": "orchestration-and-comparison-only",
+  "classification_rule": "classify_before_execute",
+  "exactness_policy": {
+    "exact_replay_claimed_by_phase7": false,
+    "legacy_missing_index_descriptor": "not_recorded",
+    "current_control_ask_index_descriptor": "not_used",
+    "not_used_reason": "control.ask does not execute Collection search",
+    "current_evidence_is_original_evidence": false,
+    "changed_council_roster_requires_explicit_authorization": true
+  },
+  "collection_policy": {
+    "execution_uses_original_snapshot": true,
+    "current_head_is_compared_separately": true,
+    "current_head_never_silently_replaces_original_snapshot": true
+  },
+  "original_result_policy": {
+    "original_run_record_rewritten": false,
+    "original_event_chain_rewritten": false,
+    "before_after_integrity_fingerprint_required": true,
+    "replay_creates_new_run": true,
+    "replay_lineage_is_append_only_on_replay_run": true
+  },
+  "comparison_lanes": [
+    "evidence_set",
+    "collection_membership",
+    "retrieval_index_basis",
+    "council_roster_and_runtime",
+    "model_revision_runtime_and_configuration",
+    "request_configuration"
+  ],
+  "classifications": [
+    "inspection_only",
+    "unavailable_original_context",
+    "current_evidence_rerun",
+    "legacy_current_evidence_rerun",
+    "evidence_refresh_only",
+    "council_configuration_unavailable",
+    "changed_configuration_rerun",
+    "live_stochastic_rerun",
+    "legacy_declared_input_reexecution",
+    "declared_input_reexecution"
+  ],
+  "machine_operations": [
+    "control.replay.classify",
+    "control.replay.execute",
+    "control.replay.get",
+    "control.research.timeline"
+  ],
+  "limits": {
+    "max_replay_record_bytes": 8388608,
+    "max_replay_records": 100000,
+    "max_research_timeline_runs": 500
+  },
+  "longitudinal_grouping": {
+    "recurring_question_identity": "question_sha256",
+    "timeline_order": "created_at_then_run_id",
+    "timeline_is_truth": false
+  },
+  "invariants": [
+    "ORIGINAL_RUN != REPLAY_RUN",
+    "ORIGINAL_RESULT_IMMUTABLE = true",
+    "REPLAY_CLASSIFICATION != TRUTH",
+    "CURRENT_EVIDENCE != ORIGINAL_EVIDENCE",
+    "CURRENT_COLLECTION_HEAD != ORIGINAL_COLLECTION_SNAPSHOT",
+    "LEGACY_MISSING_INDEX != INVENTED_INDEX",
+    "CONSENSUS != TRUTH",
+    "VOTE != EVIDENCE",
+    "MODEL_STATE != MODEL_MIND",
+    "MODEL_STATE_COMPARISON != MIND_COMPARISON",
+    "HIDDEN_CHAIN_OF_THOUGHT = OUT_OF_SCOPE"
+  ]
+}
