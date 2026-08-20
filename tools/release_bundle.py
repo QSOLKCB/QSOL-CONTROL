@@ -17,9 +17,12 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from storage.archive_safety import ArchiveSafetyError, validate_zip_archive
 
-ROOT = Path(__file__).resolve().parents[1]
 INVENTORY_PATH = ROOT / "release" / "release-inventory.json"
 PROTOCOL = "qsol-control-release-bundle/1"
 SCHEMA_VERSION = "1.0.0"
