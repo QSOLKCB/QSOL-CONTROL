@@ -12,9 +12,14 @@ import argparse
 import json
 import random
 import string
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from storage.archive_safety import ArchiveSafetyError, canonical_member_path
 from storage.concap_bundle import ConcapBundleError, canonical_relative_path
