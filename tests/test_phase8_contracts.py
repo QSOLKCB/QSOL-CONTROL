@@ -11,7 +11,9 @@ class Phase8ContractTests(unittest.TestCase):
 
     def test_manifest_registers_phase8_without_erasing_prior_phases(self):
         manifest = self.load("manifest.json")
-        self.assertEqual(manifest["schema_version"], "2.4.0")
+        major, minor, patch = (int(part) for part in manifest["schema_version"].split("."))
+        self.assertEqual(major, 2)
+        self.assertGreaterEqual((minor, patch), (4, 0))
         self.assertEqual(
             manifest["ark_repository_recovery_contract"],
             "ai/ark-repository-recovery-contract.json",
@@ -44,8 +46,12 @@ class Phase8ContractTests(unittest.TestCase):
 
     def test_ai_bootstrap_registers_phase8_additively(self):
         bootstrap = self.load("README4AI.md")
-        self.assertEqual(bootstrap["schema_version"], 11)
-        self.assertEqual(bootstrap["contracts"]["schema_version"], "2.4.0")
+        self.assertGreaterEqual(bootstrap["schema_version"], 11)
+        contract_major, contract_minor, _ = (
+            int(part) for part in bootstrap["contracts"]["schema_version"].split(".")
+        )
+        self.assertEqual(contract_major, 2)
+        self.assertGreaterEqual(contract_minor, 4)
         recovery = bootstrap["ark_repository_recovery"]
         self.assertEqual(recovery["status"], "implemented_phase8")
         self.assertFalse(recovery["optional_material_is_canonical"])
@@ -93,13 +99,13 @@ class Phase8ContractTests(unittest.TestCase):
         )
         self.assertEqual(schema["properties"]["authority"]["const"], "none")
 
-    def test_readme_reports_phase8_complete_and_phase9_next(self):
+    def test_readme_preserves_phase8_after_later_phases(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("## Phase 8 ARK repository recovery", readme)
-        self.assertIn("Repository contract version is `2.4.0`", readme)
         self.assertIn("PR #11: Phase 7 replay and longitudinal research, merged.", readme)
-        self.assertIn("PR #12: Phase 8 repository-level ARK recovery bridge", readme)
-        self.assertIn("the roadmap continues with Phase 9 INT composition batteries", readme)
+        self.assertIn("PR #12: Phase 8 repository-level ARK recovery bridge, merged.", readme)
+        self.assertIn("docs/ARK-REPOSITORY-RECOVERY.md", readme)
+        self.assertIn("RAW_OBJECT_BYTES = CANONICAL", readme)
 
 
 if __name__ == "__main__":
