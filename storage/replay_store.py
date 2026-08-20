@@ -22,43 +22,21 @@ RESEARCH_TIMELINE_PROTOCOL = "qsol-control-research-timeline/1"
 SHA_REF_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 MAX_REPLAY_RECORD_BYTES = 8 * 1024 * 1024
 MAX_REPLAY_RECORDS = 100_000
+MODEL_STATE_BOUNDARY = "MODEL_STATE != MODEL_MIND"
 
 REPORT_KEYS = {
-    "report_id",
-    "protocol",
-    "original_run_id",
-    "replay_run_id",
-    "classification_id",
-    "classification",
-    "original_result",
-    "evidence",
-    "collection",
-    "retrieval_index",
-    "council",
-    "model_state",
-    "configuration",
-    "run_fields",
-    "comparison_is_truth",
-    "model_state_comparison_is_mind_comparison",
-    "authority",
+    "report_id", "protocol", "original_run_id", "replay_run_id",
+    "classification_id", "classification", "original_result", "evidence",
+    "collection", "retrieval_index", "council", "model_state",
+    "configuration", "run_fields", "comparison_is_truth",
+    "model_state_comparison_is_mind_comparison", "authority",
 }
 REPLAY_KEYS = {
-    "replay_id",
-    "protocol",
-    "original_run_id",
-    "replay_run_id",
-    "report_id",
-    "executed_at",
-    "requested_by_kind",
-    "classification",
-    "classification_id",
-    "changed_configuration_authorized",
-    "original_result_immutable",
-    "exact_collection_snapshot_preserved",
-    "current_evidence_rerun",
-    "exact_replay_claimed",
-    "hidden_chain_of_thought_captured",
-    "authority",
+    "replay_id", "protocol", "original_run_id", "replay_run_id", "report_id",
+    "executed_at", "requested_by_kind", "classification", "classification_id",
+    "changed_configuration_authorized", "original_result_immutable",
+    "exact_collection_snapshot_preserved", "current_evidence_rerun",
+    "exact_replay_claimed", "hidden_chain_of_thought_captured", "authority",
 }
 
 
@@ -85,6 +63,14 @@ def _validate_timestamp(value: Any, label: str) -> str:
     return value
 
 
+def _string_list(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ReplayError(f"{label} must be an array of strings")
+    if len(value) != len(set(value)):
+        raise ReplayError(f"{label} must not contain duplicates")
+    return value
+
+
 def _atomic_write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
@@ -106,11 +92,15 @@ def _read(path: Path) -> dict[str, Any]:
     if path.is_symlink():
         raise ReplayError("replay records must not be symbolic links")
     try:
+        size = path.stat().st_size
+    except OSError as exc:
+        raise ReplayError("replay record is unavailable") from exc
+    if size > MAX_REPLAY_RECORD_BYTES:
+        raise ReplayError("replay record exceeds canonical byte limit")
+    try:
         encoded = path.read_bytes()
     except OSError as exc:
         raise ReplayError("replay record is unavailable") from exc
-    if len(encoded) > MAX_REPLAY_RECORD_BYTES:
-        raise ReplayError("replay record exceeds canonical byte limit")
     try:
         value = json.loads(encoded.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
@@ -149,6 +139,135 @@ class ReplayStore:
         except (StorageError, OSError, ValueError) as exc:
             raise ReplayError(f"{label} references an unavailable CONTROL run") from exc
 
+    @staticmethod
+    def _validate_evidence_lane(value: Any) -> None:
+        required = {
+            "original_state", "current_replay_state", "added_refs", "removed_refs",
+            "unchanged_refs", "current_evidence_is_original_evidence",
+        }
+        if not isinstance(value, dict) or set(value) != required:
+            raise ReplayError("replay report evidence lane is invalid")
+        if value["original_state"] not in {"known", "conflict", "unknown", "unavailable"}:
+            raise ReplayError("replay report original evidence state is invalid")
+        if value["current_replay_state"] not in {"known", "conflict", "unknown", "unavailable"}:
+            raise ReplayError("replay report current evidence state is invalid")
+        for key in ("added_refs", "removed_refs", "unchanged_refs"):
+            _string_list(value[key], f"evidence.{key}")
+        if value["current_evidence_is_original_evidence"] is not False:
+            raise ReplayError("current evidence must not be relabelled as original evidence")
+
+    @staticmethod
+    def _validate_collection_lane(value: Any) -> None:
+        if not isinstance(value, dict) or type(value.get("applicable")) is not bool:
+            raise ReplayError("replay report collection lane is invalid")
+        if value.get("replay_bound_to_original_snapshot") is not True:
+            raise ReplayError("replay must remain bound to the original Collection snapshot")
+        for key in ("added_since_original", "removed_since_original"):
+            _string_list(value.get(key), f"collection.{key}")
+        if value["applicable"]:
+            _validate_sha(value.get("collection_id"), "collection.collection_id")
+            _validate_sha(value.get("original_snapshot_id"), "collection.original_snapshot_id")
+            _validate_sha(value.get("current_head_snapshot_id"), "collection.current_head_snapshot_id")
+        else:
+            if value.get("original_snapshot_id") is not None or value.get("current_head_snapshot_id") is not None:
+                raise ReplayError("non-applicable collection comparison must not invent snapshots")
+
+    @staticmethod
+    def _validate_index_lane(value: Any) -> None:
+        required = {"original", "replay", "same_recorded_basis", "legacy_original_basis_incomplete"}
+        if not isinstance(value, dict) or set(value) != required:
+            raise ReplayError("replay report retrieval_index lane is invalid")
+        if not isinstance(value["original"], dict) or not isinstance(value["replay"], dict):
+            raise ReplayError("replay report retrieval index descriptors must be objects")
+        if type(value["same_recorded_basis"]) is not bool or type(value["legacy_original_basis_incomplete"]) is not bool:
+            raise ReplayError("replay report retrieval index flags must be boolean")
+
+    @staticmethod
+    def _validate_roster_diff(value: Any) -> None:
+        if not isinstance(value, dict) or set(value) != {"added", "removed", "changed", "same"}:
+            raise ReplayError("replay report Council roster diff is invalid")
+        if not all(isinstance(value[key], list) for key in ("added", "removed", "changed")):
+            raise ReplayError("replay report Council roster arrays are invalid")
+        if type(value["same"]) is not bool:
+            raise ReplayError("replay report Council roster same flag is invalid")
+
+    @classmethod
+    def _validate_council_lane(cls, value: Any) -> None:
+        required = {
+            "roster", "request_member_descriptors", "original_runtime", "replay_runtime",
+            "original_consensus", "replay_consensus", "consensus_is_truth",
+        }
+        if not isinstance(value, dict) or set(value) != required:
+            raise ReplayError("replay report Council lane is invalid")
+        cls._validate_roster_diff(value["roster"])
+        descriptors = value["request_member_descriptors"]
+        if not isinstance(descriptors, dict) or set(descriptors) != {
+            "original", "replay", "original_complete", "replay_complete"
+        }:
+            raise ReplayError("replay report Council request descriptors are invalid")
+        if not isinstance(descriptors["original"], list) or not isinstance(descriptors["replay"], list):
+            raise ReplayError("replay report Council descriptors must be arrays")
+        if type(descriptors["original_complete"]) is not bool or type(descriptors["replay_complete"]) is not bool:
+            raise ReplayError("replay report Council descriptor completeness flags are invalid")
+        for key in ("original_runtime", "replay_runtime"):
+            runtime = value[key]
+            if not isinstance(runtime, dict) or set(runtime) != {"protocol", "version"}:
+                raise ReplayError("replay report Council runtime descriptor is invalid")
+        for key in ("original_consensus", "replay_consensus"):
+            if value[key] is not None and not isinstance(value[key], dict):
+                raise ReplayError("replay report Council consensus snapshot is invalid")
+        if value["consensus_is_truth"] is not False:
+            raise ReplayError("Council consensus must not be promoted to truth")
+
+    @staticmethod
+    def _validate_model_state_comparison(value: Any, original_run_id: str, replay_run_id: str) -> None:
+        required = {
+            "comparison_id", "protocol", "left_run_id", "right_run_id", "aligned",
+            "left_only", "right_only", "epistemic_boundary", "model_mind_inference", "authority",
+        }
+        if not isinstance(value, dict) or set(value) != required:
+            raise ReplayError("replay report model_state lane is invalid")
+        _validate_sha(value["comparison_id"], "model_state.comparison_id")
+        if value["protocol"] != "qsol-control-model-state-run-comparison/1":
+            raise ReplayError("replay report model_state protocol is invalid")
+        if value["left_run_id"] != original_run_id or value["right_run_id"] != replay_run_id:
+            raise ReplayError("replay report model_state run binding is invalid")
+        if value["epistemic_boundary"] != MODEL_STATE_BOUNDARY:
+            raise ReplayError("replay report model_state epistemic boundary is invalid")
+        if value["model_mind_inference"] is not False:
+            raise ReplayError("replay model-state comparison must not infer model mind")
+        if value["authority"] != "metadata-comparison-only":
+            raise ReplayError("replay model-state comparison authority is invalid")
+        if not all(isinstance(value[key], list) for key in ("aligned", "left_only", "right_only")):
+            raise ReplayError("replay report model_state comparison arrays are invalid")
+        for row in value["aligned"]:
+            if not isinstance(row, dict) or set(row) != {"key", "comparison"}:
+                raise ReplayError("replay report aligned model-state row is invalid")
+            comparison = row["comparison"]
+            if not isinstance(comparison, dict):
+                raise ReplayError("replay report nested model-state comparison is invalid")
+            if comparison.get("epistemic_boundary") != MODEL_STATE_BOUNDARY:
+                raise ReplayError("nested model-state comparison lost epistemic boundary")
+            if comparison.get("model_mind_inference") is not False:
+                raise ReplayError("nested model-state comparison must not infer model mind")
+            if comparison.get("authority") != "metadata-comparison-only":
+                raise ReplayError("nested model-state comparison authority is invalid")
+
+    @staticmethod
+    def _validate_configuration_lane(value: Any) -> None:
+        if not isinstance(value, dict) or set(value) != {"changes", "original", "replay"}:
+            raise ReplayError("replay report configuration lane is invalid")
+        if not isinstance(value["changes"], list) or not isinstance(value["original"], dict) or not isinstance(value["replay"], dict):
+            raise ReplayError("replay report configuration lane structure is invalid")
+
+    @staticmethod
+    def _validate_run_fields(value: Any) -> None:
+        expected = {"question_sha256_same", "mode_same", "file_ids_same", "collection_ref_same"}
+        if not isinstance(value, dict) or set(value) != expected:
+            raise ReplayError("replay report run_fields lane is invalid")
+        if any(type(value[key]) is not bool for key in expected):
+            raise ReplayError("replay report run_fields values must be boolean")
+
     def _validate_report(self, record: dict[str, Any]) -> None:
         if set(record) != REPORT_KEYS:
             raise ReplayError("replay report fields do not match qsol-control-replay-report/1")
@@ -174,12 +293,13 @@ class ReplayStore:
             raise ReplayError("replay report must preserve the original result immutably")
         if before != after:
             raise ReplayError("replay report immutability fingerprints disagree")
-        for field in (
-            "evidence", "collection", "retrieval_index", "council", "model_state",
-            "configuration", "run_fields",
-        ):
-            if not isinstance(record.get(field), dict):
-                raise ReplayError(f"replay report {field} must be an object")
+        self._validate_evidence_lane(record["evidence"])
+        self._validate_collection_lane(record["collection"])
+        self._validate_index_lane(record["retrieval_index"])
+        self._validate_council_lane(record["council"])
+        self._validate_model_state_comparison(record["model_state"], original_run_id, replay_run_id)
+        self._validate_configuration_lane(record["configuration"])
+        self._validate_run_fields(record["run_fields"])
         if record.get("comparison_is_truth") is not False:
             raise ReplayError("replay comparison must not claim truth")
         if record.get("model_state_comparison_is_mind_comparison") is not False:
@@ -317,11 +437,6 @@ class ReplayStore:
 
 
 __all__ = [
-    "REPLAY_BASIS_PROTOCOL",
-    "REPLAY_LINK_PROTOCOL",
-    "REPLAY_RECORD_PROTOCOL",
-    "REPLAY_REPORT_PROTOCOL",
-    "RESEARCH_TIMELINE_PROTOCOL",
-    "ReplayError",
-    "ReplayStore",
+    "REPLAY_BASIS_PROTOCOL", "REPLAY_LINK_PROTOCOL", "REPLAY_RECORD_PROTOCOL",
+    "REPLAY_REPORT_PROTOCOL", "RESEARCH_TIMELINE_PROTOCOL", "ReplayError", "ReplayStore",
 ]
