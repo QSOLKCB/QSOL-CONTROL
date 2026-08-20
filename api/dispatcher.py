@@ -47,6 +47,35 @@ class AgentAPIDispatcher:
         if is_mutation:
             state.mutations += 1
 
+    def _create_collection(
+        self, caller: Caller, params: dict[str, Any]
+    ) -> dict[str, Any]:
+        request = dict(params)
+        file_ids = request.pop("file_ids", [])
+        if not isinstance(file_ids, list):
+            raise AgentAPIError("INVALID_REQUEST", "file_ids must be an array")
+        collection = self.runtime.collection_create(caller, request)
+        collection_id = collection["collection_id"]
+        current = self.runtime.control.store.get_collection_snapshot(collection_id)
+        if file_ids:
+            snapshot = self.runtime.control.update_collection(
+                collection_id,
+                {
+                    "add": file_ids,
+                    "remove": [],
+                    "expected_head_snapshot_id": current["snapshot_id"],
+                },
+            )
+        else:
+            snapshot = current
+        return {
+            "protocol": "qsol-control-agent-collection-create/1",
+            "collection": collection,
+            "snapshot": snapshot,
+            "membership_is_endorsement": False,
+            "authority": "storage-only",
+        }
+
     def _dispatch(
         self, caller: Caller, operation: str, params: dict[str, Any]
     ) -> Any:
@@ -56,7 +85,7 @@ class AgentAPIDispatcher:
             "control.ask": lambda: self.runtime.ask(caller, params),
             "control.file.put": lambda: self.runtime.file_put(caller, params),
             "control.file.get": lambda: self.runtime.file_get(params),
-            "control.collection.create": lambda: self.runtime.collection_create(caller, params),
+            "control.collection.create": lambda: self._create_collection(caller, params),
             "control.collection.snapshot": lambda: self.runtime.collection_snapshot(params),
             "control.collection.search": lambda: self.runtime.collection_search(params),
             "control.run.get": lambda: self.runtime.run_get(params),
