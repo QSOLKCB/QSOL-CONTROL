@@ -1,0 +1,43 @@
+{
+  "type": "qsol-control-remote-gateway-contract",
+  "protocol": "qsol-control-remote-gateway/1",
+  "schema_version": "1.0.0",
+  "runtime": "api/remote_http.py",
+  "cli": "tools/remote_gateway.py",
+  "config_schema": "schema/remote-gateway-config.schema.json",
+  "transport": {
+    "request_protocol": "qsol-control-remote-request/1",
+    "path": "/v1/agent",
+    "method": "POST",
+    "content_type": "application/json",
+    "cors_enabled": false,
+    "client_supplied_caller_identity": false,
+    "underlying_agent_api": "qsol-control-agent-api/1"
+  },
+  "authentication": {
+    "scheme": "Bearer",
+    "config_stores_raw_tokens": false,
+    "config_stores": "sha256(token_utf8)",
+    "constant_time_digest_comparison": true,
+    "principal_maps_to_caller_identity": true,
+    "per_principal_operation_allowlist": true
+  },
+  "network": {
+    "loopback_plaintext_allowed": true,
+    "non_loopback_requires_explicit_enable": true,
+    "non_loopback_requires_tls": true,
+    "tls_minimum": "TLSv1.2",
+    "host_allowlist_required": true,
+    "remote_webui_exposed": false
+  },
+  "authority": "transport-only",
+  "epistemic_privilege_added": false,
+  "remote_caller_can_override_oracle_or_nexus_authority": false,
+  "boundaries": [
+    "REMOTE_ACCESS != EPISTEMIC_PRIVILEGE",
+    "AUTHENTICATED != AUTHORITATIVE",
+    "REMOTE_GATEWAY != REMOTE_WEBUI",
+    "TOKEN_DIGEST != TOKEN",
+    "CLIENT_IDENTITY != SELF_ASSERTED_CALLER_IDENTITY"
+  ]
+}
