@@ -52,7 +52,7 @@ class StorageRuntimeMixin:
             "truth_percentage_available": False,
             "hidden_chain_of_thought_available": False,
             "model_mind_available": False,
-            "phase7_replay_execution_implemented": False,
+            "phase7_replay_execution_implemented": True,
             "capabilities": {
                 "files": True,
                 "collections": True,
@@ -63,6 +63,9 @@ class StorageRuntimeMixin:
                 "lattice": True,
                 "dna_projection": True,
                 "run_compare": True,
+                "replay_classification": True,
+                "replay_execution": True,
+                "research_timeline": True,
             },
         }
 
@@ -220,9 +223,6 @@ class StorageRuntimeMixin:
         if not isinstance(limit, int) or not 1 <= limit <= 100:
             raise WebUIError("limit must be 1..100")
 
-        # Serialize the WebUI's exact-snapshot search against the same Collection
-        # HEAD lock used by membership updates. Contention fails closed rather than
-        # allowing results from one snapshot to be labelled as another.
         with self.store._exclusive_lock(f"collection-head:{collection_id}"):
             snapshot = self.store.get_collection_snapshot(collection_id)
             results = self.store.search_lexical(collection_id, query, limit=limit)
