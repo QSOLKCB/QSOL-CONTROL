@@ -44,11 +44,11 @@ FORBIDDEN_MARKERS = (
     "glpat-",
     "xoxb-",
     "xoxp-",
-    "Bearer ",
     "-----BEGIN PRIVATE KEY-----",
     "-----BEGIN OPENSSH PRIVATE KEY-----",
     "AKIA",
 )
+BEARER_CREDENTIAL = re.compile(r"(?i)\bbearer\s+\S+")
 CREDENTIAL_QUERY = re.compile(
     r"(?i)(?:^|[?&;\s])(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd)=([^&;\s]+)"
 )
@@ -93,6 +93,8 @@ def reject_secrets(value: Any, where: str = "metadata") -> None:
             for index, child in enumerate(current):
                 stack.append((child, f"{path}[{index}]"))
         elif isinstance(current, str):
+            if BEARER_CREDENTIAL.search(current):
+                raise MetadataAuditError(f"{path}: forbidden bearer credential detected")
             if any(marker in current for marker in FORBIDDEN_MARKERS):
                 raise MetadataAuditError(f"{path}: forbidden credential marker detected")
             if CREDENTIAL_QUERY.search(current):
@@ -157,6 +159,15 @@ def _audit_collection_descriptor(path: Path) -> None:
     record = _load_record(path)
     if record.get("protocol") != "qsol-control-collection/1":
         raise MetadataAuditError(f"unexpected Collection protocol: {path}")
+    collection_id = record.get("collection_id")
+    if not isinstance(collection_id, str) or SHA256_REF.fullmatch(collection_id) is None:
+        raise MetadataAuditError(f"invalid collection_id: {path}")
+    digest = collection_id.split(":", 1)[1]
+    if path.name != "collection.json" or path.parent.name != digest:
+        raise MetadataAuditError(f"Collection descriptor path/identity mismatch: {path}")
+    payload = {key: value for key, value in record.items() if key != "collection_id"}
+    if sha256_ref(canonical_json_bytes(payload)) != collection_id:
+        raise MetadataAuditError(f"Collection descriptor content identity mismatch: {path}")
     reject_secrets(record.get("metadata"), "collection.metadata")
 
 
