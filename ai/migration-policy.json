@@ -1,0 +1,41 @@
+{
+  "type": "qsol-control-migration-policy",
+  "protocol": "qsol-control-migration/1",
+  "schema_version": "1.0.0",
+  "current_contract_version": "2.6.0",
+  "supported_source_versions": [
+    "2.0.0",
+    "2.1.0",
+    "2.2.0",
+    "2.3.0",
+    "2.4.0",
+    "2.5.0",
+    "2.6.0"
+  ],
+  "rules": {
+    "unknown_major": "reject",
+    "unknown_source_version": "review_required",
+    "downgrade": "reject",
+    "same_version": "no_op",
+    "declared_upgrade": "copy_then_verify",
+    "in_place_rewrite": false,
+    "source_preserved": true,
+    "receipt_required": true,
+    "migration_receipt_authority": "integrity-and-procedure-only"
+  },
+  "steps": [
+    {"from": "2.0.0", "to": "2.1.0", "kind": "additive-contract-registration", "canonical_store_rewrite_required": false},
+    {"from": "2.1.0", "to": "2.2.0", "kind": "additive-contract-registration", "canonical_store_rewrite_required": false},
+    {"from": "2.2.0", "to": "2.3.0", "kind": "additive-contract-registration", "canonical_store_rewrite_required": false},
+    {"from": "2.3.0", "to": "2.4.0", "kind": "additive-contract-registration", "canonical_store_rewrite_required": false},
+    {"from": "2.4.0", "to": "2.5.0", "kind": "additive-contract-registration", "canonical_store_rewrite_required": false},
+    {"from": "2.5.0", "to": "2.6.0", "kind": "hardening-and-release-contract-registration", "canonical_store_rewrite_required": false}
+  ],
+  "boundaries": [
+    "MIGRATION != REINTERPRETATION",
+    "MIGRATION_RECEIPT != SEMANTIC_AUTHORITY",
+    "SOURCE_STATE != MUTATED_IN_PLACE",
+    "UNKNOWN_MAJOR != ASSUMED_COMPATIBLE",
+    "HASH_INTEGRITY != TRUTH"
+  ]
+}
