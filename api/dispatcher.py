@@ -11,6 +11,7 @@ from adapters.oracle import OracleAdapterError
 from storage.control_store import StorageError
 from storage.dna_lattice import DnaLatticeError
 from storage.model_state import ModelStateError
+from storage.replay_store import ReplayError
 from webui.common import (
     WebUIConfig,
     WebUIError,
@@ -165,6 +166,44 @@ class AgentAPIDispatcher:
         except NexusAdapterError as exc:
             raise AgentAPIError("INVALID_REQUEST", str(exc)) from exc
 
+    def _preflight_replay(self, operation: str, params: dict[str, Any]) -> None:
+        if operation == "control.replay.classify":
+            if set(params) != {"run_id"}:
+                raise AgentAPIError(
+                    "INVALID_REQUEST", "control.replay.classify requires only run_id"
+                )
+            self._require_api_sha_ref(params.get("run_id"), "run_id")
+        elif operation == "control.replay.execute":
+            allowed = {"run_id", "allow_changed_configuration"}
+            if set(params) - allowed or "run_id" not in params:
+                raise AgentAPIError(
+                    "INVALID_REQUEST",
+                    "control.replay.execute requires run_id and optional allow_changed_configuration",
+                )
+            self._require_api_sha_ref(params.get("run_id"), "run_id")
+            flag = params.get("allow_changed_configuration", False)
+            if type(flag) is not bool:
+                raise AgentAPIError(
+                    "INVALID_REQUEST", "allow_changed_configuration must be boolean"
+                )
+        elif operation == "control.replay.get":
+            if set(params) != {"replay_id"}:
+                raise AgentAPIError(
+                    "INVALID_REQUEST", "control.replay.get requires only replay_id"
+                )
+            self._require_api_sha_ref(params.get("replay_id"), "replay_id")
+        elif operation == "control.research.timeline":
+            allowed = {"run_id", "limit"}
+            if set(params) - allowed or "run_id" not in params:
+                raise AgentAPIError(
+                    "INVALID_REQUEST",
+                    "control.research.timeline requires run_id and optional limit",
+                )
+            self._require_api_sha_ref(params.get("run_id"), "run_id")
+            limit = params.get("limit", 100)
+            if type(limit) is not int or not 1 <= limit <= 500:
+                raise AgentAPIError("INVALID_REQUEST", "timeline limit must be 1..500")
+
     def _preflight_operation(self, operation: str, params: dict[str, Any]) -> None:
         if operation in {"control.health", "control.capabilities"}:
             self._require_empty_params(operation, params)
@@ -174,6 +213,8 @@ class AgentAPIDispatcher:
             run_id = params.get("run_id")
             if run_id is not None:
                 self._require_api_sha_ref(run_id, "run_id")
+        if operation.startswith("control.replay.") or operation == "control.research.timeline":
+            self._preflight_replay(operation, params)
 
     def _create_collection(
         self, caller: Caller, params: dict[str, Any]
@@ -184,8 +225,6 @@ class AgentAPIDispatcher:
             canonical = _require_sha_ref(file_id, "file_id")
             self.runtime.control.store.get_file_record(canonical)
 
-        # Only mutate after every initial member has been validated. A failed
-        # member reference must not leave behind a partially-created Collection.
         collection = self.runtime.collection_create(caller, request)
         collection_id = collection["collection_id"]
         current = self.runtime.control.store.get_collection_snapshot(collection_id)
@@ -216,9 +255,15 @@ class AgentAPIDispatcher:
                 "max_requests_per_process": MAX_REQUESTS_PER_PROCESS,
                 "max_mutations_per_process": MAX_MUTATIONS_PER_PROCESS,
                 "caller_id_is_trusted_quota_identity": False,
+                "max_research_timeline_runs": 500,
             }
         )
-        return {**result, "limits": limits}
+        return {
+            **result,
+            "limits": limits,
+            "phase7_replay_execution_implemented": True,
+            "replay_exactness_policy": "classify_before_execute_never_claim_exact_without_basis",
+        }
 
     def _dispatch(
         self, caller: Caller, operation: str, params: dict[str, Any]
@@ -235,6 +280,16 @@ class AgentAPIDispatcher:
             "control.collection.search": lambda: self.runtime.collection_search(params),
             "control.run.get": lambda: self.runtime.run_get(params),
             "control.run.compare": lambda: self.runtime.run_compare(params),
+            "control.replay.classify": lambda: self.runtime.control.replay_classify(params["run_id"]),
+            "control.replay.execute": lambda: self.runtime.control.replay_execute(
+                params["run_id"],
+                requester_kind=caller.kind,
+                allow_changed_configuration=params.get("allow_changed_configuration", False),
+            ),
+            "control.replay.get": lambda: self.runtime.control.replay_get(params["replay_id"]),
+            "control.research.timeline": lambda: self.runtime.control.research_timeline(
+                params["run_id"], limit=params.get("limit", 100)
+            ),
             "control.evidence.get": lambda: self.runtime.evidence_get(params),
             "control.council.get": lambda: self.runtime.council_get(params),
             "control.models.get": lambda: self.runtime.models_get(params),
@@ -265,6 +320,7 @@ class AgentAPIDispatcher:
             return error_envelope(request_id, operation, exc)
         except (
             WebUIError,
+            ReplayError,
             StorageError,
             OracleAdapterError,
             NexusAdapterError,
