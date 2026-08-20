@@ -253,14 +253,30 @@ Recurring-question timelines group exact question identities by `question_sha256
 - [x] Define a reversible DNA/lattice projection for individual File bytes.
 - [x] Define deterministic portable CONCAP bundle machinery over `QSOL-RESTORE-DAT/1`.
 - [x] Define minimum recoverable CONTROL bundle.
-- [ ] Export raw objects, File records, Collection descriptors/snapshots, schemas, run records, model states, and lattice addressing rules as a broader repository-level recovery package.
-- [ ] Include optional DNA/lattice projections and search-index descriptors without requiring them as canonical source.
-- [ ] Add plain-text recovery map.
-- [ ] Add standard-library validator/reconstructor for the broader recovery package.
-- [ ] Test reconstruction of the broader package without CONTROL WebUI or original search engine.
-- [ ] Add constrained-environment recovery fixtures.
+- [x] Export raw objects, File records, Collection descriptors/snapshots, schemas, run records, model states, and lattice addressing rules as a broader repository-level recovery package.
+- [x] Include optional DNA/lattice projections and search-index descriptors without requiring them as canonical source.
+- [x] Add plain-text recovery map.
+- [x] Add standard-library validator/reconstructor for the broader recovery package.
+- [x] Test reconstruction of the broader package without CONTROL WebUI or original search engine.
+- [x] Add constrained-environment recovery fixtures.
 
-The Phase 1B minimum bundle already provides a standard-library validator/reconstructor for one run and excludes the WebUI/search engine. The remaining Phase 8 items describe a wider repository/system recovery package and are deliberately not marked complete by that narrower proof.
+### Phase 8 gate
+
+**Satisfied by `qsol-control-ark-repository-recovery/1`.** The broader recovery package preserves canonical raw objects, File records, Collection descriptors plus full snapshot/HEAD lineage, interaction runs/events/heads, model states, and Phase 7 replay records/reports. Public JSON schemas and the supported lattice profile travel as recovery support contracts. The package is split deterministically across bounded `QSOL-RESTORE-DAT/1` capsules, and raw objects are streamed into transport chunks while retaining their original SHA-256 identity.
+
+Search-index descriptors and DNA/lattice projections are optional derived aids and are excluded from the canonical source fingerprint. Reconstruction requires neither the CONTROL WebUI nor the original search engine. A plain-text `RECOVERY-MAP.txt`, a standard-library verifier/reconstructor, and a constrained recovery fixture make the recovery order inspectable outside the original application stack.
+
+Import and restore fail closed: the source root must already exist, every canonical registry entry must be semantically valid and reachable, orphan replay reports/events/snapshots/heads are rejected, schemas and lattice support contracts are revalidated, untrusted bootstrap/map/capsule sizes are bounded before read, and the strictest privacy class is recomputed from restored canonical state rather than trusted from package metadata.
+
+```text
+RECOVERY_PACKAGE != SEMANTIC_AUTHORITY
+RAW_OBJECT_BYTES = CANONICAL
+SEARCH_INDEX_DESCRIPTOR != CANONICAL_MEMORY
+DNA_PROJECTION != CANONICAL_SOURCE
+LATTICE_ADDRESS != TRUTH
+HASH_INTEGRITY != EVIDENCE_AUTHORITY
+RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
+```
 
 ## Phase 9 — INT composition batteries
 
