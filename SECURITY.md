@@ -136,9 +136,9 @@ Redaction must be explicit and inspectable. Do not silently replace sensitive ma
 
 ## Access-control policy
 
-Phase 1 implements a local filesystem storage core but **does not claim a deployed authentication/authorization system**.
+CONTROL implements local operator interfaces but **does not claim a deployed remote multi-user authentication/authorization system**.
 
-The intended default remains a single local operator. A future WebUI/service should bind to loopback unless a later threat model explicitly supports remote operation.
+The intended default remains a single local operator. The Phase 5 WebUI binds to loopback. The Phase 6 agent API uses local stdin/stdout and does not open a network listener.
 
 Any remote or multi-user deployment must define and test:
 
@@ -186,43 +186,64 @@ Prefer allowlisted structured metadata over arbitrary provider-response blobs. R
 
 ## Browser/WebUI boundary
 
-When the WebUI is implemented, review at minimum:
+The implemented Phase 5 WebUI uses a loopback-only baseline with:
 
-- CSRF protection;
-- CORS policy;
-- session/cookie scope;
-- websocket/event-stream authorization;
-- content-security policy;
-- output escaping;
-- untrusted Markdown/HTML rendering;
-- download/import handling;
-- clickjacking/framing behavior;
-- rate/resource limits.
+- unpredictable per-process session token;
+- no CORS;
+- non-loopback `Host` rejection;
+- same-origin checks for state-changing browser requests when `Origin` is supplied;
+- Content Security Policy;
+- output escaping through DOM `textContent` rather than untrusted `innerHTML`;
+- framing/clickjacking restrictions;
+- `no-store` caching.
 
-Remote or multi-user deployment must not be inferred merely from the existence of a WebUI.
+This is not a complete remote-service threat model. Websocket/event-stream authorization, multi-user sessions, remote authentication/authorization, richer download/import surfaces, and broad network deployment remain outside Phase 5/6.
 
 ## AI/agent API boundary
 
-Machine callers are not trusted administrators merely because they can speak JSON.
+Phase 6 implements `qsol-control-agent-api/1` over local JSONL/stdin-stdout. Machine callers are not trusted administrators merely because they can speak JSON.
 
-The AI interface must not expose hidden operations that can:
+The request envelope is bounded to 8 MiB, responses are bounded to 8 MiB, File uploads to 4 MiB, model-state/lattice responses have explicit cardinality ceilings, and each caller receives deterministic process-local request and mutation quotas.
 
-- modify NEXUS ballots or vote weights;
-- rewrite ORACLE history;
-- elevate stored/search-retrieved content to canonical evidence;
-- bypass caller authorization;
-- access credentials;
-- request hidden chain-of-thought.
+Quotas are resource controls only:
+
+```text
+QUOTA != AUTHORITY
+HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
+API_ACCESS != EPISTEMIC_PRIVILEGE
+```
+
+The request validator recursively rejects explicit machine-side controls for:
+
+- synthetic truth scoring;
+- epistemic privilege or authority override;
+- ORACLE write/append operations;
+- direct NEXUS WorldStore mutation;
+- vote-weight, ballot, roster-authority, or consensus-threshold override;
+- hidden/private reasoning or scratchpad capture;
+- credential-labelled control fields.
+
+The public operation catalogue is fixed. Unknown operations fail closed. `control.health` and `control.capabilities` reject unexpected parameters rather than silently ignoring them.
+
+The API has **no arbitrary parent-operation passthrough**. `control.ask` delegates Council work only through the existing verified NEXUS adapter and evidence work only through the existing read-only ORACLE adapter.
+
+The JSONL parser rejects duplicate object members, oversized requests, malformed UTF-8/JSON, unknown protocol versions and unknown operations with stable machine-readable errors.
+
+Phase 6 intentionally does not expose a network listener. A future network transport must receive a separate threat model rather than inheriting trust merely because the dispatcher is transport-neutral.
 
 ## NEXUS boundary
 
-CONTROL should discover supported NEXUS operations and use reviewed public interfaces. Model output remains untrusted data.
+CONTROL discovers supported NEXUS operations and uses reviewed public interfaces. Model output remains untrusted data.
 
 CONTROL must not convert free-form model text into executable CONTROL operations without explicit validation and authorization.
 
+The Phase 6 API does not expose raw NEXUS operation passthrough. Its only governance-bearing route remains the adapter's reviewed `council.run` path.
+
 ## ORACLE boundary
 
-The default ORACLE adapter should be read/query oriented. Any future write/append path requires separate review because witnessing is authority-sensitive even when semantic authority remains limited.
+The ORACLE adapter is read-only. Phase 6 publishes `oracle_write_operations: []` in capability discovery and does not expose append/relabel operations.
+
+Any future write/append path requires separate review because witnessing is authority-sensitive even when semantic authority remains limited.
 
 A hash match proves integrity of hashed bytes, not authorship or truth.
 
@@ -243,7 +264,7 @@ The storage core must validate:
 - maximum future record/bundle sizes;
 - classification/redaction before archival persistence.
 
-Recursive lattice addressing and imported recovery data must not permit unbounded recursion or resource exhaustion.
+Recursive lattice addressing and imported recovery data must not permit unbounded recursion or resource exhaustion. Phase 6 additionally bounds lattice trace breadth and returned record counts.
 
 ## Replay boundary
 
@@ -252,6 +273,8 @@ A replay label is a technical claim and must be earned.
 Live stochastic inference must not be labelled exact replay merely because the same model name and prompt were used again.
 
 A future replay involving Collections must record the exact historical Collection snapshot rather than silently using current membership.
+
+Phase 6 exposes `control.run.compare`, not `control.replay`. Comparison remains explicitly non-executing until Phase 7 earns a replay classification contract.
 
 ## Secret scanning and fixtures
 
@@ -268,6 +291,11 @@ STORED != TRUSTED
 HASH_MATCH != TRUTH
 UI_ACTION != AUTHORITY_ESCALATION
 AI_CALLER != ADMIN_BY_DEFAULT
+HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
+API_ACCESS != EPISTEMIC_PRIVILEGE
+CONTROL_CALL != ORACLE_AUTHORITY
+CONTROL_CALL != NEXUS_GOVERNANCE
+QUOTA != AUTHORITY
 REPLAY_LABEL_REQUIRES_EVIDENCE
 HIDDEN_CHAIN_OF_THOUGHT = OUT_OF_SCOPE
 FORBIDDEN_DATA != ARCHIVAL_MATERIAL
