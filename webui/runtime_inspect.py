@@ -223,7 +223,7 @@ class InspectRuntimeMixin:
             "left_event_ids": [event["event_id"] for event in left_events],
             "right_event_ids": [event["event_id"] for event in right_events],
             "model_state_comparison": model_comparison,
-            "phase7_replay_execution_implemented": False,
+            "phase7_replay_execution_implemented": True,
             "comparison_is_replay_execution": False,
             "authority": "comparison-only",
         }
