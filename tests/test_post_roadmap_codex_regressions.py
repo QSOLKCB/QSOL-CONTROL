@@ -262,5 +262,30 @@ class ConsensusCodexRegressions(unittest.TestCase):
                 adapter.health()
 
 
+class DocumentationCodexRegressions(unittest.TestCase):
+    def test_core_and_extension_discovery_surfaces_are_synchronized(self):
+        manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
+        bootstrap = json.loads((ROOT / "README4AI.md").read_text(encoding="utf-8"))
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+
+        self.assertEqual(manifest["schema_version"], "2.6.0")
+        self.assertFalse(manifest["status"]["remote_multi_user_deployment"])
+        self.assertIn("extensions/manifest.json", manifest["documentation"])
+
+        self.assertEqual(
+            bootstrap["optional_extension_entrypoint"], "extensions/manifest.json"
+        )
+        self.assertFalse(bootstrap["agent_api"]["remote_multi_user_deployment"])
+        self.assertTrue(
+            bootstrap["optional_extensions"]["remote_gateway"]["record_level_acl"]
+        )
+
+        for text in (readme, architecture):
+            self.assertIn("extensions/manifest.json", text)
+            self.assertIn("REMOTE_GATEWAY != REMOTE_WEBUI", text)
+            self.assertIn("AUTHENTICATION != RECORD_AUTHORIZATION", text)
+
+
 if __name__ == "__main__":
     unittest.main()
