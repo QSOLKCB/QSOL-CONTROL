@@ -238,7 +238,7 @@ LEGACY_MISSING_INDEX != INVENTED_INDEX
 5. model revision/runtime/configuration;
 6. request configuration.
 
-No combined truth or quality score is derived.
+No combined truth or quality score is derived. Replay reports are semantically revalidated on read, including lane-level authority boundaries such as `CONSENSUS != TRUTH` and `MODEL_STATE != MODEL_MIND`.
 
 A changed Council roster requires explicit authorization before replay execution. The report then records that changed configuration rather than hiding it.
 
@@ -391,17 +391,46 @@ PHI_TRAVERSAL != PHYSICAL_TRUTH
 CODON_FREQUENCY != EVIDENCE
 ```
 
-## Recovery
+## Phase 8 ARK repository recovery
 
-Phase 1B's `qsol-control-ark-minimum-bundle/1` provides deterministic offline reconstruction of one run, its event chain, referenced File/raw objects, exact Collection snapshot lineage, and lattice profile inside `QSOL-RESTORE-DAT/1`.
+Phase 1B's `qsol-control-ark-minimum-bundle/1` remains the narrow deterministic offline reconstruction format for one run. Phase 8 adds `qsol-control-ark-repository-recovery/1` for the broader CONTROL repository state.
 
 ```text
-RECOVERY_BUNDLE != SEMANTIC_AUTHORITY
-RECOVERY_HEAD != SOURCE_CURRENT_HEAD
+CONTROL-recovery-package/
+├── CONTROL-REPOSITORY-RECOVERY.json
+├── RECOVERY-MAP.txt
+└── capsules/
+    ├── 000000.dat
+    └── ...
+```
+
+The package preserves canonical raw objects, File records, Collection descriptors/snapshot lineage/current HEADs, runs/events/heads, model states, and replay records/reports. Public schemas and the supported lattice descriptor travel as recovery support contracts.
+
+Raw objects are hashed and streamed into bounded `QSOL-RESTORE-DAT/1` transport chunks without changing their canonical SHA-256 identity. Search-index descriptors and DNA/lattice projections are optional derived aids and never enter the canonical source fingerprint.
+
+```bash
+python3 tools/repository_recovery.py export \
+  --root .qsol-control-store \
+  --output control-recovery
+
+python3 tools/repository_recovery.py verify control-recovery
+
+python3 tools/repository_recovery.py restore control-recovery \
+  --target restored-control
+```
+
+Verification and restore fail closed on nonexistent source roots, malformed or orphaned canonical records, authority-escalating replay reports, unsupported schema/lattice contracts, unbounded capsule metadata, capsule tampering, and privacy downgrades. The strictest privacy class is recomputed from reconstructed canonical state rather than trusted from the bootstrap.
+
+```text
+RECOVERY_PACKAGE != SEMANTIC_AUTHORITY
+RAW_OBJECT_BYTES = CANONICAL
+SEARCH_INDEX_DESCRIPTOR != CANONICAL_MEMORY
+DNA_PROJECTION != CANONICAL_SOURCE
+HASH_INTEGRITY != EVIDENCE_AUTHORITY
 RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
 ```
 
-Phase 8 widens this from one-run recovery into the broader repository/system recovery package.
+See [`docs/ARK-REPOSITORY-RECOVERY.md`](docs/ARK-REPOSITORY-RECOVERY.md) and [`ai/ark-repository-recovery-contract.json`](ai/ark-repository-recovery-contract.json).
 
 ## Validation
 
@@ -411,10 +440,11 @@ Validation is dependency-free and requires Python 3.11 or newer. CI uses Python 
 python3 tools/validate_control.py
 python3 tools/validate_restore_contracts.py
 python3 tools/agent_api.py --help
+python3 tools/repository_recovery.py --help
 python3 -W default -m unittest discover -s tests -v
 ```
 
-Repository contract version is `2.3.0`. Public JSON Schemas use Draft 2020-12.
+Repository contract version is `2.4.0`. Public JSON Schemas use Draft 2020-12.
 
 ## Documentation map
 
@@ -432,6 +462,8 @@ Repository contract version is `2.3.0`. Public JSON Schemas use Draft 2020-12.
 - [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md): read-only ORACLE adapter.
 - [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md): verified NEXUS Council adapter.
 - [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md): one-run offline recovery.
+- [`docs/ARK-REPOSITORY-RECOVERY.md`](docs/ARK-REPOSITORY-RECOVERY.md): repository-level Phase 8 recovery.
+- [`ai/ark-repository-recovery-contract.json`](ai/ark-repository-recovery-contract.json): machine-readable Phase 8 recovery boundary.
 - [`manifest.json`](manifest.json): canonical machine map.
 
 ## Status
@@ -445,9 +477,10 @@ Repository contract version is `2.3.0`. Public JSON Schemas use Draft 2020-12.
 - PR #8: Phase 4 AI model-state registry, merged.
 - PR #9: Phase 5 Human WebUI, merged.
 - PR #10: Phase 6 structured AI / agent API, merged.
-- PR #11: Phase 7 replay and longitudinal research, current implementation branch.
+- PR #11: Phase 7 replay and longitudinal research, merged.
+- PR #12: Phase 8 repository-level ARK recovery bridge, current implementation branch.
 
-After Phase 7, the roadmap continues with the partly completed Phase 8 broader ARK recovery bridge, Phase 9 INT composition batteries, and the partly completed Phase 10 hardening/release discipline.
+With Phase 8 complete on this branch, the roadmap continues with Phase 9 INT composition batteries and the partly completed Phase 10 hardening/release discipline.
 
 ---
 
