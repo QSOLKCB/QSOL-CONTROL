@@ -28,6 +28,14 @@ from webui.common import WebUIConfig
 
 ROOT = Path(__file__).resolve().parents[1]
 REMOTE_TOKEN = "fixture-token-01234567890123456789"
+EMPTY_ACCESS = {
+    "max_privacy_class": "INTERNAL",
+    "file_ids": [],
+    "collection_ids": [],
+    "run_ids": [],
+    "model_state_ids": [],
+    "replay_ids": [],
+}
 
 
 class RemoteGatewayTests(unittest.TestCase):
@@ -53,6 +61,7 @@ class RemoteGatewayTests(unittest.TestCase):
                         "caller_kind": "human",
                         "caller_id": "fixture",
                         "allowed_operations": ["control.health"],
+                        "record_access": EMPTY_ACCESS,
                     }
                 ],
             }
