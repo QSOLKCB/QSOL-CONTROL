@@ -408,7 +408,7 @@ python3 tools/validate_extensions.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
-The completed local-core repository contract is `2.6.0`. Optional post-roadmap extensions are separately versioned by `qsol-control-post-roadmap-extensions/1`. Public JSON Schemas use Draft 2020-12.
+Repository contract version is `2.6.0` for the completed local core. Optional post-roadmap extensions are separately versioned by `qsol-control-post-roadmap-extensions/1`. Public JSON Schemas use Draft 2020-12.
 
 ## Documentation map
 
