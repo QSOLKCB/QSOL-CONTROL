@@ -6,10 +6,10 @@
 >
 > A green button does not make a claim true. Six models agreeing does not make it true. A retrieval score of `0.97` does not make it true either. We remain committed to disappointing the dashboard industry.
 
-QSOL-CONTROL now has two operator surfaces at different implementation stages:
+QSOL-CONTROL now has two implemented operator surfaces over the same runtime:
 
-- **Human control plane:** Phase 5 local loopback WebUI is implemented.
-- **AI control plane:** the structured network AI/agent API remains planned for Phase 6.
+- **Human control plane:** Phase 5 local loopback WebUI.
+- **AI control plane:** Phase 6 structured JSONL/stdio agent API.
 
 CONTROL owns orchestration and its own storage mechanics. It does **not** own scientific truth, public epistemic authority, NEXUS governance, ORACLE history, ARK recovery authority, hidden chain-of-thought, or a model mind.
 
@@ -148,6 +148,64 @@ SEARCH_SCORE != TRUTH
 SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
 ```
 
+## Phase 6 AI / Agent API
+
+Phase 6 implements `qsol-control-agent-api/1` as a dependency-free structured machine interface over the same runtime used by the Human WebUI.
+
+The first transport is local JSONL over stdin/stdout:
+
+```text
+AI / AGENT
+  -> qsol-control-agent-request/1
+      -> AgentAPIDispatcher
+          -> CONTROL storage/runtime
+          -> read-only ORACLE adapter
+          -> governed NEXUS Council adapter
+          -> model-state registry
+          -> lattice memory
+```
+
+Start it with:
+
+```bash
+python3 tools/agent_api.py --root .qsol-control-store
+```
+
+The operation surface is frozen and machine-readable:
+
+```text
+control.health
+control.capabilities
+control.ask
+control.file.put
+control.file.get
+control.collection.create
+control.collection.snapshot
+control.collection.search
+control.run.get
+control.run.compare
+control.evidence.get
+control.council.get
+control.models.get
+control.memory.get
+control.memory.trace
+```
+
+The API uses deterministic process-local quotas, bounded request/response sizes, stable machine-readable error codes, and bounded lattice traversal. It exposes no ORACLE write operation, raw NEXUS passthrough, WorldStore mutation, ballot override, vote-weight control, threshold control, hidden chain-of-thought, or synthetic truth score.
+
+AI-originated runs are recorded as `requester_kind: ai`, but AI callers receive exactly the same epistemic privilege as human callers:
+
+```text
+HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
+API_ACCESS != EPISTEMIC_PRIVILEGE
+CONTROL_CALL != ORACLE_AUTHORITY
+CONTROL_CALL != NEXUS_GOVERNANCE
+```
+
+Remote multi-user deployment and actual replay execution are not implemented by Phase 6.
+
+See [`docs/AI-API.md`](docs/AI-API.md), [`docs/AGENT-API.md`](docs/AGENT-API.md), and [`ai/agent-api-contract.json`](ai/agent-api-contract.json).
+
 ## Phase 4 model-state registry and inspector
 
 CONTROL persists immutable `qsol-control-model-state/1` records for reproducibility and computational archaeology.
@@ -278,7 +336,7 @@ Y = epistemic role     observed | derived | unresolved
 Z = temporal role      current | historical | recovery
 ```
 
-The WebUI renders all 27 top-level cells as navigation into ordinary inspectable run/event records.
+The WebUI and agent API navigate the same 27-cell logical address space. Phase 6 additionally exposes bounded prefix tracing over stored run/event addresses.
 
 ```text
 LATTICE_ADDRESS != COLLECTION_MEMBERSHIP
@@ -309,9 +367,9 @@ CODON_FREQUENCY != EVIDENCE
 
 ## Replay / comparison
 
-Phase 5 implements an inspection/comparison view over immutable stored runs and model-state metadata.
+Phase 5 and Phase 6 expose inspection/comparison views over immutable stored runs and model-state metadata.
 
-It does **not** implement Phase 7 replay execution:
+They do **not** implement Phase 7 replay execution:
 
 ```text
 comparison_is_replay_execution = false
@@ -339,10 +397,11 @@ Validation is dependency-free and requires Python 3.11 or newer. CI uses Python 
 ```bash
 python3 tools/validate_control.py
 python3 tools/validate_restore_contracts.py
+python3 tools/agent_api.py --help
 python3 -W default -m unittest discover -s tests -v
 ```
 
-Repository contract version is `2.1.0`. Public JSON Schemas use Draft 2020-12.
+Repository contract version is `2.2.0`. Public JSON Schemas use Draft 2020-12.
 
 ## Documentation map
 
@@ -353,6 +412,9 @@ Repository contract version is `2.1.0`. Public JSON Schemas use Draft 2020-12.
 - [`SECURITY.md`](SECURITY.md): repository security boundaries.
 - [`docs/WEBUI.md`](docs/WEBUI.md): implemented Phase 5 local Human WebUI.
 - [`ai/webui-contract.json`](ai/webui-contract.json): machine-readable WebUI boundary.
+- [`docs/AI-API.md`](docs/AI-API.md): implemented Phase 6 AI/agent interface overview.
+- [`docs/AGENT-API.md`](docs/AGENT-API.md): exact Phase 6 protocol and operation behavior.
+- [`ai/agent-api-contract.json`](ai/agent-api-contract.json): machine-readable Phase 6 boundary.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md): model-state registry and provenance.
 - [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md): Files, Collections, snapshots, and search.
 - [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md): read-only ORACLE adapter.
@@ -369,9 +431,10 @@ Repository contract version is `2.1.0`. Public JSON Schemas use Draft 2020-12.
 - PR #6: minimum ARK recovery gate + Phase 2 ORACLE adapter, merged.
 - PR #7: Phase 3 NEXUS Council adapter, merged.
 - PR #8: Phase 4 AI model-state registry, merged.
-- PR #9: Phase 5 Human WebUI, current implementation.
+- PR #9: Phase 5 Human WebUI, merged.
+- PR #10: Phase 6 structured AI / agent API, current implementation branch.
 
-Phase 6 structured AI API, Phase 7 replay execution, the broader Phase 8 repository-level ARK package, Phase 9 INT batteries, and remaining Phase 10 hardening stay sequenced in the roadmap.
+After Phase 6, the roadmap proceeds through Phase 7 replay/longitudinal research, the partly completed Phase 8 broader ARK recovery bridge, Phase 9 INT composition batteries, and the partly completed Phase 10 hardening/release discipline.
 
 ---
 
