@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from typing import Any
 
-from webui.common import LATTICE_RE, MAX_UPLOAD_BYTES, WebUIConfig, _require_sha_ref
+from webui.common import (
+    LATTICE_RE,
+    MAX_UPLOAD_BYTES,
+    WebUIConfig,
+    _require_sha_ref,
+    _require_string,
+    _utc_now,
+)
 from webui.runtime import ControlWebUIRuntime
 
 from .common import (
@@ -14,8 +22,8 @@ from .common import (
     MAX_MUTATIONS_PER_CALLER,
     MAX_REQUESTS_PER_CALLER,
     OPERATIONS,
-    Caller,
     AgentAPIError,
+    Caller,
     require_int,
 )
 
@@ -64,16 +72,53 @@ class ControlAgentAPIRuntime:
         }
 
     def ask(self, caller: Caller, params: dict[str, Any]) -> dict[str, Any]:
-        request = dict(params)
-        request["requester_id"] = caller.caller_id
-        return self.control.ask(request, requester_kind=caller.kind)
+        return self.control.ask(dict(params), requester_kind=caller.kind)
 
     def file_put(self, caller: Caller, params: dict[str, Any]) -> dict[str, Any]:
-        return self.control.upload_file(
-            params,
-            requester_kind=caller.kind,
-            source_locator=caller.caller_id,
+        allowed = {
+            "filename",
+            "media_type",
+            "content_base64",
+            "privacy_class",
+            "retention_class",
+        }
+        if set(params) - allowed:
+            raise AgentAPIError("INVALID_REQUEST", "control.file.put contains unknown fields")
+        filename = _require_string(params.get("filename"), "filename", maximum=512)
+        media_type = _require_string(
+            params.get("media_type", "application/octet-stream"),
+            "media_type",
+            maximum=256,
         )
+        encoded = _require_string(
+            params.get("content_base64"),
+            "content_base64",
+            maximum=MAX_UPLOAD_BYTES * 2,
+        )
+        try:
+            content = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise AgentAPIError("INVALID_REQUEST", "content_base64 is not valid base64") from exc
+        if len(content) > MAX_UPLOAD_BYTES:
+            raise AgentAPIError("RESOURCE_LIMIT", f"file upload exceeds {MAX_UPLOAD_BYTES} bytes")
+        record = self.control.store.put_file(
+            content,
+            filename=filename,
+            media_type=media_type,
+            created_at=_utc_now(),
+            privacy_class=params.get("privacy_class", "INTERNAL"),
+            retention_class=params.get("retention_class", "SESSION"),
+            source={
+                "kind": "agent-api-upload",
+                "locator": f"{caller.kind}:{caller.caller_id}",
+            },
+            metadata={"immediate_context": True, "created_via": AGENT_API_PROTOCOL},
+        )
+        return {
+            "protocol": "qsol-control-agent-file-put/1",
+            "file": record,
+            "authority": "storage-only",
+        }
 
     def file_get(self, params: dict[str, Any]) -> dict[str, Any]:
         file_id = _require_sha_ref(params.get("file_id"), "file_id")
@@ -98,11 +143,21 @@ class ControlAgentAPIRuntime:
         return result
 
     def collection_create(self, caller: Caller, params: dict[str, Any]) -> dict[str, Any]:
-        return self.control.create_collection(
-            params,
-            created_via=AGENT_API_PROTOCOL,
-            requester_kind=caller.kind,
-            requester_id=caller.caller_id,
+        allowed = {"name", "privacy_class", "retention_class"}
+        if set(params) - allowed:
+            raise AgentAPIError(
+                "INVALID_REQUEST", "control.collection.create contains unknown fields"
+            )
+        return self.control.store.create_collection(
+            name=_require_string(params.get("name"), "name", maximum=256),
+            created_at=_utc_now(),
+            privacy_class=params.get("privacy_class", "INTERNAL"),
+            retention_class=params.get("retention_class", "ARCHIVE"),
+            metadata={
+                "created_via": AGENT_API_PROTOCOL,
+                "requester_kind": caller.kind,
+                "requester_id": caller.caller_id,
+            },
         )
 
     def collection_snapshot(self, params: dict[str, Any]) -> dict[str, Any]:
