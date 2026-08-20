@@ -132,6 +132,45 @@ async function dna(full){
 
 async function compare(){const l=$("compare-left").value,r=$("compare-right").value;if(!l||!r)return;try{const p=await api(`/api/replay-compare?left_run_id=${encodeURIComponent(l)}&right_run_id=${encodeURIComponent(r)}`),root=$("compare-view");clear(root);root.append(card("Run comparison",pre(p.changed_run_fields),[["Left NEXUS refs",text(p.left_nexus_refs)],["Right NEXUS refs",text(p.right_nexus_refs)],["Replay execution",p.comparison_is_replay_execution],["Phase 7 replay implemented",p.phase7_replay_execution_implemented],["Authority",p.authority]]),card("Model-state comparison · NOT MIND COMPARISON",pre(p.model_state_comparison)))}catch(e){toast(e.message,"error")}}
 
+function renderReplayReport(report,root){
+  clear(root);
+  root.append(card("Replay comparison report",null,[["Report",report.report_id],["Classification",report.classification],["Original immutable",report.original_result?.immutable],["Authority",report.authority]]));
+  root.append(card("Evidence changes",pre(report.evidence),[["Current evidence is original evidence",report.evidence?.current_evidence_is_original_evidence]]));
+  root.append(card("Collection membership drift",pre(report.collection),[["Replay bound to original snapshot",report.collection?.replay_bound_to_original_snapshot]]));
+  root.append(card("Retrieval / index basis",pre(report.retrieval_index),[["Legacy original basis incomplete",report.retrieval_index?.legacy_original_basis_incomplete]]));
+  root.append(card("Council roster + runtime",pre(report.council),[["Consensus is truth",report.council?.consensus_is_truth]]));
+  root.append(card("Model revision / runtime metadata · NOT MIND COMPARISON",pre(report.model_state)));
+  root.append(card("Request configuration changes",pre(report.configuration)));
+}
+
+async function classifyReplay(){
+  const id=$("compare-left").value;if(!id)return toast("Choose an original run","error");
+  try{
+    const p=await api(`/api/replay/classify?run_id=${encodeURIComponent(id)}`),root=$("replay-classification-view");clear(root);
+    root.append(card(`Replay class: ${p.classification}`,null,[["Executable",p.can_execute],["Original replayability",p.original_replayability],["Basis",p.basis_status],["Index status",p.retrieval_index_status],["Original Collection snapshot",p.original_collection_snapshot_id],["Current Collection HEAD",p.current_collection_head_snapshot_id],["Collection drift",p.collection_membership_drift],["Council roster changed",p.council_roster_changed],["Exact replay claimed",p.exact_replay_claimed],["Authority",p.authority]]),pre(p));
+  }catch(e){toast(e.message,"error")}
+}
+
+async function executeReplay(){
+  const id=$("compare-left").value;if(!id)return toast("Choose an original run","error");
+  try{
+    const p=await api("/api/replay",{method:"POST",body:{run_id:id,allow_changed_configuration:$("replay-allow-changed-config").checked}}),root=$("replay-execution-view");
+    renderReplayReport(p.report,root);
+    root.prepend(card("Replay execution",null,[["Replay",p.replay.replay_id],["Replay run",p.replay.replay_run_id],["Class",p.replay.classification],["Original immutable",p.original_result_immutable],["Exact replay claimed",p.replay.exact_replay_claimed]]));
+    await refreshRuns();$("compare-left").value=id;$("compare-right").value=p.replay.replay_run_id;toast("Classified replay recorded without rewriting original","success");
+  }catch(e){toast(e.message,"error")}
+}
+
+async function researchTimeline(){
+  const id=$("compare-left").value;if(!id)return toast("Choose an original run","error");
+  try{
+    const p=await api(`/api/research-timeline?run_id=${encodeURIComponent(id)}&limit=100`),root=$("research-timeline-view");clear(root);
+    root.append(card("Recurring-question timeline",p.question,[["Timeline",p.timeline_id],["Matching runs",p.total_matching_runs],["Returned",p.returned_runs],["Truncated",p.truncated],["Authority",p.authority]]));
+    for(const row of p.runs||[])root.append(card(`${row.created_at} · ${row.mode}`,row.run_id,[["Evidence",row.evidence_state],["Collection",text(row.collection_ref)],["Council disposition",row.council_disposition],["NEXUS runtime",row.nexus_runtime_version],["Replay of",row.replay_of]]));
+    if((p.transitions||[]).length)root.append(card("Longitudinal transitions",pre(p.transitions),[["Timeline is truth",p.timeline_is_truth]]));
+  }catch(e){toast(e.message,"error")}
+}
+
 async function health(){
   const root=$("health-view"),timelock=$("timelock-view");clear(root);clear(timelock);
   try{
@@ -146,7 +185,7 @@ async function health(){
 async function boot(){
   tabs();
   try{S.session=await api("/api/session");S.token=S.session.session_token;$("model-panel-title").textContent=S.session.model_state_labels.panel_title;$("model-boundary").textContent=S.session.model_state_labels.boundary_badge;$("question").maxLength=S.session.max_question_characters||2048;await Promise.all([refreshCollections(),refreshRuns(),health()]);renderLattice(await api("/api/lattice"))}catch(e){toast(`Bootstrap failed: ${e.message}`,"error")}
-  $("ask-form").onsubmit=ask;$("run-picker").onchange=e=>loadRun(e.target.value).catch(x=>toast(x.message,"error"));$("collection-create").onsubmit=createCollection;$("collection-browser").onchange=e=>showCollection(e.target.value);$("collection-update-button").onclick=updateCollection;$("collection-search-button").onclick=searchCollection;$("dna-inspect").onclick=()=>dna(false);$("dna-export").onclick=()=>dna(true);$("compare-runs").onclick=compare;$("refresh-health").onclick=health;for(const r of document.querySelectorAll('input[name="mode"]'))r.onchange=()=>$("council-options").open=document.querySelector('input[name="mode"]:checked').value==="council";
+  $("ask-form").onsubmit=ask;$("run-picker").onchange=e=>loadRun(e.target.value).catch(x=>toast(x.message,"error"));$("collection-create").onsubmit=createCollection;$("collection-browser").onchange=e=>showCollection(e.target.value);$("collection-update-button").onclick=updateCollection;$("collection-search-button").onclick=searchCollection;$("dna-inspect").onclick=()=>dna(false);$("dna-export").onclick=()=>dna(true);$("compare-runs").onclick=compare;$("replay-classify").onclick=classifyReplay;$("replay-execute").onclick=executeReplay;$("research-timeline").onclick=researchTimeline;$("refresh-health").onclick=health;for(const r of document.querySelectorAll('input[name="mode"]'))r.onchange=()=>$("council-options").open=document.querySelector('input[name="mode"]:checked').value==="council";
 }
 
 document.addEventListener("DOMContentLoaded",boot);

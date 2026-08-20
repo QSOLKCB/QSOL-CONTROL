@@ -41,6 +41,7 @@ class AgentAPIContractTests(unittest.TestCase):
         self.assertFalse(forbidden["hidden_chain_of_thought"])
         self.assertFalse(forbidden["model_mind"])
         self.assertFalse(forbidden["synthetic_truth_score"])
+        self.assertFalse(forbidden["exact_replay_without_recorded_basis"])
         self.assertTrue(contract["caller_authority"]["equal_epistemic_privilege"])
         self.assertIn(
             "HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY", contract["invariants"]
@@ -56,7 +57,7 @@ class AgentAPIContractTests(unittest.TestCase):
         }
         self.assertEqual(protocols, {AGENT_RESPONSE_PROTOCOL, AGENT_ERROR_PROTOCOL})
 
-    def test_manifest_and_ai_bootstrap_register_phase6(self):
+    def test_manifest_and_ai_bootstrap_preserve_phase6_surface(self):
         manifest = self.load("manifest.json")
         bootstrap = self.load("README4AI.md")
         self.assertEqual(manifest["agent_api_contract"], "ai/agent-api-contract.json")
@@ -64,17 +65,17 @@ class AgentAPIContractTests(unittest.TestCase):
         self.assertEqual(manifest["interfaces"]["ai"], "structured-jsonl-stdio-api")
         self.assertEqual(manifest["validation"]["agent_api_command"], "python3 tools/agent_api.py")
         self.assertEqual(bootstrap["interfaces"]["ai"], "structured_jsonl_stdio_api")
-        self.assertEqual(bootstrap["agent_api"]["status"], "implemented_phase6")
+        self.assertTrue(bootstrap["agent_api"]["status"].startswith("implemented_phase6"))
         self.assertTrue(bootstrap["agent_api"]["human_ai_epistemic_authority_equal"])
+        self.assertTrue(bootstrap["agent_api"]["phase7_replay_execution"])
 
-    def test_phase6_roadmap_is_complete_without_claiming_phase7(self):
+    def test_phase6_roadmap_remains_complete_after_later_phases(self):
         roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
         phase6 = roadmap.split("## Phase 6 — AI / agent API", 1)[1].split(
             "## Phase 7 — Replay and longitudinal research", 1
         )[0]
         self.assertNotIn("- [ ]", phase6)
-        phase7 = roadmap.split("## Phase 7 — Replay and longitudinal research", 1)[1]
-        self.assertIn("- [ ] Implement replay classification.", phase7)
+        self.assertIn("qsol-control-agent-api/1", phase6)
 
 
 if __name__ == "__main__":

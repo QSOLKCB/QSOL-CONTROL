@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/replay-record.schema.json",
+  "title": "QSOL-CONTROL Replay Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "replay_id",
+    "protocol",
+    "original_run_id",
+    "replay_run_id",
+    "report_id",
+    "executed_at",
+    "requested_by_kind",
+    "classification",
+    "classification_id",
+    "changed_configuration_authorized",
+    "original_result_immutable",
+    "exact_collection_snapshot_preserved",
+    "current_evidence_rerun",
+    "exact_replay_claimed",
+    "hidden_chain_of_thought_captured",
+    "authority"
+  ],
+  "properties": {
+    "replay_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-replay-record/1"},
+    "original_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "replay_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "report_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "executed_at": {"type": "string", "format": "date-time"},
+    "requested_by_kind": {"enum": ["human", "ai", "system"]},
+    "classification": {"type": "string", "minLength": 1, "maxLength": 128},
+    "classification_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "changed_configuration_authorized": {"type": "boolean"},
+    "original_result_immutable": {"const": true},
+    "exact_collection_snapshot_preserved": {"type": "boolean"},
+    "current_evidence_rerun": {"const": true},
+    "exact_replay_claimed": {"const": false},
+    "hidden_chain_of_thought_captured": {"const": false},
+    "authority": {"const": "orchestration-and-comparison-only"}
+  }
+}

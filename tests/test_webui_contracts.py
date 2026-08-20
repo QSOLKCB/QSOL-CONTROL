@@ -78,9 +78,7 @@ class WebUIContractTests(unittest.TestCase):
         self.assertEqual(manifest["interfaces"]["human"], "local-loopback-webui")
         self.assertEqual(manifest["interfaces"]["webui_cli"], "tools/webui.py")
         self.assertGreaterEqual(manifest["status"]["completed_through_roadmap_phase"], 5)
-        self.assertEqual(
-            manifest["status"]["webui"], "implemented-phase-5-local-loopback"
-        )
+        self.assertTrue(manifest["status"]["webui"].startswith("implemented-phase-5"))
         self.assertFalse(manifest["webui"]["remote_multi_user_deployment"])
         self.assertTrue(manifest["webui"]["loopback_host_header_required"])
         self.assertTrue(manifest["webui"]["dns_rebinding_non_loopback_host_rejected"])

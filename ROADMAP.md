@@ -216,17 +216,37 @@ CONTROL_CALL != ORACLE_AUTHORITY
 CONTROL_CALL != NEXUS_GOVERNANCE
 ```
 
-The Phase 6 transport does not implement remote multi-user deployment or Phase 7 replay execution.
+The Phase 6 transport does not implement remote multi-user deployment. Replay execution is added only by the separately versioned Phase 7 contract.
 
 ## Phase 7 — Replay and longitudinal research
 
-- [ ] Implement replay classification.
-- [ ] Bind replay to exact Collection snapshot and index descriptor used originally.
-- [ ] Compare original run with current evidence.
-- [ ] Explain changes in evidence set, Collection membership, Council roster, model revision, runtime, and configuration.
-- [ ] Preserve original result immutably.
-- [ ] Produce deterministic comparison reports.
-- [ ] Add research timeline view for recurring questions.
+- [x] Implement replay classification.
+- [x] Bind replay to exact Collection snapshot and index descriptor used originally.
+- [x] Compare original run with current evidence.
+- [x] Explain changes in evidence set, Collection membership, Council roster, model revision, runtime, and configuration.
+- [x] Preserve original result immutably.
+- [x] Produce deterministic comparison reports.
+- [x] Add research timeline view for recurring questions.
+
+### Phase 7 gate
+
+**Satisfied by `qsol-control-replay/1`.** Replay is classified before execution, creates a new immutable run, and fingerprints the original run/event/model-state set before and after execution. A replay never rewrites the original result.
+
+If a run used a Collection, execution is bound to the original exact Collection snapshot while current `HEAD` is compared separately. Current `control.ask` does not execute Collection search, so new Phase 7 replay-basis receipts explicitly record the retrieval/index descriptor as `not_used`; pre-Phase-7 runs with no recorded index-use metadata remain `not_recorded`. Missing historical metadata is never reconstructed by assumption.
+
+The deterministic report keeps evidence, Collection membership, retrieval/index basis, Council roster/runtime, model-state/runtime metadata, and request configuration in separate lanes. Current ORACLE evidence is compared with the original evidence set but is never relabelled as the original observation.
+
+```text
+ORIGINAL_RUN != REPLAY_RUN
+ORIGINAL_RESULT_IMMUTABLE = true
+CURRENT_EVIDENCE != ORIGINAL_EVIDENCE
+CURRENT_COLLECTION_HEAD != ORIGINAL_COLLECTION_SNAPSHOT
+LEGACY_MISSING_INDEX != INVENTED_INDEX
+REPLAY_CLASSIFICATION != TRUTH
+MODEL_STATE_COMPARISON != MIND_COMPARISON
+```
+
+Recurring-question timelines group exact question identities by `question_sha256` and report longitudinal changes without assigning truth meaning to change.
 
 ## Phase 8 — ARK recovery bridge
 

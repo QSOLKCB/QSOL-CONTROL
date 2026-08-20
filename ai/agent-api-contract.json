@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-agent-api-contract",
   "protocol": "qsol-control-agent-api/1",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "transport": "jsonl-stdio",
   "request_protocol": "qsol-control-agent-request/1",
   "response_protocol": "qsol-control-agent-response/1",
@@ -29,6 +29,10 @@
     {"name": "control.collection.search", "mutation": false, "authority": "retrieval-only"},
     {"name": "control.run.get", "mutation": false, "authority": "render-only"},
     {"name": "control.run.compare", "mutation": false, "authority": "comparison-only"},
+    {"name": "control.replay.classify", "mutation": false, "authority": "classification-only"},
+    {"name": "control.replay.execute", "mutation": true, "authority": "orchestration-and-comparison-only"},
+    {"name": "control.replay.get", "mutation": false, "authority": "comparison-only"},
+    {"name": "control.research.timeline", "mutation": false, "authority": "longitudinal-comparison-only"},
     {"name": "control.evidence.get", "mutation": false, "authority": "evidence-reference-view-only"},
     {"name": "control.council.get", "mutation": false, "authority": "render-and-reference-only"},
     {"name": "control.models.get", "mutation": false, "authority": "reproducibility-metadata-only"},
@@ -46,7 +50,8 @@
     "max_upload_bytes": 4194304,
     "max_model_states_per_response": 100,
     "max_lattice_records_per_response": 1000,
-    "max_lattice_runs_per_trace": 100
+    "max_lattice_runs_per_trace": 100,
+    "max_research_timeline_runs": 500
   },
   "input_hardening": {
     "duplicate_json_members_rejected": true,
@@ -54,7 +59,9 @@
     "unknown_operation_parameters_rejected": true,
     "council_parameters_preflight_before_run_creation": true,
     "scoped_memory_run_id_validated_before_traversal": true,
-    "error_envelopes_obey_response_byte_limit": true
+    "error_envelopes_obey_response_byte_limit": true,
+    "replay_ids_preflight_before_execution": true,
+    "changed_council_roster_requires_explicit_authorization": true
   },
   "error_codes": [
     "INVALID_JSON",
@@ -76,7 +83,7 @@
     "hidden_chain_of_thought": false,
     "model_mind": false,
     "synthetic_truth_score": false,
-    "phase7_replay_execution": false
+    "exact_replay_without_recorded_basis": false
   },
   "shared_runtime": {
     "human_webui_runtime": "webui/runtime.py",
@@ -86,13 +93,24 @@
     "same_oracle_adapter": true,
     "same_nexus_adapter": true,
     "same_model_state_registry": true,
-    "same_lattice_runtime": true
+    "same_lattice_runtime": true,
+    "same_replay_runtime": true
+  },
+  "phase7": {
+    "implemented": true,
+    "contract": "ai/replay-contract.json",
+    "classify_before_execute": true,
+    "original_result_immutable": true,
+    "current_evidence_distinct_from_original": true,
+    "recurring_question_timeline": true
   },
   "invariants": [
     "HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY",
     "API_ACCESS != EPISTEMIC_PRIVILEGE",
     "CONTROL_CALL != ORACLE_AUTHORITY",
     "CONTROL_CALL != NEXUS_GOVERNANCE",
+    "ORIGINAL_RUN != REPLAY_RUN",
+    "CURRENT_EVIDENCE != ORIGINAL_EVIDENCE",
     "VOTE != EVIDENCE",
     "CONSENSUS != TRUTH",
     "SEARCH_SCORE != TRUTH",
