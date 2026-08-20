@@ -16,6 +16,8 @@ MAX_REQUEST_ID_CHARACTERS = 256
 MAX_CALLER_ID_CHARACTERS = 256
 MAX_REQUESTS_PER_CALLER = 1000
 MAX_MUTATIONS_PER_CALLER = 200
+MAX_REQUESTS_PER_PROCESS = 1000
+MAX_MUTATIONS_PER_PROCESS = 200
 MAX_MODEL_STATES = 100
 MAX_LATTICE_RECORDS = 1000
 MAX_LATTICE_RUNS = 100
@@ -201,7 +203,7 @@ def validate_request_envelope(value: Any) -> tuple[str, Caller, str, dict[str, A
     caller = parse_caller(request.get("caller"))
     operation = request.get("operation")
     if operation not in OPERATIONS:
-        raise AgentAPIError("UNKNOWN_OPERATION", f"unsupported operation: {operation}")
+        raise AgentAPIError("UNKNOWN_OPERATION", "unsupported operation")
     params = require_object(request.get("params"), "params")
     reject_forbidden_fields(params)
     return request_id, caller, operation, params
@@ -230,7 +232,7 @@ def error_envelope(
     operation: str | None,
     error: AgentAPIError,
 ) -> dict[str, Any]:
-    return {
+    value = {
         "protocol": AGENT_ERROR_PROTOCOL,
         "request_id": request_id,
         "operation": operation,
@@ -238,3 +240,25 @@ def error_envelope(
         "error": error.as_dict(),
         "authority": "none",
     }
+    try:
+        if len(canonical_json_bytes(value)) <= MAX_RESPONSE_BYTES:
+            return value
+    except (TypeError, ValueError, RecursionError):
+        pass
+
+    fallback = {
+        "protocol": AGENT_ERROR_PROTOCOL,
+        "request_id": request_id[:MAX_REQUEST_ID_CHARACTERS],
+        "operation": operation[:256] if isinstance(operation, str) else None,
+        "ok": False,
+        "error": {
+            "code": "RESOURCE_LIMIT",
+            "message": "error response exceeded agent API byte limit",
+            "retryable": False,
+            "details": {"original_code": error.code},
+        },
+        "authority": "none",
+    }
+    if len(canonical_json_bytes(fallback)) > MAX_RESPONSE_BYTES:
+        raise RuntimeError("bounded agent API error envelope exceeds response limit")
+    return fallback
