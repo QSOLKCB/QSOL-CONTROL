@@ -35,7 +35,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["principal_id", "token_sha256", "caller_kind", "caller_id", "allowed_operations"],
+        "required": ["principal_id", "token_sha256", "caller_kind", "caller_id", "allowed_operations", "record_access"],
         "properties": {
           "principal_id": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,256}$"},
           "token_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
@@ -46,9 +46,30 @@
             "minItems": 1,
             "uniqueItems": true,
             "items": {"type": "string", "pattern": "^control\\."}
+          },
+          "record_access": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["max_privacy_class", "file_ids", "collection_ids", "run_ids", "model_state_ids", "replay_ids"],
+            "properties": {
+              "max_privacy_class": {"enum": ["PUBLIC", "INTERNAL", "RESTRICTED"]},
+              "file_ids": {"$ref": "#/$defs/shaRefs"},
+              "collection_ids": {"$ref": "#/$defs/shaRefs"},
+              "run_ids": {"$ref": "#/$defs/shaRefs"},
+              "model_state_ids": {"$ref": "#/$defs/shaRefs"},
+              "replay_ids": {"$ref": "#/$defs/shaRefs"}
+            }
           }
         }
       }
+    }
+  },
+  "$defs": {
+    "shaRefs": {
+      "type": "array",
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
     }
   }
 }
