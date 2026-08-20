@@ -1,6 +1,6 @@
 # QSOL-CONTROL
 
-**A human + AI control plane for the QSOL ecosystem, orchestrating ORACLE evidence, NEXUS Council reasoning, persistent Files and Collections, model-state reproducibility metadata, classified replay, lattice memory, and deterministic recovery machinery.**
+**A human + AI control plane for the QSOL ecosystem, orchestrating ORACLE evidence, NEXUS Council reasoning, persistent Files and Collections, model-state reproducibility metadata, classified replay, lattice memory, deterministic recovery machinery, and INT-style composition conformance batteries.**
 
 > **CONTROL controls the machinery, not reality.**
 >
@@ -11,7 +11,7 @@ QSOL-CONTROL has two implemented operator surfaces over the same runtime:
 - **Human control plane:** Phase 5 local loopback WebUI, extended with Phase 7 replay/longitudinal views.
 - **AI control plane:** Phase 6 structured JSONL/stdio agent API, extended with Phase 7 replay operations.
 
-CONTROL owns orchestration and its own storage mechanics. It does **not** own scientific truth, public epistemic authority, NEXUS governance, ORACLE history, ARK recovery authority, hidden chain-of-thought, or a model mind.
+CONTROL owns orchestration, its own storage mechanics, recovery-package construction, and execution of its local conformance batteries. It does **not** own scientific truth, public epistemic authority, QSOL-INT composition authority, NEXUS governance, ORACLE history, ARK recovery authority, hidden chain-of-thought, or a model mind.
 
 ## Architecture verbs
 
@@ -25,7 +25,7 @@ QSOL-CONTROL    OPERATES
 LATTICE MEMORY  REMEMBERS
 ```
 
-The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the witness/reasoning membrane. CONTROL is the operator surface. Files, Collections, replay records, model-state records, lattice addresses, indexes, and DNA projections are storage/reproducibility mechanisms, not new truth authorities.
+The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the witness/reasoning membrane. CONTROL is the operator surface. Files, Collections, replay records, model-state records, lattice addresses, indexes, DNA projections, recovery packages, and compatibility receipts are storage/reproducibility/conformance mechanisms, not new truth authorities.
 
 ## Phase 5 Human WebUI
 
@@ -122,7 +122,7 @@ Phase 7 replay execution is a state-changing WebUI request and therefore inherit
 
 ### UI invariant
 
-CONTROL never manufactures a synthetic truth percentage from votes, confidence, entropy, model count, consensus, retrieval similarity, codon frequency, lattice position, or replay differences.
+CONTROL never manufactures a synthetic truth percentage from votes, confidence, entropy, model count, consensus, retrieval similarity, codon frequency, lattice position, replay differences, or compatibility batteries.
 
 ```text
 CONTROL_DISPLAY != AUTHORITY
@@ -131,6 +131,7 @@ VOTE != EVIDENCE
 CONSENSUS != TRUTH
 SEARCH_SCORE != TRUTH
 REPLAY_CLASSIFICATION != TRUTH
+BATTERY_PASS != TRUTH
 ```
 
 ## Phase 6 AI / Agent API
@@ -432,6 +433,46 @@ RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
 
 See [`docs/ARK-REPOSITORY-RECOVERY.md`](docs/ARK-REPOSITORY-RECOVERY.md) and [`ai/ark-repository-recovery-contract.json`](ai/ark-repository-recovery-contract.json).
 
+## Phase 9 INT composition batteries
+
+Phase 9 implements `qsol-control-int-composition-report/1` as an offline, deterministic conformance layer over exact pinned parent evidence.
+
+```bash
+python3 tools/int_composition.py validate
+python3 tools/int_composition.py run --json
+```
+
+The battery contains eleven cases. Three produce exact-pinned compatibility receipts for CONTROL↔ORACLE, CONTROL↔NEXUS, and CONTROL↔THOTH portable CONCAP. The remaining cases test authority non-escalation, stale-parent handling, vote/evidence separation, memory/canonical separation, model-state/identity separation, Collection/index authority separation, DNA/raw-byte canonical separation, and schema/version drift.
+
+The methodology is pinned to QSOL-INT and preserves its governing rule:
+
+```text
+INTEGRATION_MUST_NOT_INCREASE_SEMANTIC_AUTHORITY
+```
+
+CONTROL executes the batteries but does not acquire QSOL-INT composition authority. The default report says `current_parent_compatibility = not_claimed`; pinned compatibility is never silently widened into a live-parent claim.
+
+An optional observed-parent identity file can be checked with:
+
+```bash
+python3 tools/int_composition.py check-drift \
+  --observed-parents observed.json \
+  --json
+```
+
+Exact commit/blob identity yields `NO_DRIFT`. Missing parents remain `SOURCE_UNAVAILABLE`/unknown. Changed content or schema requires review. Protocol-major drift is incompatible. Pins are never silently rewritten.
+
+```text
+COMPATIBLE != TRUE
+BATTERY_PASS != TRUTH
+COMPATIBILITY_RECEIPT != PARENT_AUTHORITY
+PINNED_PARENT_COMPATIBILITY != CURRENT_PARENT_COMPATIBILITY
+DRIFT_IS_NEVER_SILENTLY_ACCEPTED
+UNAVAILABLE != CONTRADICTED
+```
+
+See [`docs/INT-COMPOSITION.md`](docs/INT-COMPOSITION.md) and [`ai/int-composition-contract.json`](ai/int-composition-contract.json).
+
 ## Validation
 
 Validation is dependency-free and requires Python 3.11 or newer. CI uses Python 3.12.
@@ -441,10 +482,11 @@ python3 tools/validate_control.py
 python3 tools/validate_restore_contracts.py
 python3 tools/agent_api.py --help
 python3 tools/repository_recovery.py --help
+python3 tools/int_composition.py validate
 python3 -W default -m unittest discover -s tests -v
 ```
 
-Repository contract version is `2.4.0`. Public JSON Schemas use Draft 2020-12.
+Repository contract version is `2.5.0`. Public JSON Schemas use Draft 2020-12.
 
 ## Documentation map
 
@@ -457,6 +499,8 @@ Repository contract version is `2.4.0`. Public JSON Schemas use Draft 2020-12.
 - [`docs/AGENT-API.md`](docs/AGENT-API.md): structured machine API.
 - [`docs/REPLAY.md`](docs/REPLAY.md): Phase 7 classified replay and longitudinal research.
 - [`ai/replay-contract.json`](ai/replay-contract.json): machine-readable Phase 7 boundary.
+- [`docs/INT-COMPOSITION.md`](docs/INT-COMPOSITION.md): Phase 9 composition receipts and drift batteries.
+- [`ai/int-composition-contract.json`](ai/int-composition-contract.json): machine-readable Phase 9 boundary.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md): model-state registry and provenance.
 - [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md): Files, Collections, snapshots, and search.
 - [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md): read-only ORACLE adapter.
@@ -478,10 +522,11 @@ Repository contract version is `2.4.0`. Public JSON Schemas use Draft 2020-12.
 - PR #9: Phase 5 Human WebUI, merged.
 - PR #10: Phase 6 structured AI / agent API, merged.
 - PR #11: Phase 7 replay and longitudinal research, merged.
-- PR #12: Phase 8 repository-level ARK recovery bridge, current implementation branch.
+- PR #12: Phase 8 repository-level ARK recovery bridge, merged.
+- PR #13: Phase 9 INT composition batteries, current implementation branch.
 
-With Phase 8 complete on this branch, the roadmap continues with Phase 9 INT composition batteries and the partly completed Phase 10 hardening/release discipline.
+With Phase 9 complete on this branch, the only unfinished numbered roadmap phase is the partly completed **Phase 10 hardening and release discipline**.
 
 ---
 
-**QSOL-CONTROL controls the machinery, not reality. If a replay produces a different Council vote, CONTROL records the difference. It does not issue reality a patch release.**
+**QSOL-CONTROL controls the machinery, not reality. If eleven composition batteries go green, CONTROL records compatibility. It does not promote itself to Minister for Truth.**
