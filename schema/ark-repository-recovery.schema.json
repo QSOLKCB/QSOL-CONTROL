@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/ark-repository-recovery.schema.json",
+  "title": "QSOL-CONTROL Phase 8 Repository Recovery Bootstrap",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "package_id",
+    "protocol",
+    "container",
+    "version",
+    "source_fingerprint",
+    "privacy_class",
+    "canonical_entry_count",
+    "schema_count",
+    "capsules",
+    "recovery_map_sha256",
+    "optional",
+    "canonical_source",
+    "excluded_from_canonical_fingerprint",
+    "requires_webui",
+    "requires_original_search_engine",
+    "standard_library_runtime",
+    "authority",
+    "boundaries"
+  ],
+  "properties": {
+    "package_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-ark-repository-recovery/1"},
+    "container": {"const": "qsol-restore-dat/1"},
+    "version": {"const": 1},
+    "source_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "privacy_class": {"enum": ["INTERNAL", "RESTRICTED"]},
+    "canonical_entry_count": {"type": "integer", "minimum": 0, "maximum": 250000},
+    "schema_count": {"type": "integer", "minimum": 1},
+    "capsules": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 250000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "size_bytes", "entry_count", "fixed_point"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^capsules/[0-9]{6}\\.dat$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 1},
+          "entry_count": {"type": "integer", "minimum": 1, "maximum": 1000},
+          "fixed_point": {"const": true}
+        }
+      }
+    },
+    "recovery_map_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "optional": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "index_descriptors_included",
+        "dna_projections_included",
+        "dna_files_skipped_size_limit",
+        "dna_max_file_bytes"
+      ],
+      "properties": {
+        "index_descriptors_included": {"type": "integer", "minimum": 0},
+        "dna_projections_included": {"type": "integer", "minimum": 0},
+        "dna_files_skipped_size_limit": {"type": "integer", "minimum": 0},
+        "dna_max_file_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "canonical_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_objects",
+        "file_records",
+        "collection_descriptors_snapshots_and_heads",
+        "run_records_events_and_heads",
+        "model_states",
+        "replay_records_and_reports",
+        "schemas",
+        "lattice_profile"
+      ],
+      "properties": {
+        "raw_objects": {"const": true},
+        "file_records": {"const": true},
+        "collection_descriptors_snapshots_and_heads": {"const": true},
+        "run_records_events_and_heads": {"const": true},
+        "model_states": {"const": true},
+        "replay_records_and_reports": {"const": true},
+        "schemas": {"const": "supporting-recovery-contracts"},
+        "lattice_profile": {"const": "supporting-recovery-contract"}
+      }
+    },
+    "excluded_from_canonical_fingerprint": {
+      "const": ["search-indexes", "dna-lattice-projections", "audit-events"]
+    },
+    "requires_webui": {"const": false},
+    "requires_original_search_engine": {"const": false},
+    "standard_library_runtime": {"const": true},
+    "authority": {"const": "none"},
+    "boundaries": {
+      "const": [
+        "RECOVERY_PACKAGE != SEMANTIC_AUTHORITY",
+        "RAW_OBJECT_BYTES = CANONICAL",
+        "SEARCH_INDEX_DESCRIPTOR != CANONICAL_MEMORY",
+        "DNA_PROJECTION != CANONICAL_SOURCE",
+        "LATTICE_ADDRESS != TRUTH",
+        "HASH_INTEGRITY != EVIDENCE_AUTHORITY",
+        "RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE"
+      ]
+    }
+  }
+}
