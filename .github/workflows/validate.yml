@@ -32,5 +32,7 @@ jobs:
         run: python3 tools/adversarial_storage.py --iterations 256
       - name: Validate release discipline
         run: python3 tools/release_bundle.py check
+      - name: Validate post-roadmap extensions
+        run: python3 tools/validate_extensions.py
       - name: Run tests
         run: python3 -W default -m unittest discover -s tests -v
