@@ -102,6 +102,17 @@ class AgentAPITests(unittest.TestCase):
         self.assertEqual(base64.b64decode(fetched["result"]["content_base64"]), b"alpha quantum beta")
         self.assertTrue(fetched["result"]["raw_bytes_canonical"])
 
+    def test_invalid_initial_collection_member_causes_no_collection_mutation(self):
+        before = self.dispatcher.runtime.control.list_collections()
+        response = self.request(
+            "control.collection.create",
+            {"name": "Must not survive", "file_ids": ["sha256:" + "0" * 64]},
+        )
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "OPERATION_FAILED")
+        after = self.dispatcher.runtime.control.list_collections()
+        self.assertEqual(after, before)
+
     def test_run_evidence_council_models_and_compare_are_separate_views(self):
         left = self.request(
             "control.ask", {"question": "Left", "mode": "evidence_only"}
@@ -165,6 +176,26 @@ class AgentAPITests(unittest.TestCase):
         )
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "AUTHORITY_ESCALATION")
+
+    def test_health_rejects_silently_ignored_parameters(self):
+        response = self.request("control.health", {"unexpected": True})
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "INVALID_REQUEST")
+
+    def test_validation_error_preserves_valid_request_id_and_operation(self):
+        response = self.dispatcher.handle(
+            {
+                "protocol": "wrong-protocol",
+                "request_id": "correlate-me",
+                "caller": {"kind": "ai", "id": "agent-test"},
+                "operation": "control.health",
+                "params": {},
+            }
+        )
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["request_id"], "correlate-me")
+        self.assertEqual(response["operation"], "control.health")
+        self.assertEqual(response["error"]["code"], "UNSUPPORTED_PROTOCOL")
 
     def test_caller_quota_fails_closed(self):
         self.dispatcher._quota["ai:agent-test"] = QuotaState(
