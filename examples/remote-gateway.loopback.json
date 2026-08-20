@@ -1,0 +1,22 @@
+{
+  "protocol": "qsol-control-remote-gateway/1",
+  "bind": "127.0.0.1",
+  "port": 9443,
+  "allow_non_loopback": false,
+  "allowed_hosts": ["127.0.0.1", "localhost"],
+  "tls": {
+    "enabled": false,
+    "cert_file": null,
+    "key_file": null,
+    "minimum_version": "TLSv1.2"
+  },
+  "principals": [
+    {
+      "principal_id": "fixture-mobile",
+      "token_sha256": "sha256:752a6d6fb106526c93df16a8c71f75849045f73092ce7b58e945f5ff0a57e77d",
+      "caller_kind": "human",
+      "caller_id": "fixture-mobile",
+      "allowed_operations": ["control.ask", "control.capabilities", "control.health"]
+    }
+  ]
+}
