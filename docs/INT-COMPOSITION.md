@@ -24,7 +24,7 @@ Phase 9 binds exact parent evidence in `composition/parent-pins.json`:
 | QSOL-NEXUS | `839303ea512631e527073682343341742cead975` | `README4AI.md` |
 | QSOL-THOTH | `03f6bdf063b7fb36fb13cd3d12e6d89dc8407b47` | `ai/concap-compatibility.json` |
 
-Every artifact also records its exact Git blob SHA-1. CONTROL's local ORACLE, NEXUS and portable-CONCAP contract files are independently blob-pinned.
+Every artifact records its exact Git blob SHA-1. The QSOL-INT methodology pin itself must include a valid commit, repository-relative artifact path, and blob identity. CONTROL's local ORACLE, NEXUS, and portable-CONCAP contract files are independently blob-pinned.
 
 The receipt scope is always:
 
@@ -42,7 +42,15 @@ python3 tools/int_composition.py run
 python3 tools/int_composition.py run --json
 ```
 
-The report is canonical JSON, content-addressed, deterministic, and contains exactly eleven declared cases.
+The report is canonical JSON, content-addressed, deterministic, and contains exactly eleven declared cases. A failing battery still produces a structurally valid diagnostic report; the command then exits nonzero rather than suppressing the report behind a validation exception.
+
+Exit codes are:
+
+```text
+0  valid and no current-parent review required
+1  battery failure, incompatible report, or invalid input
+2  current-parent observation is structurally valid but requires review
+```
 
 ## Battery surface
 
@@ -91,21 +99,31 @@ Then run:
 python3 tools/int_composition.py check-drift \
   --observed-parents observed.json \
   --json
+
+python3 tools/int_composition.py validate \
+  --observed-parents observed.json
 ```
 
 Classification is fail-closed:
 
 - exact commit + blob: `NO_DRIFT`, compatible for that observation;
-- missing source: `SOURCE_UNAVAILABLE`, compatibility unknown, review required;
-- changed commit/blob with same major: `CONTENT_DRIFT`, compatibility untested, review required;
-- schema-major change: `SCHEMA_DRIFT`, compatibility untested, review required;
+- missing source: `SOURCE_UNAVAILABLE`, compatibility `unknown`, review required;
+- changed commit/blob with same major: `CONTENT_DRIFT`, compatibility `untested`, review required;
+- schema-major change: `SCHEMA_DRIFT`, compatibility `untested`, review required;
 - protocol-major change: `BREAKING_DRIFT`, incompatible, review required.
+
+Protocol major parsing uses the **final slash-delimited version component**, so `QSOL-THOTH/CONCAP-COMPATIBILITY/2` is major 2 rather than an unparseable namespace string.
+
+An observation that claims the exact pinned commit/blob but supplies contradictory protocol or schema metadata is rejected as invalid input. CONTROL does not reinterpret an internally contradictory observer record as real parent drift.
+
+When every observed source is unavailable, aggregate compatibility remains `unknown`; it is not collapsed into `untested`.
 
 No command silently rewrites `composition/parent-pins.json`.
 
 ```text
 DRIFT_IS_NEVER_SILENTLY_ACCEPTED
 UNAVAILABLE != CONTRADICTED
+UNAVAILABLE != UNTESTED
 PINNED_PARENT_COMPATIBILITY != CURRENT_PARENT_COMPATIBILITY
 ```
 
