@@ -128,7 +128,10 @@
   "replay_compare": {
     "immutable_run_comparison": true,
     "nexus_refs_derived_from_immutable_events": true,
-    "phase7_replay_execution_implemented": false,
+    "phase7_replay_execution_implemented": true,
+    "replay_classification": true,
+    "replay_execution": true,
+    "research_timeline": true,
     "comparison_is_replay_execution": false
   },
   "accessibility": {
@@ -152,6 +155,8 @@
     "PROVIDER_REPORTED != LOCALLY_VERIFIED",
     "MODEL_STATE_COMPARISON != MIND_COMPARISON",
     "LATTICE_ADDRESS != TRUTH",
-    "CODON_FREQUENCY != EVIDENCE"
+    "CODON_FREQUENCY != EVIDENCE",
+    "REPLAY_CLASSIFICATION != TRUTH",
+    "ORIGINAL_RUN != REPLAY_RUN"
   ]
 }
