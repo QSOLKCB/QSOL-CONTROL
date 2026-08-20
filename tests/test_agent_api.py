@@ -141,7 +141,7 @@ class AgentAPITests(unittest.TestCase):
             {"left_run_id": left["run_id"], "right_run_id": right["run_id"]},
         )
         self.assertFalse(comparison["result"]["comparison_is_replay_execution"])
-        self.assertFalse(comparison["result"]["phase7_replay_execution_implemented"])
+        self.assertTrue(comparison["result"]["phase7_replay_execution_implemented"])
 
     def test_lattice_get_and_trace_are_bounded_and_non_authoritative(self):
         run_id = self.request(
