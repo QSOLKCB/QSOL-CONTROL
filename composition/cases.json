@@ -1,0 +1,26 @@
+{
+  "protocol": "qsol-control-int-battery-index/1",
+  "version": "1.0.0",
+  "authority": "conformance-only",
+  "cases": [
+    {"id": "CONTROL-INT-001", "name": "control_oracle_compatibility", "roadmap": "CONTROL↔ORACLE compatibility receipt"},
+    {"id": "CONTROL-INT-002", "name": "control_nexus_compatibility", "roadmap": "CONTROL↔NEXUS compatibility receipt"},
+    {"id": "CONTROL-INT-003", "name": "control_thoth_concap_compatibility", "roadmap": "CONTROL↔THOTH portable CONCAP compatibility receipt"},
+    {"id": "CONTROL-INT-004", "name": "authority_non_escalation", "roadmap": "authority non-escalation"},
+    {"id": "CONTROL-INT-005", "name": "stale_parent_handling", "roadmap": "stale-parent handling"},
+    {"id": "CONTROL-INT-006", "name": "vote_evidence_separation", "roadmap": "vote/evidence separation"},
+    {"id": "CONTROL-INT-007", "name": "memory_canonical_separation", "roadmap": "memory/canonical separation"},
+    {"id": "CONTROL-INT-008", "name": "model_state_identity_separation", "roadmap": "model-state/identity separation"},
+    {"id": "CONTROL-INT-009", "name": "collection_index_authority_separation", "roadmap": "Collection/search-index authority separation"},
+    {"id": "CONTROL-INT-010", "name": "dna_raw_byte_separation", "roadmap": "DNA/lattice projection/raw-byte canonical separation"},
+    {"id": "CONTROL-INT-011", "name": "schema_version_drift", "roadmap": "schema/version drift"}
+  ],
+  "result_states": ["pass", "fail", "review_required"],
+  "compatibility_states": ["compatible", "incompatible", "untested", "unknown", "not_claimed"],
+  "invariants": [
+    "BATTERY_PASS != TRUTH",
+    "COMPATIBLE != ENDORSED",
+    "HASH_MATCH != SEMANTIC_AUTHORITY",
+    "CURRENT_PARENT_COMPATIBILITY_REQUIRES_CURRENT_PARENT_EVIDENCE"
+  ]
+}
