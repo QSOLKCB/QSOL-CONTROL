@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/migration-receipt.schema.json",
+  "title": "QSOL-CONTROL Migration Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_id",
+    "type",
+    "protocol",
+    "source_contract_version",
+    "target_contract_version",
+    "status",
+    "steps",
+    "source_preserved",
+    "in_place_rewrite",
+    "canonical_store_rewrite_required",
+    "authority",
+    "semantic_authority_claimed",
+    "boundaries"
+  ],
+  "properties": {
+    "receipt_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "type": {"const": "qsol-control-migration-receipt"},
+    "protocol": {"const": "qsol-control-migration-receipt/1"},
+    "source_contract_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "target_contract_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "status": {"enum": ["no_op", "planned"]},
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "kind", "canonical_store_rewrite_required"],
+        "properties": {
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "kind": {"type": "string", "minLength": 1},
+          "canonical_store_rewrite_required": {"const": false}
+        }
+      }
+    },
+    "source_preserved": {"const": true},
+    "in_place_rewrite": {"const": false},
+    "canonical_store_rewrite_required": {"const": false},
+    "authority": {"const": "integrity-and-procedure-only"},
+    "semantic_authority_claimed": {"const": false},
+    "boundaries": {
+      "type": "array",
+      "contains": {"const": "MIGRATION != REINTERPRETATION"}
+    }
+  }
+}
