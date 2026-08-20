@@ -126,12 +126,18 @@ class AgentAPIDispatcher:
 
         configured = self.runtime.config.nexus_command is not None
         supplied_members = params.get("members")
+        if supplied_members is not None and not isinstance(supplied_members, list):
+            raise AgentAPIError("INVALID_REQUEST", "members must be an array")
         if supplied_members is None:
             members = list(self.runtime.config.default_council_members)
         else:
             members = supplied_members
 
         evidence_refs = params.get("nexus_evidence_refs", [])
+        if not isinstance(evidence_refs, list):
+            raise AgentAPIError(
+                "INVALID_REQUEST", "nexus_evidence_refs must be an array"
+            )
         nexus_mode = params.get("nexus_mode", "analytical")
 
         try:
