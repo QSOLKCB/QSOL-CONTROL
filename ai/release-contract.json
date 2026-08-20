@@ -1,0 +1,47 @@
+{
+  "type": "qsol-control-release-contract",
+  "protocol": "qsol-control-release-bundle/1",
+  "schema_version": "1.0.0",
+  "repository_contract_version": "2.6.0",
+  "runtime": "tools/release_bundle.py",
+  "inventory": "release/release-inventory.json",
+  "manifest_schema": "schema/release-manifest.schema.json",
+  "archive": {
+    "format": "zip",
+    "compression": "ZIP_STORED",
+    "compressed_untrusted_members_accepted": false,
+    "timestamp": "1980-01-01T00:00:00",
+    "member_order": "utf8-byte-lexicographic",
+    "member_mode": "0644",
+    "archive_comment": "empty"
+  },
+  "identity": {
+    "file_identity": "sha256(exact_file_bytes)",
+    "release_manifest_identity": "sha256(canonical manifest payload without release_id)",
+    "archive_identity": "sha256(exact zip bytes)",
+    "source_commit_required": true
+  },
+  "bounds": {
+    "archive_bytes": 536870912,
+    "member_count": 10000,
+    "member_bytes": 67108864,
+    "total_member_bytes": 536870912
+  },
+  "verification": {
+    "extracts_archive": false,
+    "decompresses_members": false,
+    "unexpected_members_rejected": true,
+    "missing_members_rejected": true,
+    "member_hashes_verified": true,
+    "manifest_identity_verified": true,
+    "source_tree_hashes_verified_during_build": true
+  },
+  "authority": "release-integrity-only",
+  "boundaries": [
+    "RELEASE_BUNDLE != PUBLICATION_AUTHORITY",
+    "RELEASE_HASH != SEMANTIC_TRUTH",
+    "REPRODUCIBLE_BYTES != REPRODUCIBLE_LIVE_INFERENCE",
+    "ARCHIVE_VERIFY != ARCHIVE_EXECUTE",
+    "COMPRESSED_UNTRUSTED_INPUT != ACCEPTED_BY_DEFAULT"
+  ]
+}
