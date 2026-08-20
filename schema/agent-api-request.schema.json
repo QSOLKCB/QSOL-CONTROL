@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/agent-api-request.schema.json",
+  "title": "QSOL-CONTROL Agent API Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "request_id", "caller", "operation", "params"],
+  "properties": {
+    "protocol": {"const": "qsol-control-agent-request/1"},
+    "request_id": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,256}$"},
+    "caller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"enum": ["human", "ai"]},
+        "id": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    },
+    "operation": {
+      "enum": [
+        "control.health",
+        "control.capabilities",
+        "control.ask",
+        "control.file.put",
+        "control.file.get",
+        "control.collection.create",
+        "control.collection.snapshot",
+        "control.collection.search",
+        "control.run.get",
+        "control.run.compare",
+        "control.evidence.get",
+        "control.council.get",
+        "control.models.get",
+        "control.memory.get",
+        "control.memory.trace"
+      ]
+    },
+    "params": {"type": "object"}
+  }
+}
