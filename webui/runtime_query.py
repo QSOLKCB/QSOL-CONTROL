@@ -81,6 +81,7 @@ class QueryRuntimeMixin:
             oracle_refs=oracle_refs,
             replayability="R3",
         )
+        self._record_replay_basis(run, request, requester_kind=requester_kind)
 
         epistemic_role = (
             "observed"
