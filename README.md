@@ -1,6 +1,6 @@
 # QSOL-CONTROL
 
-**A human + AI control plane for the QSOL ecosystem, orchestrating ORACLE evidence, NEXUS Council reasoning, persistent Files and Collections, model-state reproducibility metadata, classified replay, lattice memory, deterministic recovery machinery, and INT-style composition conformance batteries.**
+**A human + AI control plane for the QSOL ecosystem, orchestrating ORACLE evidence, NEXUS Council reasoning, persistent Files and Collections, model-state reproducibility metadata, classified replay, lattice memory, deterministic recovery, INT-style composition conformance, and release/recovery hardening.**
 
 > **CONTROL controls the machinery, not reality.**
 >
@@ -11,7 +11,7 @@ QSOL-CONTROL has two implemented operator surfaces over the same runtime:
 - **Human control plane:** Phase 5 local loopback WebUI, extended with Phase 7 replay/longitudinal views.
 - **AI control plane:** Phase 6 structured JSONL/stdio agent API, extended with Phase 7 replay operations.
 
-CONTROL owns orchestration, its own storage mechanics, recovery-package construction, and execution of its local conformance batteries. It does **not** own scientific truth, public epistemic authority, QSOL-INT composition authority, NEXUS governance, ORACLE history, ARK recovery authority, hidden chain-of-thought, or a model mind.
+CONTROL owns orchestration, its own storage mechanics, recovery/release bundle construction, migration-plan mechanics, and execution of local conformance/hardening batteries. It does **not** own scientific truth, public epistemic authority, QSOL-INT composition authority, NEXUS governance, ORACLE history, ARK recovery authority, publication authority, hidden chain-of-thought, or a model mind.
 
 ## Architecture verbs
 
@@ -25,7 +25,7 @@ QSOL-CONTROL    OPERATES
 LATTICE MEMORY  REMEMBERS
 ```
 
-The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the witness/reasoning membrane. CONTROL is the operator surface. Files, Collections, replay records, model-state records, lattice addresses, indexes, DNA projections, recovery packages, and compatibility receipts are storage/reproducibility/conformance mechanisms, not new truth authorities.
+Files, Collections, replay records, model-state records, lattice addresses, indexes, DNA projections, recovery packages, compatibility receipts, migration receipts, and release manifests are storage/reproducibility/conformance mechanisms, not new truth authorities.
 
 ## Phase 5 Human WebUI
 
@@ -74,101 +74,30 @@ http://127.0.0.1:8765
 
 Remote multi-user deployment remains deferred.
 
-### WebUI views
-
-```text
-ASK
-EVIDENCE
-COUNCIL
-MINORITY
-SOURCES
-TIMELINE
-RECEIPTS
-MODELS
-MEMORY
-DNA
-REPLAY / COMPARE / LONGITUDINAL
-COLLECTIONS
-HEALTH
-```
-
-The composer has exactly two question modes:
-
-```text
-Evidence only
-Ask Council
-```
-
-Browser attachments become ordinary content-addressed CONTROL Files. A selected Collection is bound to its exact immutable snapshot when the run is created. If the Collection later advances, the historical run still renders the snapshot it actually used.
-
 ### Browser security baseline
 
-The local server enforces:
-
-- loopback binds only: `127.0.0.1`, `::1`, or `localhost`;
-- an unpredictable per-process WebUI session token;
-- token authentication on API requests after session bootstrap;
-- no CORS;
-- non-loopback `Host` rejection;
-- same-origin checks for state-changing browser requests when `Origin` is supplied;
-- Content Security Policy with `frame-ancestors 'none'`, `object-src 'none'`, and `base-uri 'none'`;
-- `X-Content-Type-Options: nosniff`;
-- `Referrer-Policy: no-referrer`;
-- `Cross-Origin-Resource-Policy: same-origin`;
-- `Cache-Control: no-store`;
-- DOM `textContent` for retrieved/untrusted record rendering rather than `innerHTML`.
-
-Phase 7 replay execution is a state-changing WebUI request and therefore inherits the same token and same-origin boundary.
-
-### UI invariant
-
-CONTROL never manufactures a synthetic truth percentage from votes, confidence, entropy, model count, consensus, retrieval similarity, codon frequency, lattice position, replay differences, or compatibility batteries.
+The local server enforces loopback-only binds, an unpredictable per-process session token, token authentication after bootstrap, no CORS, non-loopback `Host` rejection, same-origin mutation checks, strict security headers, no-store responses, and text-only DOM rendering for retrieved/untrusted values.
 
 ```text
+LOOPBACK != REMOTE_AUTH
+SESSION_TOKEN != MULTI_USER_AUTHORIZATION
 CONTROL_DISPLAY != AUTHORITY
-CONTROL_OPERATION != TRUTH
 VOTE != EVIDENCE
 CONSENSUS != TRUTH
 SEARCH_SCORE != TRUTH
-REPLAY_CLASSIFICATION != TRUTH
-BATTERY_PASS != TRUTH
 ```
+
+See [`docs/WEBUI.md`](docs/WEBUI.md) and the Phase 10 [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md).
 
 ## Phase 6 AI / Agent API
 
-Phase 6 implements `qsol-control-agent-api/1` as a dependency-free structured machine interface over the same runtime used by the Human WebUI.
-
-The first transport is local JSONL over stdin/stdout:
+Phase 6 implements `qsol-control-agent-api/1` as dependency-free JSONL over local stdin/stdout:
 
 ```bash
 python3 tools/agent_api.py --root .qsol-control-store
 ```
 
-The current operation surface is:
-
-```text
-control.health
-control.capabilities
-control.ask
-control.file.put
-control.file.get
-control.collection.create
-control.collection.snapshot
-control.collection.search
-control.run.get
-control.run.compare
-control.replay.classify
-control.replay.execute
-control.replay.get
-control.research.timeline
-control.evidence.get
-control.council.get
-control.models.get
-control.memory.get
-control.memory.trace
-```
-
-Replay execution is a normal quota-governed mutation. It receives no machine-only epistemic privilege.
+The operation surface includes Files/Collections, `control.ask`, run/evidence/Council/model views, bounded lattice traversal, Phase 7 replay operations, and longitudinal timeline retrieval. Human and AI callers have equal epistemic privilege.
 
 ```text
 HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
@@ -177,112 +106,31 @@ CONTROL_CALL != ORACLE_AUTHORITY
 CONTROL_CALL != NEXUS_GOVERNANCE
 ```
 
-See [`docs/AI-API.md`](docs/AI-API.md), [`docs/AGENT-API.md`](docs/AGENT-API.md), and [`ai/agent-api-contract.json`](ai/agent-api-contract.json).
+See [`docs/AGENT-API.md`](docs/AGENT-API.md) and [`ai/agent-api-contract.json`](ai/agent-api-contract.json).
 
 ## Phase 7 Replay and longitudinal research
 
 Phase 7 implements `qsol-control-replay/1`.
 
-Replay is **classified before execution**. CONTROL does not equate “same question” or “same model name” with an exact replay.
-
-```text
-ORIGINAL RUN
-   |
-   v
-CLASSIFY REPLAY CONDITIONS
-   |
-   +--> unavailable / inspection only
-   |
-   v
-NEW REPLAY RUN
-   |
-   +--> original exact Collection snapshot
-   +--> current ORACLE evidence
-   +--> current configured Council/runtime
-   |
-   v
-CONTENT-ADDRESSED COMPARISON REPORT
-```
-
-The original run and its event chain are never rewritten. Phase 7 fingerprints the original run, events, and model-state metadata before and after replay and fails if they changed.
+Replay is **classified before execution**, creates a new immutable run, and never rewrites the original result. If a run used a Collection, replay binds to its exact historical snapshot; current Collection `HEAD` and current ORACLE evidence are compared separately.
 
 ```text
 ORIGINAL_RUN != REPLAY_RUN
 ORIGINAL_RESULT_IMMUTABLE = true
 CURRENT_EVIDENCE != ORIGINAL_EVIDENCE
-```
-
-### Exact Collection and retrieval basis
-
-If the original run used a Collection, replay binds to its exact historical `collection_id` + `snapshot_id`. The current Collection `HEAD` is compared separately for longitudinal drift.
-
-```text
-REPLAY_COLLECTION_SNAPSHOT = ORIGINAL_COLLECTION_SNAPSHOT
 CURRENT_COLLECTION_HEAD != ORIGINAL_COLLECTION_SNAPSHOT
-```
-
-Current `control.ask` does not perform Collection search, so new replay-basis receipts explicitly record retrieval/index status as `not_used`. Pre-Phase-7 runs without recorded index provenance remain `not_recorded`.
-
-```text
-NOT_USED != NOT_RECORDED
 LEGACY_MISSING_INDEX != INVENTED_INDEX
+REPLAY_CLASSIFICATION != TRUTH
+MODEL_STATE_COMPARISON != MIND_COMPARISON
 ```
 
-### Deterministic comparison reports
-
-`qsol-control-replay-report/1` is canonical JSON and content-addressed. It keeps six lanes separate:
-
-1. evidence-set changes;
-2. Collection-membership changes;
-3. retrieval/index basis;
-4. Council roster and NEXUS runtime;
-5. model revision/runtime/configuration;
-6. request configuration.
-
-No combined truth or quality score is derived. Replay reports are semantically revalidated on read, including lane-level authority boundaries such as `CONSENSUS != TRUTH` and `MODEL_STATE != MODEL_MIND`.
-
-A changed Council roster requires explicit authorization before replay execution. The report then records that changed configuration rather than hiding it.
-
-### Recurring-question research timeline
-
-`qsol-control-research-timeline/1` groups exact recurring questions by `question_sha256` and reports chronological runs plus transitions in evidence, Collection snapshot, Council roster, model state, and runtime.
-
-```text
-TIMELINE != TRUTH
-CHANGE != IMPROVEMENT
-CONSENSUS_CHANGE != EVIDENCE_CHANGE
-```
+Deterministic replay reports keep evidence, Collection membership, retrieval/index basis, Council runtime/roster, model-state metadata, and request configuration in separate lanes. Recurring-question timelines group exact question identities by `question_sha256` without assigning truth meaning to change.
 
 See [`docs/REPLAY.md`](docs/REPLAY.md) and [`ai/replay-contract.json`](ai/replay-contract.json).
 
 ## Phase 4 model-state registry and inspector
 
-CONTROL persists immutable `qsol-control-model-state/1` records for reproducibility and computational archaeology.
-
-Records may preserve, where available:
-
-```text
-provider / runtime / runtime version / model ID / revision
-model / weight / tokenizer hashes when locally verifiable
-quantization
-sampling configuration
-context limit and seed
-Council seat / NEXUS mode
-tool permission envelope
-CONTROL / NEXUS / ORACLE / SUBSTRATE / ARK / INT identities
-exact Collection snapshot identity
-relevant runtime hardware metadata
-```
-
-Every canonical field has explicit provenance:
-
-```text
-observed
-provider_reported
-locally_verified
-inferred
-unknown
-```
+CONTROL persists immutable `qsol-control-model-state/1` reproducibility records with explicit field provenance.
 
 ```text
 MODEL_STATE != MODEL_MIND
@@ -307,9 +155,7 @@ COLLECTION
 = may have derived searchable indexes
 ```
 
-Raw bytes remain canonical. Collection membership is not endorsement.
-
-Search provides a deterministic lexical baseline and externally supplied semantic vector indexes bound to exact Collection snapshots.
+Raw bytes remain canonical. Search indexes are derived and rebuildable.
 
 ```text
 SEARCH_SCORE != TRUTH
@@ -322,11 +168,7 @@ See [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md).
 
 ## ORACLE boundary
 
-CONTROL implements the read-only `qsol-control-oracle-adapter/1` against `QSOL-ORACLE/1`.
-
-The adapter verifies ORACLE's append-only ledger before evidence queries, preserves event/provenance references, exposes `known` / `conflict` / `unknown`, reports freshness separately from truth, and exposes the QSOL-CONTEXT 2056 timelock view.
-
-CONTROL has no ORACLE write operation. Replay queries current evidence through this same read-only path.
+CONTROL implements the read-only `qsol-control-oracle-adapter/1` against `QSOL-ORACLE/1`. It verifies the parent ledger before evidence queries, preserves provenance/event references, and never exposes ORACLE writes.
 
 ```text
 ORACLE_REFERENCE != CONTROL_AUTHORITY
@@ -334,16 +176,13 @@ ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND
 FRESH != TRUE
 STALE != FALSE
 SUGGESTED_SEARCH != EVIDENCE
-CURRENT_EVIDENCE != ORIGINAL_EVIDENCE
 ```
 
 See [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md).
 
 ## NEXUS governance boundary
 
-CONTROL implements `qsol-control-nexus-adapter/1` over NEXUS local JSONL/stdio.
-
-Replay Council execution uses the same reviewed `council.run` path. CONTROL still does not expose direct `world.create`, generic NEXUS operation passthrough, Stenographer reads, vote-weight override, ballot override, roster-authority override, or consensus-threshold override.
+CONTROL implements `qsol-control-nexus-adapter/1` over NEXUS local JSONL/stdio and exposes only the reviewed Council path rather than generic governance mutation.
 
 ```text
 CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
@@ -352,39 +191,18 @@ CONTROL_CAN_OVERRIDE_VOTE_WEIGHT = false
 CONTROL_CAN_OVERRIDE_BALLOTS = false
 CONTROL_CAN_OVERRIDE_CONSENSUS_THRESHOLD = false
 NEXUS_OWNS_WORLDSTORE_HISTORY = true
-VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
 ```
 
 See [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md).
 
-## Lattice memory
+## Lattice memory and DNA projection
 
-CONTROL defines a 3 × 3 × 3 logical interaction-memory lattice:
-
-```text
-X = information role   question | response | evidence
-Y = epistemic role     observed | derived | unresolved
-Z = temporal role      current | historical | recovery
-```
+The 3 × 3 × 3 lattice is a deterministic logical address space. The DNA codec is a reversible derived File-byte projection.
 
 ```text
 LATTICE_ADDRESS != COLLECTION_MEMBERSHIP
 LATTICE_ADDRESS != TRUTH
 GEOMETRY != TRUTH
-```
-
-See [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md).
-
-## DNA / lattice recovery projection
-
-The reversible codec maps File bytes into `A/C/G/T`, codons, and one of the existing 27-cell traversal profiles:
-
-```text
-qsol.lexicographic-27/1
-qsol.phi-stride-27/1
-```
-
-```text
 RAW_BYTES = CANONICAL
 DNA_PROJECTION = DERIVED
 DNA_ENCODING != BIOLOGICAL_CLAIM
@@ -392,9 +210,11 @@ PHI_TRAVERSAL != PHYSICAL_TRUTH
 CODON_FREQUENCY != EVIDENCE
 ```
 
+See [`docs/LATTICE-MEMORY.md`](docs/LATTICE-MEMORY.md).
+
 ## Phase 8 ARK repository recovery
 
-Phase 1B's `qsol-control-ark-minimum-bundle/1` remains the narrow deterministic offline reconstruction format for one run. Phase 8 adds `qsol-control-ark-repository-recovery/1` for the broader CONTROL repository state.
+Phase 8 adds `qsol-control-ark-repository-recovery/1` while preserving the earlier one-run `qsol-control-ark-minimum-bundle/1`.
 
 ```text
 CONTROL-recovery-package/
@@ -405,22 +225,7 @@ CONTROL-recovery-package/
     └── ...
 ```
 
-The package preserves canonical raw objects, File records, Collection descriptors/snapshot lineage/current HEADs, runs/events/heads, model states, and replay records/reports. Public schemas and the supported lattice descriptor travel as recovery support contracts.
-
-Raw objects are hashed and streamed into bounded `QSOL-RESTORE-DAT/1` transport chunks without changing their canonical SHA-256 identity. Search-index descriptors and DNA/lattice projections are optional derived aids and never enter the canonical source fingerprint.
-
-```bash
-python3 tools/repository_recovery.py export \
-  --root .qsol-control-store \
-  --output control-recovery
-
-python3 tools/repository_recovery.py verify control-recovery
-
-python3 tools/repository_recovery.py restore control-recovery \
-  --target restored-control
-```
-
-Verification and restore fail closed on nonexistent source roots, malformed or orphaned canonical records, authority-escalating replay reports, unsupported schema/lattice contracts, unbounded capsule metadata, capsule tampering, and privacy downgrades. The strictest privacy class is recomputed from reconstructed canonical state rather than trusted from the bootstrap.
+The package preserves canonical raw objects, File records, Collection descriptors/snapshot lineage/current HEADs, runs/events/heads, model states, and replay records/reports. Raw objects are streamed into bounded `QSOL-RESTORE-DAT/1` chunks while retaining original SHA-256 identity. Search-index descriptors and DNA projections remain optional derived material.
 
 ```text
 RECOVERY_PACKAGE != SEMANTIC_AUTHORITY
@@ -435,34 +240,17 @@ See [`docs/ARK-REPOSITORY-RECOVERY.md`](docs/ARK-REPOSITORY-RECOVERY.md) and [`a
 
 ## Phase 9 INT composition batteries
 
-Phase 9 implements `qsol-control-int-composition-report/1` as an offline, deterministic conformance layer over exact pinned parent evidence.
+Phase 9 implements `qsol-control-int-composition-report/1` as an offline deterministic conformance layer over exact pinned parent evidence.
 
 ```bash
 python3 tools/int_composition.py validate
 python3 tools/int_composition.py run --json
 ```
 
-The battery contains eleven cases. Three produce exact-pinned compatibility receipts for CONTROL↔ORACLE, CONTROL↔NEXUS, and CONTROL↔THOTH portable CONCAP. The remaining cases test authority non-escalation, stale-parent handling, vote/evidence separation, memory/canonical separation, model-state/identity separation, Collection/index authority separation, DNA/raw-byte canonical separation, and schema/version drift.
-
-The methodology is pinned to QSOL-INT and preserves its governing rule:
+Eleven cases cover exact-pinned CONTROL↔ORACLE, CONTROL↔NEXUS, CONTROL↔THOTH portable-CONCAP receipts plus authority, stale-parent, vote/evidence, memory/canonical, model-state/identity, Collection/index, DNA/raw-byte, and schema/version boundaries.
 
 ```text
 INTEGRATION_MUST_NOT_INCREASE_SEMANTIC_AUTHORITY
-```
-
-CONTROL executes the batteries but does not acquire QSOL-INT composition authority. The default report says `current_parent_compatibility = not_claimed`; pinned compatibility is never silently widened into a live-parent claim.
-
-An optional observed-parent identity file can be checked with:
-
-```bash
-python3 tools/int_composition.py check-drift \
-  --observed-parents observed.json \
-  --json
-```
-
-Exact commit/blob identity yields `NO_DRIFT`. Missing parents remain `SOURCE_UNAVAILABLE`/unknown. Changed content or schema requires review. Protocol-major drift is incompatible. Pins are never silently rewritten.
-
-```text
 COMPATIBLE != TRUE
 BATTERY_PASS != TRUTH
 COMPATIBILITY_RECEIPT != PARENT_AUTHORITY
@@ -472,6 +260,81 @@ UNAVAILABLE != CONTRADICTED
 ```
 
 See [`docs/INT-COMPOSITION.md`](docs/INT-COMPOSITION.md) and [`ai/int-composition-contract.json`](ai/int-composition-contract.json).
+
+## Phase 10 Hardening and release discipline
+
+Phase 10 implements `qsol-control-phase10-hardening/1` and closes the final numbered roadmap phase without widening CONTROL into a remote multi-user service.
+
+### Threat model and secret auditing
+
+[`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md) documents the browser/network boundary that actually exists: local loopback WebUI plus local JSONL/stdio machine API. Host-malware resistance, browser-extension isolation, TLS termination, and remote multi-user authentication/authorization are explicit nonclaims.
+
+Phase 10 adds a deterministic read/import-side File/Collection metadata audit:
+
+```bash
+python3 tools/file_metadata_audit.py --root .qsol-control-store --json
+```
+
+It rejects credential-labelled keys, high-confidence token markers, credential-bearing locators, duplicate JSON members, malformed identities, and rehashed hostile metadata without silently redacting canonical history.
+
+### Archive safety
+
+Compressed untrusted archive input is default-deny. `storage/archive_safety.py` accepts only bounded `ZIP_STORED` members for the Phase 10 release verifier, rejects traversal/symlinks/duplicates/oversize inputs, and performs no decompression or extraction.
+
+```text
+COMPRESSED_UNTRUSTED_INPUT != ACCEPTED_BY_DEFAULT
+ARCHIVE_VERIFY != ARCHIVE_EXECUTE
+```
+
+### Deterministic adversarial battery
+
+```bash
+python3 tools/adversarial_storage.py --iterations 256
+```
+
+The battery uses a fixed seed to exercise malformed identities, path traversal, secret metadata, and object corruption as a deterministic CI gate.
+
+### Versioned migration
+
+`qsol-control-migration/1` provides forward-only, source-preserving migration plans and content-addressed receipts:
+
+```bash
+python3 tools/migration.py validate
+python3 tools/migration.py plan --from-version 2.5.0 --to-version 2.6.0 --json
+```
+
+Downgrades, unknown majors, undeclared steps, and in-place canonical rewrites fail closed.
+
+```text
+MIGRATION != REINTERPRETATION
+SOURCE_STATE != MUTATED_IN_PLACE
+```
+
+See [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md) and [`ai/migration-policy.json`](ai/migration-policy.json).
+
+### Reproducible release bundle
+
+`qsol-control-release-bundle/1` creates fixed-metadata `ZIP_STORED` source bundles with exact per-file SHA-256, a deterministic source-tree SHA-256, a declared source commit/release version, and content-addressed `RELEASE.json`.
+
+```bash
+python3 tools/release_bundle.py check
+python3 tools/release_bundle.py build \
+  --release-version 1.0.0 \
+  --source-commit <40-lowercase-hex-release-commit> \
+  --output ../QSOL-CONTROL-1.0.0.zip
+python3 tools/release_bundle.py verify ../QSOL-CONTROL-1.0.0.zip
+```
+
+The release checklist requires two independent byte-identical builds before publication.
+
+```text
+RELEASE_HASH != SEMANTIC_TRUTH
+REPRODUCIBLE_BYTES != REPRODUCIBLE_LIVE_INFERENCE
+MERGED_MAIN != PUBLISHED_RELEASE
+GREEN_CI != RELEASED
+```
+
+See [`docs/RELEASE.md`](docs/RELEASE.md), [`ai/release-contract.json`](ai/release-contract.json), and [`RELEASE-CHECKLIST.md`](RELEASE-CHECKLIST.md).
 
 ## Validation
 
@@ -483,10 +346,13 @@ python3 tools/validate_restore_contracts.py
 python3 tools/agent_api.py --help
 python3 tools/repository_recovery.py --help
 python3 tools/int_composition.py validate
+python3 tools/migration.py validate
+python3 tools/adversarial_storage.py --iterations 256
+python3 tools/release_bundle.py check
 python3 -W default -m unittest discover -s tests -v
 ```
 
-Repository contract version is `2.5.0`. Public JSON Schemas use Draft 2020-12.
+Repository contract version is `2.6.0`. Public JSON Schemas use Draft 2020-12.
 
 ## Documentation map
 
@@ -494,20 +360,21 @@ Repository contract version is `2.5.0`. Public JSON Schemas use Draft 2020-12.
 - [`AGENTS.md`](AGENTS.md): contributor/agent rules.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): system design and authority boundaries.
 - [`ROADMAP.md`](ROADMAP.md): phase sequence and completion state.
-- [`SECURITY.md`](SECURITY.md): repository security boundaries.
+- [`SECURITY.md`](SECURITY.md): security boundary summary.
+- [`docs/THREAT-MODEL.md`](docs/THREAT-MODEL.md): Phase 10 browser/network threat model.
+- [`docs/RELEASE.md`](docs/RELEASE.md): reproducible release workflow.
+- [`RELEASE-CHECKLIST.md`](RELEASE-CHECKLIST.md): release gate discipline.
+- [`docs/MIGRATIONS.md`](docs/MIGRATIONS.md): versioned migration policy.
 - [`docs/WEBUI.md`](docs/WEBUI.md): local Human WebUI.
 - [`docs/AGENT-API.md`](docs/AGENT-API.md): structured machine API.
 - [`docs/REPLAY.md`](docs/REPLAY.md): Phase 7 classified replay and longitudinal research.
-- [`ai/replay-contract.json`](ai/replay-contract.json): machine-readable Phase 7 boundary.
 - [`docs/INT-COMPOSITION.md`](docs/INT-COMPOSITION.md): Phase 9 composition receipts and drift batteries.
-- [`ai/int-composition-contract.json`](ai/int-composition-contract.json): machine-readable Phase 9 boundary.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md): model-state registry and provenance.
 - [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md): Files, Collections, snapshots, and search.
 - [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md): read-only ORACLE adapter.
 - [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md): verified NEXUS Council adapter.
 - [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md): one-run offline recovery.
 - [`docs/ARK-REPOSITORY-RECOVERY.md`](docs/ARK-REPOSITORY-RECOVERY.md): repository-level Phase 8 recovery.
-- [`ai/ark-repository-recovery-contract.json`](ai/ark-repository-recovery-contract.json): machine-readable Phase 8 recovery boundary.
 - [`manifest.json`](manifest.json): canonical machine map.
 
 ## Status
@@ -523,10 +390,15 @@ Repository contract version is `2.5.0`. Public JSON Schemas use Draft 2020-12.
 - PR #10: Phase 6 structured AI / agent API, merged.
 - PR #11: Phase 7 replay and longitudinal research, merged.
 - PR #12: Phase 8 repository-level ARK recovery bridge, merged.
-- PR #13: Phase 9 INT composition batteries, current implementation branch.
+- PR #13: Phase 9 INT composition batteries, merged.
+- PR #14: Phase 10 hardening and release discipline, current implementation branch.
 
-With Phase 9 complete on this branch, the only unfinished numbered roadmap phase is the partly completed **Phase 10 hardening and release discipline**.
+The **numbered roadmap is complete through Phase 10 on this branch**. Deferred/non-promised items remain deferred, and no public release is claimed merely because the implementation and CI are complete.
+
+```text
+NUMBERED_ROADMAP_COMPLETE != PUBLISHED_RELEASE
+```
 
 ---
 
-**QSOL-CONTROL controls the machinery, not reality. If eleven composition batteries go green, CONTROL records compatibility. It does not promote itself to Minister for Truth.**
+**QSOL-CONTROL controls the machinery, not reality. If every numbered roadmap box goes green, CONTROL may celebrate responsibly. It still does not get a Ministry of Truth badge.**

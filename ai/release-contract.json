@@ -1,0 +1,58 @@
+{
+  "type": "qsol-control-release-contract",
+  "protocol": "qsol-control-release-bundle/1",
+  "schema_version": "1.1.0",
+  "repository_contract_version": "2.6.0",
+  "runtime": "tools/release_bundle.py",
+  "inventory": "release/release-inventory.json",
+  "manifest_schema": "schema/release-manifest.schema.json",
+  "archive": {
+    "format": "zip",
+    "compression": "ZIP_STORED",
+    "zip64_accepted": false,
+    "compressed_untrusted_members_accepted": false,
+    "timestamp": "1980-01-01T00:00:00",
+    "member_order": "utf8-byte-lexicographic",
+    "member_mode": "0644",
+    "member_extra": "empty",
+    "member_comment": "empty",
+    "archive_comment": "empty"
+  },
+  "identity": {
+    "file_identity": "sha256(exact_file_bytes)",
+    "release_manifest_identity": "sha256(canonical manifest payload without release_id)",
+    "archive_identity": "sha256(exact zip bytes)",
+    "source_commit_required": true
+  },
+  "bounds": {
+    "archive_bytes": 536870912,
+    "source_inventory_bytes": 503316480,
+    "archive_headroom_bytes": 33554432,
+    "member_count": 10000,
+    "member_bytes": 67108864,
+    "total_member_bytes": 536870912,
+    "member_count_checked_before_zipfile_parse": true
+  },
+  "verification": {
+    "extracts_archive": false,
+    "decompresses_members": false,
+    "unexpected_members_rejected": true,
+    "missing_members_rejected": true,
+    "member_hashes_verified": true,
+    "manifest_identity_verified": true,
+    "source_tree_hashes_verified_during_build": true,
+    "canonical_member_order_verified": true,
+    "canonical_member_timestamps_verified": true,
+    "canonical_member_modes_verified": true,
+    "empty_member_extra_and_comments_verified": true,
+    "empty_archive_comment_verified": true
+  },
+  "authority": "release-integrity-only",
+  "boundaries": [
+    "RELEASE_BUNDLE != PUBLICATION_AUTHORITY",
+    "RELEASE_HASH != SEMANTIC_TRUTH",
+    "REPRODUCIBLE_BYTES != REPRODUCIBLE_LIVE_INFERENCE",
+    "ARCHIVE_VERIFY != ARCHIVE_EXECUTE",
+    "COMPRESSED_UNTRUSTED_INPUT != ACCEPTED_BY_DEFAULT"
+  ]
+}
