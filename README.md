@@ -1,15 +1,15 @@
 # QSOL-CONTROL
 
-**A human + AI control plane for the QSOL ecosystem, orchestrating ORACLE evidence, NEXUS Council reasoning, persistent Files and Collections, model-state reproducibility metadata, lattice memory, and deterministic recovery machinery.**
+**A human + AI control plane for the QSOL ecosystem, orchestrating ORACLE evidence, NEXUS Council reasoning, persistent Files and Collections, model-state reproducibility metadata, classified replay, lattice memory, and deterministic recovery machinery.**
 
 > **CONTROL controls the machinery, not reality.**
 >
 > A green button does not make a claim true. Six models agreeing does not make it true. A retrieval score of `0.97` does not make it true either. We remain committed to disappointing the dashboard industry.
 
-QSOL-CONTROL now has two implemented operator surfaces over the same runtime:
+QSOL-CONTROL has two implemented operator surfaces over the same runtime:
 
-- **Human control plane:** Phase 5 local loopback WebUI.
-- **AI control plane:** Phase 6 structured JSONL/stdio agent API.
+- **Human control plane:** Phase 5 local loopback WebUI, extended with Phase 7 replay/longitudinal views.
+- **AI control plane:** Phase 6 structured JSONL/stdio agent API, extended with Phase 7 replay operations.
 
 CONTROL owns orchestration and its own storage mechanics. It does **not** own scientific truth, public epistemic authority, NEXUS governance, ORACLE history, ARK recovery authority, hidden chain-of-thought, or a model mind.
 
@@ -25,7 +25,7 @@ QSOL-CONTROL    OPERATES
 LATTICE MEMORY  REMEMBERS
 ```
 
-The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the witness/reasoning membrane. CONTROL is the operator surface. Files, Collections, model-state records, lattice addresses, indexes, and DNA projections are storage/reproducibility mechanisms, not new truth authorities.
+The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the witness/reasoning membrane. CONTROL is the operator surface. Files, Collections, replay records, model-state records, lattice addresses, indexes, and DNA projections are storage/reproducibility mechanisms, not new truth authorities.
 
 ## Phase 5 Human WebUI
 
@@ -38,6 +38,7 @@ browser
       -> read-only ORACLE adapter
       -> governance-preserving NEXUS Council adapter
       -> Phase 4 model-state registry
+      -> Phase 7 replay runtime
       -> lattice / DNA projection runtime
 ```
 
@@ -71,11 +72,9 @@ Default address:
 http://127.0.0.1:8765
 ```
 
-Phase 5 deliberately supports loopback only. Remote multi-user deployment remains deferred.
+Remote multi-user deployment remains deferred.
 
 ### WebUI views
-
-The implemented browser surface provides:
 
 ```text
 ASK
@@ -88,12 +87,12 @@ RECEIPTS
 MODELS
 MEMORY
 DNA
-REPLAY / COMPARE
+REPLAY / COMPARE / LONGITUDINAL
 COLLECTIONS
 HEALTH
 ```
 
-The composer has exactly two modes:
+The composer has exactly two question modes:
 
 ```text
 Evidence only
@@ -101,8 +100,6 @@ Ask Council
 ```
 
 Browser attachments become ordinary content-addressed CONTROL Files. A selected Collection is bound to its exact immutable snapshot when the run is created. If the Collection later advances, the historical run still renders the snapshot it actually used.
-
-The Collection UI supports create, browse, immutable membership snapshot updates with compare-and-swap, and deterministic lexical search.
 
 ### Browser security baseline
 
@@ -112,7 +109,7 @@ The local server enforces:
 - an unpredictable per-process WebUI session token;
 - token authentication on API requests after session bootstrap;
 - no CORS;
-- non-loopback `Host` rejection to block the straightforward DNS-rebinding path;
+- non-loopback `Host` rejection;
 - same-origin checks for state-changing browser requests when `Origin` is supplied;
 - Content Security Policy with `frame-ancestors 'none'`, `object-src 'none'`, and `base-uri 'none'`;
 - `X-Content-Type-Options: nosniff`;
@@ -121,23 +118,11 @@ The local server enforces:
 - `Cache-Control: no-store`;
 - DOM `textContent` for retrieved/untrusted record rendering rather than `innerHTML`.
 
-This is a concrete local baseline, not a claim that the broader Phase 10 browser/network threat model is complete.
+Phase 7 replay execution is a state-changing WebUI request and therefore inherits the same token and same-origin boundary.
 
 ### UI invariant
 
-CONTROL never manufactures a synthetic truth percentage from:
-
-```text
-votes
-confidence
-entropy
-model count
-consensus
-retrieval score
-embedding similarity
-codon frequency
-lattice position
-```
+CONTROL never manufactures a synthetic truth percentage from votes, confidence, entropy, model count, consensus, retrieval similarity, codon frequency, lattice position, or replay differences.
 
 ```text
 CONTROL_DISPLAY != AUTHORITY
@@ -145,7 +130,7 @@ CONTROL_OPERATION != TRUTH
 VOTE != EVIDENCE
 CONSENSUS != TRUTH
 SEARCH_SCORE != TRUTH
-SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
+REPLAY_CLASSIFICATION != TRUTH
 ```
 
 ## Phase 6 AI / Agent API
@@ -154,24 +139,11 @@ Phase 6 implements `qsol-control-agent-api/1` as a dependency-free structured ma
 
 The first transport is local JSONL over stdin/stdout:
 
-```text
-AI / AGENT
-  -> qsol-control-agent-request/1
-      -> AgentAPIDispatcher
-          -> CONTROL storage/runtime
-          -> read-only ORACLE adapter
-          -> governed NEXUS Council adapter
-          -> model-state registry
-          -> lattice memory
-```
-
-Start it with:
-
 ```bash
 python3 tools/agent_api.py --root .qsol-control-store
 ```
 
-The operation surface is frozen and machine-readable:
+The current operation surface is:
 
 ```text
 control.health
@@ -184,6 +156,10 @@ control.collection.snapshot
 control.collection.search
 control.run.get
 control.run.compare
+control.replay.classify
+control.replay.execute
+control.replay.get
+control.research.timeline
 control.evidence.get
 control.council.get
 control.models.get
@@ -191,9 +167,7 @@ control.memory.get
 control.memory.trace
 ```
 
-The API uses deterministic process-local quotas, bounded request/response sizes, stable machine-readable error codes, and bounded lattice traversal. It exposes no ORACLE write operation, raw NEXUS passthrough, WorldStore mutation, ballot override, vote-weight control, threshold control, hidden chain-of-thought, or synthetic truth score.
-
-AI-originated runs are recorded as `requester_kind: ai`, but AI callers receive exactly the same epistemic privilege as human callers:
+Replay execution is a normal quota-governed mutation. It receives no machine-only epistemic privilege.
 
 ```text
 HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
@@ -202,9 +176,83 @@ CONTROL_CALL != ORACLE_AUTHORITY
 CONTROL_CALL != NEXUS_GOVERNANCE
 ```
 
-Remote multi-user deployment and actual replay execution are not implemented by Phase 6.
-
 See [`docs/AI-API.md`](docs/AI-API.md), [`docs/AGENT-API.md`](docs/AGENT-API.md), and [`ai/agent-api-contract.json`](ai/agent-api-contract.json).
+
+## Phase 7 Replay and longitudinal research
+
+Phase 7 implements `qsol-control-replay/1`.
+
+Replay is **classified before execution**. CONTROL does not equate “same question” or “same model name” with an exact replay.
+
+```text
+ORIGINAL RUN
+   |
+   v
+CLASSIFY REPLAY CONDITIONS
+   |
+   +--> unavailable / inspection only
+   |
+   v
+NEW REPLAY RUN
+   |
+   +--> original exact Collection snapshot
+   +--> current ORACLE evidence
+   +--> current configured Council/runtime
+   |
+   v
+CONTENT-ADDRESSED COMPARISON REPORT
+```
+
+The original run and its event chain are never rewritten. Phase 7 fingerprints the original run, events, and model-state metadata before and after replay and fails if they changed.
+
+```text
+ORIGINAL_RUN != REPLAY_RUN
+ORIGINAL_RESULT_IMMUTABLE = true
+CURRENT_EVIDENCE != ORIGINAL_EVIDENCE
+```
+
+### Exact Collection and retrieval basis
+
+If the original run used a Collection, replay binds to its exact historical `collection_id` + `snapshot_id`. The current Collection `HEAD` is compared separately for longitudinal drift.
+
+```text
+REPLAY_COLLECTION_SNAPSHOT = ORIGINAL_COLLECTION_SNAPSHOT
+CURRENT_COLLECTION_HEAD != ORIGINAL_COLLECTION_SNAPSHOT
+```
+
+Current `control.ask` does not perform Collection search, so new replay-basis receipts explicitly record retrieval/index status as `not_used`. Pre-Phase-7 runs without recorded index provenance remain `not_recorded`.
+
+```text
+NOT_USED != NOT_RECORDED
+LEGACY_MISSING_INDEX != INVENTED_INDEX
+```
+
+### Deterministic comparison reports
+
+`qsol-control-replay-report/1` is canonical JSON and content-addressed. It keeps six lanes separate:
+
+1. evidence-set changes;
+2. Collection-membership changes;
+3. retrieval/index basis;
+4. Council roster and NEXUS runtime;
+5. model revision/runtime/configuration;
+6. request configuration.
+
+No combined truth or quality score is derived.
+
+A changed Council roster requires explicit authorization before replay execution. The report then records that changed configuration rather than hiding it.
+
+### Recurring-question research timeline
+
+`qsol-control-research-timeline/1` groups exact recurring questions by `question_sha256` and reports chronological runs plus transitions in evidence, Collection snapshot, Council roster, model state, and runtime.
+
+```text
+TIMELINE != TRUTH
+CHANGE != IMPROVEMENT
+CONSENSUS_CHANGE != EVIDENCE_CHANGE
+```
+
+See [`docs/REPLAY.md`](docs/REPLAY.md) and [`ai/replay-contract.json`](ai/replay-contract.json).
 
 ## Phase 4 model-state registry and inspector
 
@@ -235,21 +283,6 @@ inferred
 unknown
 ```
 
-The Phase 5 inspector loads the pinned labels directly from `ai/model-state-contract.json`:
-
-```text
-Model-state reproducibility metadata
-Not model mind
-Metadata provenance
-Unknown / not established
-Locally verified
-Provider reported
-Inferred - not verified
-Observed
-```
-
-The runtime fails if those Phase 4 labels drift. The UI never silently promotes provenance.
-
 ```text
 MODEL_STATE != MODEL_MIND
 VISIBLE_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
@@ -259,14 +292,13 @@ HASH_IDENTITY != ARTIFACT_BYTES
 MODEL_STATE_COMPARISON != MIND_COMPARISON
 ```
 
-See [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md), [`docs/WEBUI.md`](docs/WEBUI.md), and [`ai/model-state-contract.json`](ai/model-state-contract.json).
+See [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md).
 
 ## Files, Collections, and retrieval
 
 ```text
 FILE
 = immutable raw content object + immutable metadata record
-= may be attached directly to a run
 
 COLLECTION
 = persistent named group of File references
@@ -293,7 +325,7 @@ CONTROL implements the read-only `qsol-control-oracle-adapter/1` against `QSOL-O
 
 The adapter verifies ORACLE's append-only ledger before evidence queries, preserves event/provenance references, exposes `known` / `conflict` / `unknown`, reports freshness separately from truth, and exposes the QSOL-CONTEXT 2056 timelock view.
 
-CONTROL has no ORACLE write operation.
+CONTROL has no ORACLE write operation. Replay queries current evidence through this same read-only path.
 
 ```text
 ORACLE_REFERENCE != CONTROL_AUTHORITY
@@ -301,7 +333,7 @@ ORACLE_RECEIPT_COPY != ORACLE_LEDGER_APPEND
 FRESH != TRUE
 STALE != FALSE
 SUGGESTED_SEARCH != EVIDENCE
-ELIGIBLE != EXECUTED
+CURRENT_EVIDENCE != ORIGINAL_EVIDENCE
 ```
 
 See [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md).
@@ -310,9 +342,7 @@ See [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md).
 
 CONTROL implements `qsol-control-nexus-adapter/1` over NEXUS local JSONL/stdio.
 
-The adapter discovers live operations, exposes only `council.run` as its governance-bearing mutation, resolves committed WorldStore session/receipt objects, verifies ballot commitments/tally/threshold/minority reports, and preserves NEXUS roster/phase order.
-
-CONTROL does not expose direct `world.create`, generic NEXUS operation passthrough, Stenographer reads, vote-weight override, ballot override, roster-authority override, or consensus-threshold override.
+Replay Council execution uses the same reviewed `council.run` path. CONTROL still does not expose direct `world.create`, generic NEXUS operation passthrough, Stenographer reads, vote-weight override, ballot override, roster-authority override, or consensus-threshold override.
 
 ```text
 CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
@@ -328,15 +358,13 @@ See [`docs/NEXUS-ADAPTER.md`](docs/NEXUS-ADAPTER.md).
 
 ## Lattice memory
 
-CONTROL defines a 3 x 3 x 3 logical interaction-memory lattice:
+CONTROL defines a 3 × 3 × 3 logical interaction-memory lattice:
 
 ```text
 X = information role   question | response | evidence
 Y = epistemic role     observed | derived | unresolved
 Z = temporal role      current | historical | recovery
 ```
-
-The WebUI and agent API navigate the same 27-cell logical address space. Phase 6 additionally exposes bounded prefix tracing over stored run/event addresses.
 
 ```text
 LATTICE_ADDRESS != COLLECTION_MEMBERSHIP
@@ -355,8 +383,6 @@ qsol.lexicographic-27/1
 qsol.phi-stride-27/1
 ```
 
-The WebUI can inspect and export the deterministic projection. RESTRICTED export requires explicit acknowledgement that the projection is reversible sensitive data and records an audit event.
-
 ```text
 RAW_BYTES = CANONICAL
 DNA_PROJECTION = DERIVED
@@ -364,19 +390,6 @@ DNA_ENCODING != BIOLOGICAL_CLAIM
 PHI_TRAVERSAL != PHYSICAL_TRUTH
 CODON_FREQUENCY != EVIDENCE
 ```
-
-## Replay / comparison
-
-Phase 5 and Phase 6 expose inspection/comparison views over immutable stored runs and model-state metadata.
-
-They do **not** implement Phase 7 replay execution:
-
-```text
-comparison_is_replay_execution = false
-phase7_replay_execution_implemented = false
-```
-
-The original runs remain immutable.
 
 ## Recovery
 
@@ -388,7 +401,7 @@ RECOVERY_HEAD != SOURCE_CURRENT_HEAD
 RESTORED_CONTEXT != ORIGINAL_ASSISTANT_INSTANCE
 ```
 
-See [`docs/ARK-MINIMUM-BUNDLE.md`](docs/ARK-MINIMUM-BUNDLE.md).
+Phase 8 widens this from one-run recovery into the broader repository/system recovery package.
 
 ## Validation
 
@@ -401,7 +414,7 @@ python3 tools/agent_api.py --help
 python3 -W default -m unittest discover -s tests -v
 ```
 
-Repository contract version is `2.2.0`. Public JSON Schemas use Draft 2020-12.
+Repository contract version is `2.3.0`. Public JSON Schemas use Draft 2020-12.
 
 ## Documentation map
 
@@ -410,11 +423,10 @@ Repository contract version is `2.2.0`. Public JSON Schemas use Draft 2020-12.
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): system design and authority boundaries.
 - [`ROADMAP.md`](ROADMAP.md): phase sequence and completion state.
 - [`SECURITY.md`](SECURITY.md): repository security boundaries.
-- [`docs/WEBUI.md`](docs/WEBUI.md): implemented Phase 5 local Human WebUI.
-- [`ai/webui-contract.json`](ai/webui-contract.json): machine-readable WebUI boundary.
-- [`docs/AI-API.md`](docs/AI-API.md): implemented Phase 6 AI/agent interface overview.
-- [`docs/AGENT-API.md`](docs/AGENT-API.md): exact Phase 6 protocol and operation behavior.
-- [`ai/agent-api-contract.json`](ai/agent-api-contract.json): machine-readable Phase 6 boundary.
+- [`docs/WEBUI.md`](docs/WEBUI.md): local Human WebUI.
+- [`docs/AGENT-API.md`](docs/AGENT-API.md): structured machine API.
+- [`docs/REPLAY.md`](docs/REPLAY.md): Phase 7 classified replay and longitudinal research.
+- [`ai/replay-contract.json`](ai/replay-contract.json): machine-readable Phase 7 boundary.
 - [`docs/MODEL-STATE.md`](docs/MODEL-STATE.md): model-state registry and provenance.
 - [`docs/PERSISTENT-STORAGE.md`](docs/PERSISTENT-STORAGE.md): Files, Collections, snapshots, and search.
 - [`docs/ORACLE-ADAPTER.md`](docs/ORACLE-ADAPTER.md): read-only ORACLE adapter.
@@ -432,10 +444,11 @@ Repository contract version is `2.2.0`. Public JSON Schemas use Draft 2020-12.
 - PR #7: Phase 3 NEXUS Council adapter, merged.
 - PR #8: Phase 4 AI model-state registry, merged.
 - PR #9: Phase 5 Human WebUI, merged.
-- PR #10: Phase 6 structured AI / agent API, current implementation branch.
+- PR #10: Phase 6 structured AI / agent API, merged.
+- PR #11: Phase 7 replay and longitudinal research, current implementation branch.
 
-After Phase 6, the roadmap proceeds through Phase 7 replay/longitudinal research, the partly completed Phase 8 broader ARK recovery bridge, Phase 9 INT composition batteries, and the partly completed Phase 10 hardening/release discipline.
+After Phase 7, the roadmap continues with the partly completed Phase 8 broader ARK recovery bridge, Phase 9 INT composition batteries, and the partly completed Phase 10 hardening/release discipline.
 
 ---
 
-**QSOL-CONTROL controls the machinery, not reality. If the Council votes that the Moon is cheese and the retrieval engine returns `0.999`, CONTROL preserves what the systems did. It does not update astronomy. A model-state hash is paperwork, not a seance.**
+**QSOL-CONTROL controls the machinery, not reality. If a replay produces a different Council vote, CONTROL records the difference. It does not issue reality a patch release.**
