@@ -1,0 +1,24 @@
+{
+  "type": "qsol-control-mobile-client-contract",
+  "protocol": "qsol-control-mobile-client/1",
+  "schema_version": "1.0.0",
+  "clients": {
+    "ios_swiftui": "mobile/ios/QSOLControl",
+    "android_kotlin": "mobile/android/app/src/main/java/org/qsol/control"
+  },
+  "transport": "qsol-control-remote-request/1 over HTTPS",
+  "endpoint": "/v1/agent",
+  "client_reimplements_control_runtime": false,
+  "client_supplies_agent_caller_identity": false,
+  "reference_client_persists_bearer_token": false,
+  "truth_scoring_ui": false,
+  "hidden_chain_of_thought_ui": false,
+  "authority": "presentation-and-transport-only",
+  "boundaries": [
+    "MOBILE_CLIENT != CONTROL_AUTHORITY",
+    "MOBILE_UI != TRUTH_ENGINE",
+    "TOKEN != MODEL_STATE",
+    "REMOTE_ACCESS != EPISTEMIC_PRIVILEGE",
+    "VISIBLE_RESPONSE != HIDDEN_CHAIN_OF_THOUGHT"
+  ]
+}

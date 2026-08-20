@@ -26,6 +26,37 @@ independently versioned and are never silently substituted.
 
 ## Unreleased
 
+### Added — PR #15 post-roadmap deferred resolution
+
+- Separately versioned `qsol-control-post-roadmap-extensions/1` machine manifest bound to
+  the completed core contract `2.6.0`.
+- Optional authenticated remote Agent API gateway with digest-only bearer credentials,
+  fixed principal-to-caller identity mapping, per-principal operation allowlists, Host
+  allowlisting, no CORS, and mandatory TLS for non-loopback binds.
+- Native iOS/SwiftUI and Android/Kotlin reference clients that remain thin HTTPS
+  transports over `qsol-control-remote-request/1` rather than reimplementing CONTROL.
+- External consensus coordination adapter with content-addressed mutation intents and
+  exact quorum-receipt validation; CONTROL does not embed a consensus algorithm and the
+  adapter does not directly mutate CONTROL storage.
+- `ai/permanent-nongoals.json` making automatic truth scoring, hidden chain-of-thought
+  capture, literal lattice-cognition claims, biological DNA-codec claims, and physical
+  optimality claims for φ traversal permanent prohibitions rather than open backlog.
+- Reproducible source-release inventory now includes the extension and native-client
+  source roots while retaining core repository contract `2.6.0`.
+
+### Boundaries — post-roadmap extensions
+
+```text
+CORE_2_6_0 != EXTENSION_SURFACE
+REMOTE_ACCESS != EPISTEMIC_PRIVILEGE
+AUTHENTICATED != AUTHORITATIVE
+MOBILE_CLIENT != CONTROL_AUTHORITY
+CONSENSUS_RECEIPT != SEMANTIC_AUTHORITY
+QUORUM != TRUTH
+AUTOMATIC_TRUTH_SCORING = FORBIDDEN
+HIDDEN_CHAIN_OF_THOUGHT_CAPTURE = FORBIDDEN
+```
+
 ### Added — Phase 10 hardening and release discipline
 
 - Explicit network/browser threat model for the implemented loopback WebUI and local
@@ -56,7 +87,7 @@ independently versioned and are never silently substituted.
 
 ### Validation
 
-The Phase 10 gate is validated with:
+The current validation gate is:
 
 ```bash
 python3 tools/validate_control.py
@@ -66,6 +97,7 @@ python3 tools/int_composition.py validate
 python3 tools/migration.py validate
 python3 tools/adversarial_storage.py --iterations 256
 python3 tools/release_bundle.py check
+python3 tools/validate_extensions.py
 python3 -W default -m unittest discover -s tests -v
 ```
 
@@ -86,6 +118,8 @@ python3 -W default -m unittest discover -s tests -v
 - **Phase 9** — exact-pinned INT-style cross-repository composition batteries.
 - **Phase 10** — hardening, migration policy, deterministic release machinery, and
   release discipline.
+- **Post-roadmap PR #15** — optional remote/mobile/consensus extension surfaces plus
+  permanent non-goal resolution.
 
 Release-specific version headings are added **only when a release is actually cut**;
 completed Unreleased entries are then moved under that exact version/date according to

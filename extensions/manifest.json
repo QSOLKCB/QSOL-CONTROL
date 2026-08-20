@@ -1,0 +1,72 @@
+{
+  "type": "qsol-control-extension-manifest",
+  "protocol": "qsol-control-post-roadmap-extensions/1",
+  "schema_version": "1.2.0",
+  "core_protocol": "QSOL-CONTROL/0.1",
+  "core_contract_version": "2.6.0",
+  "core_roadmap_complete_through_phase": 10,
+  "authority": "none",
+  "extensions": {
+    "remote_multi_user_gateway": {
+      "status": "implemented-reference",
+      "runtime": "api/remote_http.py",
+      "cli": "tools/remote_gateway.py",
+      "contract": "ai/remote-gateway-contract.json",
+      "config_schema": "schema/remote-gateway-config.schema.json",
+      "audit_protocol": "qsol-control-remote-audit/1",
+      "remote_webui": false,
+      "non_loopback_requires_tls": true,
+      "minimum_presented_bearer_token_characters": 32,
+      "tls_private_key_private_on_posix": true,
+      "client_self_asserted_caller_identity": false,
+      "record_level_acl": true,
+      "privacy_ceiling_per_principal": true,
+      "durable_principal_audit": true,
+      "renewable_quota_window_seconds": 60,
+      "maximum_concurrent_connections": 64,
+      "accepted_socket_timeout_seconds": 10,
+      "programmatic_server_factory_revalidates_policy": true
+    },
+    "native_mobile_clients": {
+      "status": "implemented-reference",
+      "contract": "ai/mobile-client-contract.json",
+      "ios": "mobile/ios/QSOLControl",
+      "android": "mobile/android/app/src/main",
+      "app_store_packaging_claimed": false
+    },
+    "distributed_consensus_coordination": {
+      "status": "implemented-external-adapter",
+      "runtime": "adapters/consensus.py",
+      "cli": "tools/consensus_adapter.py",
+      "contract": "ai/consensus-adapter-contract.json",
+      "consensus_algorithm_implemented_by_control": false,
+      "mutation_intents_only": true,
+      "supplied_intents_fully_revalidated": true,
+      "provider_output_bounded_while_running": true,
+      "provider_stdout_max_bytes": 4194304,
+      "provider_stderr_max_bytes": 1048576,
+      "post_proposal_receipt_verification": true,
+      "control_storage_mutated_by_adapter": false
+    }
+  },
+  "permanent_nongoals": "ai/permanent-nongoals.json",
+  "deferred_resolution": {
+    "remote_multi_user_deployment": "resolved_by_authenticated_authorized_remote_agent_gateway",
+    "mobile_native_applications": "resolved_by_native_reference_clients",
+    "distributed_consensus_for_control_storage": "resolved_by_external_consensus_coordination_adapter",
+    "automatic_truth_scoring": "permanently_forbidden",
+    "hidden_chain_of_thought_capture": "permanently_forbidden",
+    "literal_geometric_cognition_claims": "permanently_forbidden",
+    "biological_claims_from_dna_codec": "permanently_forbidden",
+    "phi_traversal_physical_optimality_claims": "permanently_forbidden"
+  },
+  "invariants": [
+    "CORE_2_6_0 != EXTENSION_SURFACE",
+    "REMOTE_ACCESS != EPISTEMIC_PRIVILEGE",
+    "AUTHENTICATION != RECORD_AUTHORIZATION",
+    "CONSENSUS_RECEIPT != SEMANTIC_AUTHORITY",
+    "MOBILE_CLIENT != CONTROL_AUTHORITY",
+    "AUTOMATIC_TRUTH_SCORING = FORBIDDEN",
+    "HIDDEN_CHAIN_OF_THOUGHT_CAPTURE = FORBIDDEN"
+  ]
+}
