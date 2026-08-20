@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
+from api.common import AgentAPIError, MUTATION_OPERATIONS, reject_forbidden_fields
+
 ADAPTER_PROTOCOL = "qsol-control-consensus-adapter/1"
 INTENT_PROTOCOL = "qsol-control-consensus-intent/1"
 RECEIPT_PROTOCOL = "qsol-control-consensus-receipt/1"
@@ -40,6 +42,19 @@ def sha256_ref(data: bytes) -> str:
     return "sha256:" + hashlib.sha256(data).hexdigest()
 
 
+def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in out:
+            raise ConsensusAdapterError(f"duplicate JSON member: {key}")
+        out[key] = value
+    return out
+
+
+def _reject_constant(value: str) -> None:
+    raise ConsensusAdapterError(f"non-finite JSON number rejected: {value}")
+
+
 def _validate_command(command: Sequence[str]) -> tuple[str, ...]:
     if not isinstance(command, (list, tuple)) or not command or len(command) > MAX_COMMAND_ARGS:
         raise ConsensusAdapterError("consensus command must be a bounded non-empty argv sequence")
@@ -52,10 +67,14 @@ def _validate_command(command: Sequence[str]) -> tuple[str, ...]:
 
 
 def build_intent(*, operation: str, params: dict[str, Any], expected_store_fingerprint: str) -> dict[str, Any]:
-    if not isinstance(operation, str) or not operation.startswith("control.") or len(operation) > 256:
-        raise ConsensusAdapterError("operation must be a bounded CONTROL operation")
+    if operation not in MUTATION_OPERATIONS:
+        raise ConsensusAdapterError("consensus intent operation must be a known CONTROL mutation")
     if not isinstance(params, dict):
         raise ConsensusAdapterError("params must be an object")
+    try:
+        reject_forbidden_fields(params)
+    except AgentAPIError as exc:
+        raise ConsensusAdapterError(f"consensus intent rejected by Agent API boundary: {exc.message}") from exc
     if not isinstance(expected_store_fingerprint, str) or SHA256_REF.fullmatch(expected_store_fingerprint) is None:
         raise ConsensusAdapterError("expected_store_fingerprint must be a sha256: reference")
     payload = {
@@ -141,7 +160,13 @@ class ExternalConsensusAdapter:
         if len(completed.stdout) > MAX_RESPONSE_BYTES:
             raise ConsensusAdapterError("consensus response exceeds byte limit")
         try:
-            response = json.loads(completed.stdout.decode("utf-8"))
+            response = json.loads(
+                completed.stdout.decode("utf-8"),
+                object_pairs_hook=_pairs,
+                parse_constant=_reject_constant,
+            )
+        except ConsensusAdapterError:
+            raise
         except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
             raise ConsensusAdapterError("external consensus provider returned invalid JSON") from exc
         if not isinstance(response, dict) or response.get("protocol") != PROVIDER_RESPONSE_PROTOCOL or response.get("ok") is not True:
@@ -171,7 +196,13 @@ class ExternalConsensusAdapter:
         if not isinstance(claimed, str) or claimed != sha256_ref(canonical_json_bytes(payload)):
             raise ConsensusAdapterError("consensus intent identity mismatch")
         result = self._call("commit.propose", intent)
-        return validate_receipt(result, expected_intent_id=claimed)
+        receipt = validate_receipt(result, expected_intent_id=claimed)
+        if receipt["state_fingerprint"] != intent["expected_store_fingerprint"]:
+            raise ConsensusAdapterError("consensus receipt is bound to a different CONTROL pre-state")
+        verification = self._call("receipt.verify", receipt)
+        if verification.get("verified") is not True or verification.get("intent_id") != claimed:
+            raise ConsensusAdapterError("external consensus provider failed post-proposal receipt verification")
+        return receipt
 
     def verify(self, receipt: dict[str, Any]) -> dict[str, Any]:
         local = validate_receipt(receipt)
