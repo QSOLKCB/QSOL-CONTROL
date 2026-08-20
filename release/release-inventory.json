@@ -43,7 +43,7 @@
   ],
   "max_file_count": 5000,
   "max_file_bytes": 67108864,
-  "max_total_bytes": 536870912,
+  "max_total_bytes": 503316480,
   "symlinks_allowed": false,
   "generated_artifacts_included": false
 }
