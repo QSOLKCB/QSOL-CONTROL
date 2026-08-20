@@ -22,6 +22,12 @@ def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return value
 
 
+def _reject_nonstandard_constant(value: str) -> None:
+    raise AgentAPIError(
+        "INVALID_JSON", f"non-standard JSON numeric constant is forbidden: {value}"
+    )
+
+
 def process_line(dispatcher: AgentAPIDispatcher, raw: bytes) -> dict[str, Any]:
     if len(raw) > MAX_REQUEST_BYTES:
         return error_envelope(
@@ -31,7 +37,11 @@ def process_line(dispatcher: AgentAPIDispatcher, raw: bytes) -> dict[str, Any]:
         )
     try:
         text = raw.decode("utf-8")
-        value = json.loads(text, object_pairs_hook=_reject_duplicate_pairs)
+        value = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_pairs,
+            parse_constant=_reject_nonstandard_constant,
+        )
     except AgentAPIError as exc:
         return error_envelope("unknown", None, exc)
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
