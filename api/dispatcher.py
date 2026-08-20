@@ -13,6 +13,7 @@ from .common import (
     MAX_MUTATIONS_PER_CALLER,
     MAX_REQUESTS_PER_CALLER,
     MUTATION_OPERATIONS,
+    REQUEST_ID_RE,
     AgentAPIError,
     Caller,
     QuotaState,
@@ -47,6 +48,13 @@ class AgentAPIDispatcher:
         if is_mutation:
             state.mutations += 1
 
+    @staticmethod
+    def _require_empty_params(operation: str, params: dict[str, Any]) -> None:
+        if params:
+            raise AgentAPIError(
+                "INVALID_REQUEST", f"{operation} does not accept parameters"
+            )
+
     def _create_collection(
         self, caller: Caller, params: dict[str, Any]
     ) -> dict[str, Any]:
@@ -79,6 +87,8 @@ class AgentAPIDispatcher:
     def _dispatch(
         self, caller: Caller, operation: str, params: dict[str, Any]
     ) -> Any:
+        if operation in {"control.health", "control.capabilities"}:
+            self._require_empty_params(operation, params)
         handlers = {
             "control.health": lambda: self.runtime.health(),
             "control.capabilities": lambda: self.runtime.capabilities(),
@@ -101,6 +111,13 @@ class AgentAPIDispatcher:
     def handle(self, value: Any) -> dict[str, Any]:
         request_id = "unknown"
         operation: str | None = None
+        if isinstance(value, dict):
+            candidate_id = value.get("request_id")
+            if isinstance(candidate_id, str) and REQUEST_ID_RE.fullmatch(candidate_id):
+                request_id = candidate_id
+            candidate_operation = value.get("operation")
+            if isinstance(candidate_operation, str) and candidate_operation:
+                operation = candidate_operation[:256]
         try:
             request_id, caller, operation, params = validate_request_envelope(value)
             self._charge(caller, operation)
