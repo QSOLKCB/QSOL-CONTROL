@@ -1,0 +1,26 @@
+{
+  "type": "qsol-control-consensus-adapter-contract",
+  "protocol": "qsol-control-consensus-adapter/1",
+  "schema_version": "1.0.0",
+  "runtime": "adapters/consensus.py",
+  "cli": "tools/consensus_adapter.py",
+  "provider_transport": "bounded-json-stdin-stdout-one-shot",
+  "intent_protocol": "qsol-control-consensus-intent/1",
+  "receipt_protocol": "qsol-control-consensus-receipt/1",
+  "consensus_algorithm_implemented_by_control": false,
+  "external_provider_owns_quorum_formation": true,
+  "exact_intent_content_addressed": true,
+  "expected_store_fingerprint_bound": true,
+  "receipt_requires_satisfied_quorum": true,
+  "receipt_requires_external_verified_flag": true,
+  "control_storage_mutated_by_adapter": false,
+  "authority": "coordination-only",
+  "semantic_authority_claimed": false,
+  "boundaries": [
+    "CONSENSUS_RECEIPT != SEMANTIC_AUTHORITY",
+    "QUORUM != TRUTH",
+    "COORDINATION != EVIDENCE",
+    "EXTERNAL_CONSENSUS != CONTROL_STORAGE_REWRITE",
+    "INTENT_ID != EXECUTION_AUTHORITY"
+  ]
+}
