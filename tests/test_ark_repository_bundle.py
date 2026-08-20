@@ -14,11 +14,9 @@ from storage.ark_repository_bundle import (
 from storage.control_store import ControlStore
 from storage.interaction_store import InteractionStore
 from storage.model_state_registry import ModelStateRegistry
-from storage.replay_store import (
-    REPLAY_RECORD_PROTOCOL,
-    REPLAY_REPORT_PROTOCOL,
-    ReplayStore,
-)
+from storage.replay_store import ReplayStore
+from webui.common import WebUIConfig
+from webui.runtime import ControlWebUIRuntime
 
 ROOT = Path(__file__).resolve().parents[1]
 TIME_A = "2026-08-20T18:00:00+09:30"
@@ -59,25 +57,16 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
         if with_index:
             self.store.build_lexical_index(collection["collection_id"], built_at=TIME_A)
 
-        run_a = self.interactions.create_run(
-            question="What changed?",
-            mode="evidence_only",
-            requester_kind="human",
-            created_at=TIME_A,
-            evidence_state="unknown",
-            collection_id=collection["collection_id"],
-            snapshot_id=snapshot["snapshot_id"],
-            replayability="R3",
+        runtime = ControlWebUIRuntime(WebUIConfig(control_root=self.root, port=0))
+        original = runtime.ask(
+            {
+                "question": "What changed?",
+                "mode": "evidence_only",
+                "collection_id": collection["collection_id"],
+            }
         )
-        self.interactions.append_event(
-            run_a["run_id"],
-            kind="evidence",
-            payload={"availability": "unconfigured", "state": "unknown", "evidence_refs": []},
-            occurred_at=TIME_A,
-            epistemic_role="unresolved",
-            temporal_role="current",
-            record_refs=["oracle:unconfigured"],
-        )
+        run_a = original["run_view"]["run"]
+        self.assertEqual(run_a["collection_ref"]["snapshot_id"], snapshot["snapshot_id"])
 
         if with_model:
             registry = ModelStateRegistry(self.root)
@@ -128,36 +117,24 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
                 link_run_event=False,
             )
 
-        run_b = self.interactions.create_run(
-            question="What changed?",
-            mode="evidence_only",
-            requester_kind="system",
-            created_at=TIME_B,
-            evidence_state="unknown",
-            collection_id=collection["collection_id"],
-            snapshot_id=snapshot["snapshot_id"],
-            replayability="R3",
-        )
         if with_replay:
-            replays = ReplayStore(self.root)
-            report = replays.write_report(
-                {
-                    "protocol": REPLAY_REPORT_PROTOCOL,
-                    "original_run_id": run_a["run_id"],
-                    "replay_run_id": run_b["run_id"],
-                    "authority": "comparison-only",
-                }
+            replay = runtime.replay_execute(run_a["run_id"], requester_kind="system")
+            run_b = replay["replay_run_view"]["run"]
+            self.assertEqual(replay["replay"]["original_run_id"], run_a["run_id"])
+            self.assertEqual(replay["replay"]["replay_run_id"], run_b["run_id"])
+            self.assertTrue(replay["report"]["original_result"]["immutable"])
+        else:
+            run_b = self.interactions.create_run(
+                question="What changed?",
+                mode="evidence_only",
+                requester_kind="system",
+                created_at=TIME_B,
+                evidence_state="unknown",
+                collection_id=collection["collection_id"],
+                snapshot_id=snapshot["snapshot_id"],
+                replayability="R3",
             )
-            replays.write_replay(
-                {
-                    "protocol": REPLAY_RECORD_PROTOCOL,
-                    "original_run_id": run_a["run_id"],
-                    "replay_run_id": run_b["run_id"],
-                    "report_id": report["report_id"],
-                    "executed_at": TIME_B,
-                    "authority": "orchestration-and-comparison-only",
-                }
-            )
+
         return {
             "file": file_record,
             "collection": collection,
@@ -169,7 +146,10 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
     @staticmethod
     def package_bytes(root):
         rows = []
-        for path in sorted((p for p in root.rglob("*") if p.is_file()), key=lambda p: p.relative_to(root).as_posix().encode("utf-8")):
+        for path in sorted(
+            (p for p in root.rglob("*") if p.is_file()),
+            key=lambda p: p.relative_to(root).as_posix().encode("utf-8"),
+        ):
             rows.append((path.relative_to(root).as_posix(), path.read_bytes()))
         return rows
 
@@ -178,10 +158,18 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
         first = Path(self.temp.name) / "package-a"
         second = Path(self.temp.name) / "package-b"
         report_a = build_repository_recovery_package(
-            self.root, first, repository_root=ROOT, include_indexes=True, include_dna=True
+            self.root,
+            first,
+            repository_root=ROOT,
+            include_indexes=True,
+            include_dna=True,
         )
         report_b = build_repository_recovery_package(
-            self.root, second, repository_root=ROOT, include_indexes=True, include_dna=True
+            self.root,
+            second,
+            repository_root=ROOT,
+            include_indexes=True,
+            include_dna=True,
         )
         self.assertEqual(report_a["package_id"], report_b["package_id"])
         self.assertEqual(self.package_bytes(first), self.package_bytes(second))
@@ -190,19 +178,28 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
         specimen = self.build_specimen()
         package = Path(self.temp.name) / "package"
         build_repository_recovery_package(
-            self.root, package, repository_root=ROOT, include_indexes=True, include_dna=True
+            self.root,
+            package,
+            repository_root=ROOT,
+            include_indexes=True,
+            include_dna=True,
         )
         target = Path(self.temp.name) / "restored"
         report = restore_repository_recovery_package(package, target)
         self.assertEqual(report["status"], "restored")
         restored = ControlStore(target / "store")
-        self.assertEqual(restored.read_file(specimen["file"]["file_id"]), b"alpha evidence beta")
         self.assertEqual(
-            restored.get_collection(specimen["collection"]["collection_id"])["head_snapshot_id"],
+            restored.read_file(specimen["file"]["file_id"]), b"alpha evidence beta"
+        )
+        self.assertEqual(
+            restored.get_collection(specimen["collection"]["collection_id"])[
+                "head_snapshot_id"
+            ],
             specimen["snapshot"]["snapshot_id"],
         )
         interactions = InteractionStore(target / "store")
         interactions.verify_run(specimen["run_a"]["run_id"])
+        interactions.verify_run(specimen["run_b"]["run_id"])
         self.assertEqual(len(ModelStateRegistry(target / "store").list_states()), 1)
         self.assertEqual(len(ReplayStore(target / "store").list_replays()), 1)
         index_root = target / "store" / "records" / "indexes"
@@ -226,7 +223,9 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
             build_repository_recovery_package(self.root, package, repository_root=ROOT)
             target = Path(self.temp.name) / "restored"
             restore_repository_recovery_package(package, target)
-        self.assertEqual(ControlStore(target / "store").read_file(record["file_id"]), raw)
+        self.assertEqual(
+            ControlStore(target / "store").read_file(record["file_id"]), raw
+        )
 
     def test_capsule_tamper_is_rejected(self):
         self.build_specimen(with_index=False)
@@ -241,9 +240,9 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
 
     def test_constrained_fixture_recovers_without_webui_or_search_engine(self):
         fixture = json.loads(
-            (ROOT / "examples" / "recovery" / "constrained-store.fixture.json").read_text(
-                encoding="utf-8"
-            )
+            (
+                ROOT / "examples" / "recovery" / "constrained-store.fixture.json"
+            ).read_text(encoding="utf-8")
         )
         file_record = self.store.put_file(
             fixture["file"]["content"].encode("utf-8"),
@@ -291,7 +290,9 @@ class ArkRepositoryRecoveryTests(unittest.TestCase):
             privacy_class="RESTRICTED",
             retention_class="ARCHIVE",
         )
-        self.assertEqual(repository_recovery.source_privacy_class(self.root), "RESTRICTED")
+        self.assertEqual(
+            repository_recovery.source_privacy_class(self.root), "RESTRICTED"
+        )
 
 
 if __name__ == "__main__":
