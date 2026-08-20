@@ -15,6 +15,7 @@ from adapters.oracle import OracleAdapterError
 from storage.control_store import StorageError
 from storage.dna_lattice import DnaLatticeError
 from storage.model_state import ModelStateError
+from storage.replay_store import ReplayError
 
 from .common import MAX_JSON_BODY_BYTES, WebUIConfig, WebUIError, _reject_truth_fields
 from .runtime import ControlWebUIRuntime
@@ -225,12 +226,29 @@ class ControlWebUIHandler(BaseHTTPRequestHandler):
                 right = _single_query(query, "right_run_id")
                 self._json(HTTPStatus.OK, self.runtime.compare_runs(left, right))
                 return
+            if path == "/api/replay/classify":
+                run_id = _single_query(query, "run_id")
+                self._json(HTTPStatus.OK, self.runtime.replay_classify(run_id))
+                return
+            if path.startswith("/api/replays/"):
+                replay_id = path.removeprefix("/api/replays/")
+                self._json(HTTPStatus.OK, self.runtime.replay_get(replay_id))
+                return
+            if path == "/api/research-timeline":
+                run_id = _single_query(query, "run_id")
+                limit = int(_single_query(query, "limit", default="100"))
+                self._json(
+                    HTTPStatus.OK,
+                    self.runtime.research_timeline(run_id, limit=limit),
+                )
+                return
             if path.startswith("/api/"):
                 self._error(HTTPStatus.NOT_FOUND, "API route not found")
                 return
             self._serve_static(path)
         except (
             WebUIError,
+            ReplayError,
             StorageError,
             OracleAdapterError,
             NexusAdapterError,
@@ -264,6 +282,24 @@ class ControlWebUIHandler(BaseHTTPRequestHandler):
             if path == "/api/ask":
                 self._json(HTTPStatus.OK, self.runtime.ask(request))
                 return
+            if path == "/api/replay":
+                allowed = {"run_id", "allow_changed_configuration"}
+                if set(request) - allowed or "run_id" not in request:
+                    raise WebUIError(
+                        "replay request requires run_id and optional allow_changed_configuration"
+                    )
+                allow_changed = request.get("allow_changed_configuration", False)
+                if type(allow_changed) is not bool:
+                    raise WebUIError("allow_changed_configuration must be boolean")
+                self._json(
+                    HTTPStatus.OK,
+                    self.runtime.replay_execute(
+                        request["run_id"],
+                        requester_kind="human",
+                        allow_changed_configuration=allow_changed,
+                    ),
+                )
+                return
             if path == "/api/dna/inspect":
                 self._json(HTTPStatus.OK, self.runtime.dna_inspect(request))
                 return
@@ -273,6 +309,7 @@ class ControlWebUIHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.NOT_FOUND, "API route not found")
         except (
             WebUIError,
+            ReplayError,
             StorageError,
             OracleAdapterError,
             NexusAdapterError,
