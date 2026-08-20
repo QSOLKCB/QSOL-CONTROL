@@ -307,6 +307,11 @@ def _bounded_process(
     finally:
         for thread in threads:
             thread.join(timeout=1.0)
+        for stream in (proc.stdin, proc.stdout, proc.stderr):
+            try:
+                stream.close()
+            except OSError:
+                pass
 
     if overflow:
         raise ConsensusAdapterError(
