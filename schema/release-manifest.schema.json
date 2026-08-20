@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/release-manifest.schema.json",
+  "title": "QSOL-CONTROL Reproducible Release Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "release_id",
+    "type",
+    "protocol",
+    "schema_version",
+    "release_version",
+    "repository_contract_version",
+    "source_commit",
+    "inventory_protocol",
+    "file_count",
+    "total_file_bytes",
+    "files",
+    "archive_format",
+    "compression",
+    "authority",
+    "semantic_authority_claimed",
+    "boundaries"
+  ],
+  "properties": {
+    "release_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "type": {"const": "qsol-control-release-manifest"},
+    "protocol": {"const": "qsol-control-release-bundle/1"},
+    "schema_version": {"const": "1.0.0"},
+    "release_version": {"type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"},
+    "repository_contract_version": {"const": "2.6.0"},
+    "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "inventory_protocol": {"const": "qsol-control-release-inventory/1"},
+    "file_count": {"type": "integer", "minimum": 1, "maximum": 5000},
+    "total_file_bytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "size_bytes", "sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "size_bytes": {"type": "integer", "minimum": 0, "maximum": 67108864},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "archive_format": {"const": "zip"},
+    "compression": {"const": "ZIP_STORED"},
+    "authority": {"const": "release-integrity-only"},
+    "semantic_authority_claimed": {"const": false},
+    "boundaries": {
+      "type": "array",
+      "contains": {"const": "RELEASE_HASH != SEMANTIC_TRUTH"}
+    }
+  }
+}
