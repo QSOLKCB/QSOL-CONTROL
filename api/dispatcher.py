@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from adapters.nexus import NexusAdapterError
+from adapters.nexus import (
+    NexusAdapterError,
+    NexusCouncilAdapter,
+    _reject_obvious_secrets,
+)
 from adapters.oracle import OracleAdapterError
 from storage.control_store import StorageError
 from storage.dna_lattice import DnaLatticeError
@@ -16,7 +20,9 @@ from webui.common import (
 
 from .common import (
     MAX_MUTATIONS_PER_CALLER,
+    MAX_MUTATIONS_PER_PROCESS,
     MAX_REQUESTS_PER_CALLER,
+    MAX_REQUESTS_PER_PROCESS,
     MUTATION_OPERATIONS,
     REQUEST_ID_RE,
     AgentAPIError,
@@ -28,29 +34,61 @@ from .common import (
 )
 from .runtime import ControlAgentAPIRuntime
 
+ASK_PARAMS = {
+    "question",
+    "mode",
+    "file_ids",
+    "collection_id",
+    "snapshot_id",
+    "oracle_max_age_seconds",
+    "suggested_searches",
+    "members",
+    "nexus_evidence_refs",
+    "nexus_mode",
+    "privacy_class",
+}
+PRIVACY_CLASSES = {"PUBLIC", "INTERNAL", "RESTRICTED"}
+
 
 class AgentAPIDispatcher:
     def __init__(self, config: WebUIConfig):
         self.runtime = ControlAgentAPIRuntime(config)
         self._quota: dict[str, QuotaState] = {}
+        self._process_quota = QuotaState()
 
     def _charge(self, caller: Caller, operation: str) -> None:
         state = self._quota.setdefault(caller.quota_key, QuotaState())
+        is_mutation = operation in MUTATION_OPERATIONS
+
+        if self._process_quota.requests >= MAX_REQUESTS_PER_PROCESS:
+            raise AgentAPIError(
+                "QUOTA_EXCEEDED",
+                "agent API process request quota exceeded",
+                details={"limit": MAX_REQUESTS_PER_PROCESS, "kind": "process_requests"},
+            )
+        if is_mutation and self._process_quota.mutations >= MAX_MUTATIONS_PER_PROCESS:
+            raise AgentAPIError(
+                "QUOTA_EXCEEDED",
+                "agent API process mutation quota exceeded",
+                details={"limit": MAX_MUTATIONS_PER_PROCESS, "kind": "process_mutations"},
+            )
         if state.requests >= MAX_REQUESTS_PER_CALLER:
             raise AgentAPIError(
                 "QUOTA_EXCEEDED",
                 "caller request quota exceeded for this agent API process",
-                details={"limit": MAX_REQUESTS_PER_CALLER, "kind": "requests"},
+                details={"limit": MAX_REQUESTS_PER_CALLER, "kind": "caller_requests"},
             )
-        is_mutation = operation in MUTATION_OPERATIONS
         if is_mutation and state.mutations >= MAX_MUTATIONS_PER_CALLER:
             raise AgentAPIError(
                 "QUOTA_EXCEEDED",
                 "caller mutation quota exceeded for this agent API process",
-                details={"limit": MAX_MUTATIONS_PER_CALLER, "kind": "mutations"},
+                details={"limit": MAX_MUTATIONS_PER_CALLER, "kind": "caller_mutations"},
             )
+
+        self._process_quota.requests += 1
         state.requests += 1
         if is_mutation:
+            self._process_quota.mutations += 1
             state.mutations += 1
 
     @staticmethod
@@ -59,6 +97,73 @@ class AgentAPIDispatcher:
             raise AgentAPIError(
                 "INVALID_REQUEST", f"{operation} does not accept parameters"
             )
+
+    @staticmethod
+    def _require_api_sha_ref(value: Any, field: str) -> str:
+        try:
+            return _require_sha_ref(value, field)
+        except WebUIError as exc:
+            raise AgentAPIError("INVALID_REQUEST", str(exc)) from exc
+
+    def _preflight_ask(self, params: dict[str, Any]) -> None:
+        unknown = sorted(set(params) - ASK_PARAMS)
+        if unknown:
+            raise AgentAPIError(
+                "INVALID_REQUEST",
+                "control.ask contains unknown fields",
+                details={"fields": unknown},
+            )
+
+        if params.get("mode") != "council":
+            return
+
+        privacy_class = params.get("privacy_class", "INTERNAL")
+        if privacy_class not in PRIVACY_CLASSES:
+            raise AgentAPIError(
+                "INVALID_REQUEST",
+                "privacy_class must be PUBLIC, INTERNAL, or RESTRICTED",
+            )
+
+        configured = self.runtime.config.nexus_command is not None
+        supplied_members = params.get("members")
+        if supplied_members is None:
+            members = list(self.runtime.config.default_council_members)
+        else:
+            members = supplied_members
+
+        evidence_refs = params.get("nexus_evidence_refs", [])
+        nexus_mode = params.get("nexus_mode", "analytical")
+
+        try:
+            NexusCouncilAdapter._validate_question(params.get("question"))
+            if configured or supplied_members is not None:
+                validated_members = NexusCouncilAdapter._validate_members(members)
+            else:
+                validated_members = []
+            validated_evidence = NexusCouncilAdapter._validate_evidence_refs(evidence_refs)
+            if not isinstance(nexus_mode, str) or not nexus_mode or len(nexus_mode) > 128:
+                raise NexusAdapterError("mode must be bounded non-empty text")
+            _reject_obvious_secrets(
+                {
+                    "question": params.get("question"),
+                    "members": validated_members,
+                    "evidence_refs": validated_evidence,
+                    "mode": nexus_mode,
+                },
+                "NEXUS Council request",
+            )
+        except NexusAdapterError as exc:
+            raise AgentAPIError("INVALID_REQUEST", str(exc)) from exc
+
+    def _preflight_operation(self, operation: str, params: dict[str, Any]) -> None:
+        if operation in {"control.health", "control.capabilities"}:
+            self._require_empty_params(operation, params)
+        if operation == "control.ask":
+            self._preflight_ask(params)
+        if operation in {"control.memory.get", "control.memory.trace"}:
+            run_id = params.get("run_id")
+            if run_id is not None:
+                self._require_api_sha_ref(run_id, "run_id")
 
     def _create_collection(
         self, caller: Caller, params: dict[str, Any]
@@ -93,14 +198,25 @@ class AgentAPIDispatcher:
             "authority": "storage-only",
         }
 
+    def _capabilities(self) -> dict[str, Any]:
+        result = self.runtime.capabilities()
+        limits = dict(result["limits"])
+        limits.update(
+            {
+                "max_requests_per_process": MAX_REQUESTS_PER_PROCESS,
+                "max_mutations_per_process": MAX_MUTATIONS_PER_PROCESS,
+                "caller_id_is_trusted_quota_identity": False,
+            }
+        )
+        return {**result, "limits": limits}
+
     def _dispatch(
         self, caller: Caller, operation: str, params: dict[str, Any]
     ) -> Any:
-        if operation in {"control.health", "control.capabilities"}:
-            self._require_empty_params(operation, params)
+        self._preflight_operation(operation, params)
         handlers = {
             "control.health": lambda: self.runtime.health(),
-            "control.capabilities": lambda: self.runtime.capabilities(),
+            "control.capabilities": self._capabilities,
             "control.ask": lambda: self.runtime.ask(caller, params),
             "control.file.put": lambda: self.runtime.file_put(caller, params),
             "control.file.get": lambda: self.runtime.file_get(params),
