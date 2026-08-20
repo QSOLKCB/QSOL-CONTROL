@@ -27,6 +27,7 @@ from storage.control_store import ControlStore
 from webui.common import WebUIConfig
 
 ROOT = Path(__file__).resolve().parents[1]
+REMOTE_TOKEN = "fixture-token-01234567890123456789"
 
 
 class RemoteGatewayTests(unittest.TestCase):
@@ -48,7 +49,7 @@ class RemoteGatewayTests(unittest.TestCase):
                 "principals": [
                     {
                         "principal_id": "fixture",
-                        "token_sha256": token_digest("fixture-token"),
+                        "token_sha256": token_digest(REMOTE_TOKEN),
                         "caller_kind": "human",
                         "caller_id": "fixture",
                         "allowed_operations": ["control.health"],
@@ -64,7 +65,7 @@ class RemoteGatewayTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             principal = RemotePrincipal(
                 principal_id="mobile",
-                token_sha256=token_digest("fixture-token"),
+                token_sha256=token_digest(REMOTE_TOKEN),
                 caller_kind="human",
                 caller_id="mobile",
                 allowed_operations=frozenset({"control.health"}),
@@ -96,7 +97,7 @@ class RemoteGatewayTests(unittest.TestCase):
                     "POST",
                     "/v1/agent",
                     body=body,
-                    headers={"Authorization": "Bearer fixture-token", "Content-Type": "application/json"},
+                    headers={"Authorization": f"Bearer {REMOTE_TOKEN}", "Content-Type": "application/json"},
                 )
                 response = connection.getresponse()
                 payload = json.loads(response.read())
@@ -117,7 +118,7 @@ class RemoteGatewayTests(unittest.TestCase):
                     "POST",
                     "/v1/agent",
                     body=spoofed,
-                    headers={"Authorization": "Bearer fixture-token", "Content-Type": "application/json"},
+                    headers={"Authorization": f"Bearer {REMOTE_TOKEN}", "Content-Type": "application/json"},
                 )
                 rejected = connection.getresponse()
                 rejected.read()
@@ -126,6 +127,30 @@ class RemoteGatewayTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=2)
+
+    def test_short_bearer_token_is_rejected_even_if_digest_is_configured(self):
+        with tempfile.TemporaryDirectory() as temp:
+            short = "short-token"
+            principal = RemotePrincipal(
+                principal_id="short",
+                token_sha256=token_digest(short),
+                caller_kind="human",
+                caller_id="short",
+                allowed_operations=frozenset({"control.health"}),
+            )
+            gateway = RemoteGatewayConfig(
+                bind="127.0.0.1",
+                port=0,
+                allowed_hosts=frozenset({"127.0.0.1"}),
+                principals=(principal,),
+                tls_enabled=False,
+                tls_cert_file=None,
+                tls_key_file=None,
+                allow_non_loopback=False,
+            )
+            server = build_server(gateway, WebUIConfig(control_root=Path(temp) / "store"))
+            self.assertIsNone(server.authenticate(f"Bearer {short}"))
+            server.server_close()
 
 
 class ConsensusExtensionTests(unittest.TestCase):
