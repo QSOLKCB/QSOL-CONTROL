@@ -1,0 +1,83 @@
+{
+  "type": "qsol-control-phase10-hardening-contract",
+  "protocol": "qsol-control-phase10-hardening/1",
+  "schema_version": "1.0.0",
+  "repository_contract_version": "2.6.0",
+  "status": "implemented-phase-10",
+  "network_browser_threat_model": {
+    "document": "docs/THREAT-MODEL.md",
+    "remote_multi_user_deployment": false,
+    "webui_loopback_only": true,
+    "session_token_required": true,
+    "cors_enabled": false,
+    "same_origin_mutations": true,
+    "dns_rebinding_host_rejection": true,
+    "host_malware_resistance_claimed": false,
+    "browser_extension_isolation_claimed": false
+  },
+  "secret_scrubbing": {
+    "audit_tool": "tools/file_metadata_audit.py",
+    "write_time_marker_rejection_preserved": true,
+    "read_import_side_audit": true,
+    "credential_labelled_keys_rejected": true,
+    "credential_bearing_locators_rejected": true,
+    "silent_redaction": false,
+    "rehashed_hostile_record_rejected": true
+  },
+  "archive_safety": {
+    "runtime": "storage/archive_safety.py",
+    "compressed_untrusted_import_default": "deny",
+    "release_zip_allowed_method": "ZIP_STORED",
+    "archive_bytes_max": 536870912,
+    "member_count_max": 10000,
+    "member_bytes_max": 67108864,
+    "total_member_bytes_max": 536870912,
+    "verify_extracts": false,
+    "verify_decompresses": false
+  },
+  "adversarial_storage": {
+    "tool": "tools/adversarial_storage.py",
+    "protocol": "qsol-control-adversarial-storage/1",
+    "default_seed": 1364414284,
+    "default_iterations": 256,
+    "deterministic": true,
+    "ci_gate": true
+  },
+  "release": {
+    "contract": "ai/release-contract.json",
+    "tool": "tools/release_bundle.py",
+    "inventory": "release/release-inventory.json",
+    "manifest_schema": "schema/release-manifest.schema.json",
+    "checklist": "RELEASE-CHECKLIST.md",
+    "reproducible_bundle": true,
+    "archive_compression": "ZIP_STORED",
+    "source_tree_fingerprint": true,
+    "publication_authority": false
+  },
+  "migration": {
+    "policy": "ai/migration-policy.json",
+    "tool": "tools/migration.py",
+    "receipt_schema": "schema/migration-receipt.schema.json",
+    "versioned": true,
+    "source_preserved": true,
+    "in_place_rewrite": false,
+    "unknown_major_policy": "reject",
+    "downgrade_policy": "reject"
+  },
+  "changelog_release_discipline": {
+    "changelog": "CHANGELOG.md",
+    "unreleased_section_required": true,
+    "release_checklist_required": true,
+    "merged_equals_released": false,
+    "green_ci_equals_released": false
+  },
+  "boundaries": [
+    "LOOPBACK != REMOTE_AUTH",
+    "SESSION_TOKEN != EPISTEMIC_PRIVILEGE",
+    "COMPRESSED_UNTRUSTED_INPUT != ACCEPTED_BY_DEFAULT",
+    "MIGRATION != REINTERPRETATION",
+    "RELEASE_HASH != SEMANTIC_TRUTH",
+    "MERGED_MAIN != PUBLISHED_RELEASE",
+    "GREEN_CI != RELEASED"
+  ]
+}
