@@ -28,6 +28,7 @@ The first three remain the Three-Pillar foundation. ORACLE and NEXUS provide the
 | Human + AI orchestration | QSOL-CONTROL | owner |
 | Persistent File/Collection mechanics | QSOL-CONTROL | storage mechanics only |
 | Human WebUI | QSOL-CONTROL | local operator interface only |
+| AI / agent API | QSOL-CONTROL | structured local orchestration interface only |
 | Interaction/lattice placement | CONTROL lattice layer | storage/addressing only |
 | Model-state reproducibility registry | QSOL-CONTROL | metadata storage/comparison only |
 | Minimum CONTROL recovery packaging | QSOL-CONTROL | packaging/verifier only; ARK retains recovery authority |
@@ -78,9 +79,22 @@ Ask Council
 
 The UI shows provenance and uncertainty explicitly and never derives a synthetic truth percentage from votes, confidence, model count, consensus, search similarity, codon frequency, or lattice position.
 
-### Machine surface: planned Phase 6
+### Machine surface: implemented Phase 6
 
-The structured network AI/agent interface remains planned. Candidate operations include:
+The machine interface is implemented as `qsol-control-agent-api/1` with a transport-neutral dispatcher and dependency-free JSONL/stdio transport:
+
+```text
+api/common.py
+api/runtime.py
+api/dispatcher.py
+api/stdio.py
+tools/agent_api.py
+ai/agent-api-contract.json
+schema/agent-api-request.schema.json
+schema/agent-api-response.schema.json
+```
+
+Implemented operations:
 
 ```text
 control.health
@@ -98,10 +112,20 @@ control.council.get
 control.models.get
 control.memory.get
 control.memory.trace
-control.replay
 ```
 
-Phase 5's browser JSON routes are a local Human WebUI implementation detail. They are not declared to be the final Phase 6 public machine API.
+`control.replay` is intentionally absent. Actual replay execution remains Phase 7.
+
+The machine API does not reuse the browser HTTP routes as its public contract. Both surfaces instead converge on the same CONTROL runtime/storage primitives and the same ORACLE/NEXUS/model-state/lattice implementations.
+
+```text
+HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
+API_ACCESS != EPISTEMIC_PRIVILEGE
+```
+
+AI-originated runs preserve `requester_kind: ai`; human-originated API runs preserve `requester_kind: human`. Caller kind is provenance, not an authority upgrade.
+
+The first transport is local stdio, not a remote multi-user service. Phase 6 therefore does not silently expand the Phase 5 network/browser trust boundary.
 
 ## Local WebUI security boundary
 
@@ -122,29 +146,50 @@ The Host check is important because loopback binding alone does not prevent stra
 
 This is a Phase 5 local baseline. The broader Phase 10 network/browser threat model remains open.
 
-## Query lifecycle
+## Agent API resource boundary
 
-Implemented Human WebUI lifecycle:
+Phase 6 applies deterministic process-local budgets rather than inventing an authorization hierarchy:
 
 ```text
-1. human submits bounded question
+request bytes                         8 MiB
+response bytes                        8 MiB
+File upload                           4 MiB
+requests per caller / process         1000
+mutating requests per caller/process  200
+model states per response             100
+lattice records per response          1000
+runs per lattice trace                100
+```
+
+Quotas control resource consumption only. Remaining quota never changes truth, evidence, vote, provenance, or model-state authority.
+
+The machine request boundary recursively rejects explicit attempts to supply synthetic truth fields, epistemic privilege, ORACLE write controls, WorldStore mutation controls, Council governance overrides, hidden/private reasoning controls, or credential-labelled control fields.
+
+The underlying adapters still revalidate their own authority boundaries. The API firewall is defence in depth, not a replacement for parent validation.
+
+## Query lifecycle
+
+Human WebUI and machine API share the same semantic lifecycle:
+
+```text
+1. caller submits bounded question
 2. mode is explicit: evidence_only or council
-3. browser attachments become canonical CONTROL Files
+3. attached/source Files are canonical CONTROL Files
 4. selected Collection binds to one exact immutable snapshot
 5. CONTROL queries read-only ORACLE when configured
 6. known / conflict / unknown remain explicit
-7. CONTROL creates immutable interaction record
+7. CONTROL creates immutable interaction record with caller kind
 8. evidence event preserves the ORACLE result or explicit unknown
 9. if mode=council, CONTROL invokes existing verified NEXUS council.run path
 10. NEXUS owns roster, phases, ballots, threshold, WorldStore, and receipts
-11. CONTROL renders verified externally visible output
+11. CONTROL returns/renders verified externally visible output
 12. CONTROL may persist reference-only NEXUS artifacts/events
 13. participating executions may have Phase 4 model-state records
 14. model-state provenance remains field-specific
-15. UI renders evidence, Council, provenance, model metadata, memory, and comparisons without authority collapse
+15. views keep evidence, Council, provenance, model metadata, memory, and comparison lanes separate
 ```
 
-Retrieval rank is not evidence status. Council consensus is not evidence status. Model identity/configuration is not evidence status.
+Retrieval rank is not evidence status. Council consensus is not evidence status. Model identity/configuration is not evidence status. Machine structure does not create additional epistemic privilege.
 
 ## Persistent Files and Collections
 
@@ -161,7 +206,7 @@ COLLECTION
 
 A File may belong to several Collections without duplicating raw bytes. Collection membership cannot reduce privacy classification.
 
-The WebUI supports Collection creation, exact snapshot inspection, add/remove membership through compare-and-swap, and deterministic lexical search.
+The WebUI supports Collection creation, exact snapshot inspection, add/remove membership through compare-and-swap, and deterministic lexical search. The Phase 6 API supports Collection creation with optional initial File membership, exact current/historical snapshot reads, and deterministic lexical search through the same storage implementation.
 
 A run stores the exact Collection snapshot used. Later movement of the Collection `HEAD` does not rewrite historical run context.
 
@@ -188,7 +233,7 @@ CONTROL's `qsol-control-oracle-adapter/1` is read-only.
 
 Before evidence queries it discovers the parent contract and verifies ORACLE's append-only ledger. Queries preserve exact `known`, `conflict`, or `unknown`, observation refs, provenance, timestamps, freshness, and missing-evidence/search-suggestion state.
 
-The WebUI uses this adapter. It has no alternative ORACLE mutation path.
+Both the WebUI and Phase 6 API use this adapter. Neither has an alternative ORACLE mutation path.
 
 CONTROL may not:
 
@@ -207,6 +252,7 @@ FRESH != TRUE
 STALE != FALSE
 SUGGESTED_SEARCH != EVIDENCE
 ELIGIBLE != EXECUTED
+CONTROL_CALL != ORACLE_AUTHORITY
 ```
 
 ## NEXUS governance boundary
@@ -223,7 +269,7 @@ The adapter does not expose generic operation passthrough, `world.create`, Steno
 
 After Council execution CONTROL resolves and verifies committed WorldStore session/receipt objects, ballot commitments, tally, exact threshold, minority reports, and optional epoch admission evidence before rendering/persistence.
 
-The WebUI delegates Council work to this adapter. It does not create a second governance path.
+The WebUI and agent API both delegate Council work to this adapter. They do not create a second governance path.
 
 ```text
 CONTROL_INVOKES_COUNCIL != CONTROL_OWNS_COUNCIL
@@ -233,6 +279,7 @@ CONTROL_CAN_OVERRIDE_BALLOTS = false
 CONTROL_CAN_OVERRIDE_CONSENSUS_THRESHOLD = false
 NEXUS_OWNS_WORLDSTORE_HISTORY = true
 VISIBLE_NEXUS_OUTPUT != HIDDEN_CHAIN_OF_THOUGHT
+CONTROL_CALL != NEXUS_GOVERNANCE
 ```
 
 ## Model-state reproducibility boundary
@@ -251,7 +298,7 @@ inferred
 unknown
 ```
 
-The Phase 5 model-state inspector loads the labels directly from `ai/model-state-contract.json` and fails if they drift:
+The Phase 5 model-state inspector loads the labels directly from `ai/model-state-contract.json` and fails if they drift. Phase 6 exposes the same canonical registry through bounded `control.models.get` views.
 
 ```text
 Model-state reproducibility metadata
@@ -296,7 +343,7 @@ Z temporal_role
 2 recovery
 ```
 
-The WebUI renders all 27 top-level logical cells and resolves them to ordinary run/event records.
+The WebUI renders all 27 top-level logical cells and resolves them to ordinary run/event records. Phase 6 exposes the same view plus bounded lattice-prefix tracing with explicit run and record ceilings.
 
 ```text
 LATTICE_ADDRESS != COLLECTION_MEMBERSHIP
@@ -340,9 +387,9 @@ ARK remains the recovery-semantics authority.
 
 ## Replay / compare boundary
 
-Phase 5 implements a view comparing two immutable stored runs and their model-state metadata.
+Phase 5 and Phase 6 expose views comparing immutable stored runs and their model-state metadata.
 
-It does not execute Phase 7 replay:
+Neither executes Phase 7 replay:
 
 ```text
 comparison_is_replay_execution = false
@@ -351,9 +398,9 @@ phase7_replay_execution_implemented = false
 
 A later run never overwrites an earlier run.
 
-## UI invariant
+## UI / API invariant
 
-The Human WebUI never displays a synthetic truth percentage derived from:
+Neither operator surface manufactures a synthetic truth percentage derived from:
 
 ```text
 votes
@@ -376,11 +423,12 @@ SEARCH_SCORE != TRUTH
 SEMANTIC_SIMILARITY != EVIDENCE_STRENGTH
 CODON_FREQUENCY != EVIDENCE
 LATTICE_ADDRESS != TRUTH
+API_ACCESS != EPISTEMIC_PRIVILEGE
 ```
 
 ## Failure behavior
 
-CONTROL fails closed for authority-sensitive ambiguity and visibly for display gaps.
+CONTROL fails closed for authority-sensitive ambiguity and visibly for display/API gaps.
 
 Examples:
 
@@ -396,8 +444,11 @@ Examples:
 - corrupt raw File object -> verification failure;
 - malformed DNA projection -> decode failure;
 - non-loopback WebUI bind or Host -> reject;
-- invalid WebUI session token -> reject API access;
+- invalid WebUI session token -> reject browser API access;
 - cross-origin browser mutation -> reject;
+- malformed/duplicate-member agent JSON -> typed `INVALID_JSON` failure;
+- machine authority-escalation fields -> typed `AUTHORITY_ESCALATION` failure;
+- caller/request/lattice limits exceeded -> typed quota/resource failure;
 - replay comparison -> comparison only, not replay execution.
 
 ## Non-goals
@@ -412,8 +463,7 @@ QSOL-CONTROL is not:
 - an embedding provider;
 - a literal cognitive geometry claim;
 - a biological interpretation of the DNA codec;
-- a remote multi-user WebUI service in Phase 5;
-- the Phase 6 public AI API;
+- a remote multi-user service in Phase 6;
 - the Phase 7 replay engine.
 
 ## Implementation map
@@ -425,12 +475,18 @@ storage/model_state_registry.py   Phase 4 model-state registry
 adapters/oracle.py                read-only ORACLE adapter
 adapters/nexus.py                 verified NEXUS Council adapter
 storage/dna_lattice.py            reversible DNA/lattice projection
-webui/server.py                   public Phase 5 Human WebUI facade
+webui/server.py                   Phase 5 Human WebUI facade
 webui/http.py                     browser / HTTP security boundary
-webui/runtime_*.py                WebUI orchestration and inspection
+webui/runtime_*.py                shared WebUI orchestration and inspection
 webui/static/                     framework-free browser client
-tools/webui.py                    operator launcher
+tools/webui.py                    human operator launcher
+api/common.py                     Phase 6 protocol, limits, errors
+api/runtime.py                    machine facade over shared CONTROL runtime
+api/dispatcher.py                 fixed operation dispatcher and quotas
+api/stdio.py                      bounded JSONL/stdio transport
+tools/agent_api.py                machine API launcher
 ai/webui-contract.json            machine-readable Phase 5 boundary
+ai/agent-api-contract.json        machine-readable Phase 6 boundary
 ```
 
-See `README.md`, `README4AI.md`, `docs/WEBUI.md`, `docs/MODEL-STATE.md`, `AGENTS.md`, `SECURITY.md`, and `ROADMAP.md` for the corresponding human/machine surfaces.
+See `README.md`, `README4AI.md`, `docs/WEBUI.md`, `docs/AI-API.md`, `docs/AGENT-API.md`, `docs/MODEL-STATE.md`, `AGENTS.md`, `SECURITY.md`, and `ROADMAP.md` for the corresponding human/machine surfaces.
