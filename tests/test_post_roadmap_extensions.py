@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import socket
 import sys
 import tempfile
 import threading
@@ -36,6 +37,12 @@ EMPTY_ACCESS = {
     "model_state_ids": [],
     "replay_ids": [],
 }
+
+
+def free_loopback_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 
 class RemoteGatewayTests(unittest.TestCase):
@@ -81,7 +88,7 @@ class RemoteGatewayTests(unittest.TestCase):
             )
             gateway = RemoteGatewayConfig(
                 bind="127.0.0.1",
-                port=0,
+                port=free_loopback_port(),
                 allowed_hosts=frozenset({"127.0.0.1", "localhost"}),
                 principals=(principal,),
                 tls_enabled=False,
@@ -149,7 +156,7 @@ class RemoteGatewayTests(unittest.TestCase):
             )
             gateway = RemoteGatewayConfig(
                 bind="127.0.0.1",
-                port=0,
+                port=free_loopback_port(),
                 allowed_hosts=frozenset({"127.0.0.1"}),
                 principals=(principal,),
                 tls_enabled=False,
