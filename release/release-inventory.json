@@ -1,0 +1,49 @@
+{
+  "type": "qsol-control-release-inventory",
+  "protocol": "qsol-control-release-inventory/1",
+  "schema_version": "1.0.0",
+  "repository_contract_version": "2.6.0",
+  "top_level_files": [
+    "AGENTS.md",
+    "ARCHITECTURE.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "README.md",
+    "README4AI.md",
+    "RELEASE-CHECKLIST.md",
+    "ROADMAP.md",
+    "SECURITY.md",
+    "manifest.json"
+  ],
+  "roots": [
+    ".github/workflows",
+    "adapters",
+    "ai",
+    "api",
+    "composition",
+    "docs",
+    "examples",
+    "schema",
+    "storage",
+    "tests",
+    "tools",
+    "webui"
+  ],
+  "extra_files": [
+    "release/release-inventory.json"
+  ],
+  "excluded_names": [
+    "__pycache__",
+    ".DS_Store"
+  ],
+  "excluded_suffixes": [
+    ".pyc",
+    ".pyo"
+  ],
+  "max_file_count": 5000,
+  "max_file_bytes": 67108864,
+  "max_total_bytes": 536870912,
+  "symlinks_allowed": false,
+  "generated_artifacts_included": false
+}
