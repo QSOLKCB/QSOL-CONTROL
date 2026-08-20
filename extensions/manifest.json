@@ -1,7 +1,7 @@
 {
   "type": "qsol-control-extension-manifest",
   "protocol": "qsol-control-post-roadmap-extensions/1",
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "core_protocol": "QSOL-CONTROL/0.1",
   "core_contract_version": "2.6.0",
   "core_roadmap_complete_through_phase": 10,
@@ -15,6 +15,8 @@
       "config_schema": "schema/remote-gateway-config.schema.json",
       "remote_webui": false,
       "non_loopback_requires_tls": true,
+      "minimum_presented_bearer_token_characters": 32,
+      "tls_private_key_private_on_posix": true,
       "client_self_asserted_caller_identity": false
     },
     "native_mobile_clients": {
@@ -30,6 +32,8 @@
       "cli": "tools/consensus_adapter.py",
       "contract": "ai/consensus-adapter-contract.json",
       "consensus_algorithm_implemented_by_control": false,
+      "mutation_intents_only": true,
+      "post_proposal_receipt_verification": true,
       "control_storage_mutated_by_adapter": false
     }
   },
