@@ -2,7 +2,7 @@
 
 ## Status
 
-Phase 5 is implemented as a **local loopback human operator surface**.
+Phase 5 is implemented as a **local loopback human operator surface**. Phase 7 extends the existing Replay / Compare view with classified replay execution and recurring-question longitudinal research without creating a second browser authority layer.
 
 ```text
 runtime: webui/server.py
@@ -74,9 +74,11 @@ PROVIDER_REPORTED != LOCALLY_VERIFIED
 MODEL_STATE_COMPARISON != MIND_COMPARISON
 LATTICE_ADDRESS != TRUTH
 CODON_FREQUENCY != EVIDENCE
+REPLAY_CLASSIFICATION != TRUTH
+ORIGINAL_RUN != REPLAY_RUN
 ```
 
-The frontend never derives a synthetic truth percentage from votes, model confidence, entropy, model count, Council consensus, retrieval scores, embedding similarity, codon frequency, or lattice position.
+The frontend never derives a synthetic truth percentage from votes, model confidence, entropy, model count, Council consensus, retrieval scores, embedding similarity, codon frequency, lattice position, or replay classification.
 
 ## Session protection
 
@@ -119,6 +121,8 @@ The composer exposes exactly two operator modes:
 Evidence only
 Ask Council
 ```
+
+Replay-basis fields are validated before a durable run is created. Invalid suggested searches, ORACLE age limits, Council member descriptors, NEXUS evidence refs, NEXUS mode, or replay-relevant privacy settings therefore fail before partial interaction history can be persisted.
 
 ### Evidence only
 
@@ -339,31 +343,43 @@ For a RESTRICTED File the operator must explicitly acknowledge that the export i
 
 ## Replay / compare
 
-Phase 5 implements the **view**, not the Phase 7 replay engine.
+Phase 5 supplies the browser surface; Phase 7 implements the replay engine behind the same reviewed local boundary.
 
-The browser can compare two immutable runs and show changes in:
+The panel can:
 
-- question identity;
-- mode;
-- evidence state;
-- ORACLE/NEXUS refs;
-- attached Files;
-- exact Collection snapshot;
-- replayability classification;
-- model-state values and provenance.
+- compare any two immutable runs without executing anything;
+- classify whether a stored run can be rerun and what kind of rerun is actually supportable;
+- execute a classified replay as a **new immutable run**;
+- compare original evidence with current evidence;
+- preserve the exact original Collection snapshot while comparing current Collection `HEAD` separately;
+- explain Council/runtime/model/configuration changes;
+- display recurring-question longitudinal timelines.
 
-The response is explicitly:
+Generic run comparison remains explicitly non-executing even though replay execution now exists elsewhere:
 
 ```text
 comparison_is_replay_execution = false
-phase7_replay_execution_implemented = false
+phase7_replay_execution_implemented = true
 ```
 
-Model-state comparison also preserves:
+Replay also preserves:
 
 ```text
+ORIGINAL_RUN != REPLAY_RUN
+ORIGINAL_RESULT_IMMUTABLE = true
+CURRENT_EVIDENCE != ORIGINAL_EVIDENCE
+CURRENT_COLLECTION_HEAD != ORIGINAL_COLLECTION_SNAPSHOT
+REPLAY_CLASSIFICATION != TRUTH
 MODEL_STATE_COMPARISON != MIND_COMPARISON
 ```
+
+For new Council runs the replay basis records the complete validated Council member descriptors, not merely member/model/adapter IDs. A change in an accepted execution field such as a member profile is therefore configuration drift. Historical Phase 7 runs that did not preserve the complete descriptor are marked incomplete and require explicit changed-configuration authorization rather than assuming equivalence.
+
+Standalone File references are verified before a replay is advertised as executable. Missing or corrupt File records/objects classify the run as unavailable original context.
+
+Replay model summaries are bounded to 100 states in rendered responses with explicit total/truncation metadata. Research timelines scan the model-state registry once, order runs by parsed UTC instants rather than raw timestamp strings, and compare normalized model/runtime metadata without per-run `state_id` values.
+
+Persisted replay records and reports are content-addressed **and** semantically validated on every read. Hash-valid but authority-escalating, exact-replay-claiming, cross-record-inconsistent, or run-unbound replay metadata is rejected.
 
 ## Health / status
 
@@ -411,12 +427,12 @@ The fallback is intended for inspection and ordinary operator actions, not to mi
 
 ## Limits
 
-Phase 5 does **not** claim:
+The local WebUI does **not** claim:
 
 - remote multi-user deployment;
 - a public network service;
-- full Phase 6 machine API compatibility;
-- Phase 7 replay execution;
+- a separate browser authority model;
+- exact replay of stochastic inference merely because inputs look similar;
 - browser-side model inference;
 - direct ORACLE writes;
 - direct NEXUS WorldStore mutation;

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import copy
-from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any
 
+from adapters.nexus import NexusAdapterError, NexusCouncilAdapter
 from storage.control_store import StorageError, canonical_json_bytes, sha256_ref
 from storage.replay_store import (
     REPLAY_BASIS_PROTOCOL,
@@ -15,12 +16,21 @@ from storage.replay_store import (
     ReplayStore,
 )
 
-from .common import WebUIError, _canonical_strings, _require_sha_ref, _utc_now
+from .common import (
+    OBJECT_REF_RE,
+    WebUIError,
+    _canonical_strings,
+    _require_sha_ref,
+    _require_string,
+    _utc_now,
+)
 
 REPLAY_CLASSIFICATION_PROTOCOL = "qsol-control-replay-classification/1"
 MAX_TIMELINE_RUNS = 500
+MAX_REPLAY_MODEL_STATES = 100
 COUNCIL_PROTOCOL = "qsol-control-nexus-council-response/1"
 COUNCIL_STATUS_PROTOCOL = "qsol-control-webui-council-status/1"
+PRIVACY_CLASSES = {"PUBLIC", "INTERNAL", "RESTRICTED"}
 
 
 class ReplayRuntimeMixin:
@@ -34,6 +44,7 @@ class ReplayRuntimeMixin:
 
     @staticmethod
     def _roster_identity(rows: Any) -> list[dict[str, Any]]:
+        """Render-only roster projection, not a complete execution-input identity."""
         if not isinstance(rows, (list, tuple)):
             return []
         output = []
@@ -52,10 +63,57 @@ class ReplayRuntimeMixin:
                 {
                     "member_id": member_id,
                     "model_id": model_id if isinstance(model_id, str) else None,
-                    "adapter_id": row.get("adapter_id") if isinstance(row.get("adapter_id"), str) else None,
+                    "adapter_id": (
+                        row.get("adapter_id")
+                        if isinstance(row.get("adapter_id"), str)
+                        else None
+                    ),
                 }
             )
         return output
+
+    @staticmethod
+    def _validated_member_descriptors(rows: Any) -> list[dict[str, Any]]:
+        if not isinstance(rows, (list, tuple)):
+            raise WebUIError("Council members must be a bounded object array")
+        try:
+            return NexusCouncilAdapter._validate_members(list(rows))
+        except NexusAdapterError as exc:
+            raise WebUIError(str(exc)) from exc
+
+    def _preflight_replay_basis_request(
+        self, request: dict[str, Any], *, mode: str
+    ) -> None:
+        """Validate every Phase-7 replay-basis input before any run is persisted."""
+        max_age = request.get("oracle_max_age_seconds", 86400)
+        if type(max_age) is not int or not 0 <= max_age <= 31_536_000:
+            raise WebUIError("oracle_max_age_seconds must be 0..31536000")
+        _canonical_strings(
+            request.get("suggested_searches", []), "suggested_searches", maximum=32
+        )
+        if mode != "council":
+            return
+
+        supplied_members = request.get("members")
+        if supplied_members is not None:
+            self._validated_member_descriptors(supplied_members)
+        elif self.config.default_council_members:
+            self._validated_member_descriptors(self.config.default_council_members)
+
+        refs = _canonical_strings(
+            request.get("nexus_evidence_refs", []),
+            "nexus_evidence_refs",
+            maximum=10_000,
+        )
+        for ref in refs:
+            if OBJECT_REF_RE.fullmatch(ref) is None:
+                raise WebUIError("NEXUS admitted evidence refs must be object:<sha256>")
+        _require_string(
+            request.get("nexus_mode", "analytical"), "nexus_mode", maximum=128
+        )
+        privacy = request.get("privacy_class", "INTERNAL")
+        if privacy not in PRIVACY_CLASSES:
+            raise WebUIError("privacy_class must be PUBLIC, INTERNAL, or RESTRICTED")
 
     def _record_replay_basis(
         self,
@@ -71,19 +129,28 @@ class ReplayRuntimeMixin:
                 "head_snapshot_id"
             ]
 
-        members: list[dict[str, Any]] = []
+        member_descriptors: list[dict[str, Any]] = []
+        roster_identity: list[dict[str, Any]] = []
         if run["mode"] == "council":
             requested = request.get("members")
             if requested is None:
                 requested = [dict(item) for item in self.config.default_council_members]
-            members = self._roster_identity(requested)
+            if requested:
+                member_descriptors = self._validated_member_descriptors(requested)
+                roster_identity = self._roster_identity(member_descriptors)
 
         suggestions = _canonical_strings(
             request.get("suggested_searches", []), "suggested_searches", maximum=32
         )
-        nexus_refs = _canonical_strings(
-            request.get("nexus_evidence_refs", []), "nexus_evidence_refs", maximum=10_000
-        ) if run["mode"] == "council" else []
+        nexus_refs = (
+            _canonical_strings(
+                request.get("nexus_evidence_refs", []),
+                "nexus_evidence_refs",
+                maximum=10_000,
+            )
+            if run["mode"] == "council"
+            else []
+        )
 
         payload = {
             "protocol": REPLAY_BASIS_PROTOCOL,
@@ -101,9 +168,17 @@ class ReplayRuntimeMixin:
                 "mode": run["mode"],
                 "oracle_max_age_seconds": request.get("oracle_max_age_seconds", 86400),
                 "suggested_searches": suggestions,
-                "nexus_mode": request.get("nexus_mode", "analytical") if run["mode"] == "council" else None,
+                "nexus_mode": (
+                    request.get("nexus_mode", "analytical")
+                    if run["mode"] == "council"
+                    else None
+                ),
                 "nexus_evidence_refs": nexus_refs,
-                "council_roster_identity": members,
+                "council_roster_identity": roster_identity,
+                "council_member_descriptors": member_descriptors,
+                "council_member_descriptors_complete": run["mode"] != "council"
+                or bool(member_descriptors)
+                or self.config.nexus_command is None,
                 "privacy_class": request.get("privacy_class", "INTERNAL"),
             },
             "requester_kind": requester_kind,
@@ -133,7 +208,16 @@ class ReplayRuntimeMixin:
         if len(matches) > 1:
             raise ReplayError("run contains multiple replay-basis receipts")
         if matches:
-            return copy.deepcopy(matches[0])
+            basis = copy.deepcopy(matches[0])
+            config = basis.setdefault("request_configuration", {})
+            if "council_member_descriptors" not in config:
+                config["council_member_descriptors"] = copy.deepcopy(
+                    config.get("council_roster_identity", [])
+                )
+                config["council_member_descriptors_complete"] = False
+            elif "council_member_descriptors_complete" not in config:
+                config["council_member_descriptors_complete"] = False
+            return basis
         run = self.interactions.get_run(run_id)
         return {
             "protocol": REPLAY_BASIS_PROTOCOL,
@@ -154,6 +238,8 @@ class ReplayRuntimeMixin:
                 "nexus_mode": None,
                 "nexus_evidence_refs": [],
                 "council_roster_identity": [],
+                "council_member_descriptors": [],
+                "council_member_descriptors_complete": False,
                 "privacy_class": None,
             },
             "requester_kind": run["requester_kind"],
@@ -198,43 +284,82 @@ class ReplayRuntimeMixin:
         }
         return sha256_ref(canonical_json_bytes(payload))
 
-    def _model_summary(self, run_id: str) -> list[dict[str, Any]]:
-        output = []
-        for state in self.models.list_states(run_id=run_id):
-            model = state["model"]
-            execution = state["execution"]
-            output.append(
-                {
-                    "state_id": state["state_id"],
-                    "seat": execution.get("council_seat"),
-                    "provider": model.get("provider"),
-                    "runtime": model.get("runtime"),
-                    "runtime_version": model.get("runtime_version"),
-                    "model_id": model.get("model_id"),
-                    "revision": model.get("revision"),
-                    "quantization": model.get("quantization"),
-                    "stochastic": execution.get("stochastic"),
-                    "seed": execution.get("seed"),
-                    "sampling": copy.deepcopy(execution.get("sampling")),
-                }
-            )
-        output.sort(
+    @staticmethod
+    def _model_row(state: dict[str, Any]) -> dict[str, Any]:
+        model = state["model"]
+        execution = state["execution"]
+        return {
+            "state_id": state["state_id"],
+            "seat": execution.get("council_seat"),
+            "provider": model.get("provider"),
+            "runtime": model.get("runtime"),
+            "runtime_version": model.get("runtime_version"),
+            "model_id": model.get("model_id"),
+            "revision": model.get("revision"),
+            "quantization": model.get("quantization"),
+            "stochastic": execution.get("stochastic"),
+            "seed": execution.get("seed"),
+            "sampling": copy.deepcopy(execution.get("sampling")),
+        }
+
+    @classmethod
+    def _model_summary_from_states(cls, states: list[dict[str, Any]]) -> dict[str, Any]:
+        rows = [cls._model_row(state) for state in states]
+        rows.sort(
             key=lambda row: (
                 str(row.get("seat") or "").encode("utf-8"),
                 str(row.get("provider") or "").encode("utf-8"),
                 str(row.get("model_id") or "").encode("utf-8"),
+                str(row.get("revision") or "").encode("utf-8"),
+                str(row.get("state_id") or "").encode("ascii"),
             )
         )
-        return output
+        normalized = [
+            {key: copy.deepcopy(value) for key, value in row.items() if key != "state_id"}
+            for row in rows
+        ]
+        return {
+            "states": rows[:MAX_REPLAY_MODEL_STATES],
+            "total": len(rows),
+            "truncated": len(rows) > MAX_REPLAY_MODEL_STATES,
+            "metadata_fingerprint": sha256_ref(canonical_json_bytes(normalized)),
+            "stochastic_without_seed": any(
+                row.get("stochastic") is True and row.get("seed") is None for row in rows
+            ),
+        }
+
+    def _model_summary(self, run_id: str) -> dict[str, Any]:
+        return self._model_summary_from_states(self.models.list_states(run_id=run_id))
+
+    @staticmethod
+    def _timestamp_instant(value: str) -> datetime:
+        candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+        try:
+            parsed = datetime.fromisoformat(candidate)
+        except ValueError as exc:
+            raise ReplayError("run created_at is not valid ISO-8601") from exc
+        if parsed.tzinfo is None:
+            raise ReplayError("run created_at must include an explicit UTC offset")
+        return parsed.astimezone(timezone.utc)
 
     def replay_classify(self, run_id: str) -> dict[str, Any]:
         run_id = _require_sha_ref(run_id, "run_id")
         run = self.interactions.get_run(run_id)
         events = self.interactions.list_events(run_id)
         basis = self._basis_for_run(run_id)
+        basis_config = basis.get("request_configuration", {})
         council = self._latest_council(events)
         original_roster = self._roster_identity(council.get("roster", [])) if council else []
-        configured_roster = self._roster_identity(self.config.default_council_members)
+        configured_descriptors = (
+            self._validated_member_descriptors(self.config.default_council_members)
+            if self.config.default_council_members
+            else []
+        )
+        configured_roster = self._roster_identity(configured_descriptors)
+        original_descriptors = basis_config.get("council_member_descriptors", [])
+        descriptors_complete = bool(
+            basis_config.get("council_member_descriptors_complete", False)
+        )
         models = self._model_summary(run_id)
 
         collection_status = "not_applicable"
@@ -255,36 +380,53 @@ class ReplayRuntimeMixin:
                 snapshot_available = False
                 collection_status = "original_snapshot_unavailable"
 
-        legacy_basis = basis.get("retrieval_index", {}).get("status") == "not_recorded"
-        stochastic_without_seed = any(
-            row.get("stochastic") is True and row.get("seed") is None for row in models
-        )
+        unavailable_file_ids: list[str] = []
+        for file_id in run.get("file_ids", []):
+            try:
+                self.store.read_file(file_id)
+            except (StorageError, OSError, ValueError):
+                unavailable_file_ids.append(file_id)
+        file_context_available = not unavailable_file_ids
+
+        legacy_index_basis = basis.get("retrieval_index", {}).get("status") == "not_recorded"
+        council_basis_incomplete = run["mode"] == "council" and not descriptors_complete
+        basis_incomplete = legacy_index_basis or council_basis_incomplete
         nexus_configured = self.config.nexus_command is not None
-        roster_changed = bool(original_roster) and configured_roster != original_roster
+
+        if run["mode"] == "council" and descriptors_complete:
+            council_configuration_changed = original_descriptors != configured_descriptors
+        elif run["mode"] == "council" and original_roster:
+            # Historical Phase-7 records omitted accepted member fields. Treat
+            # that uncertainty as changed configuration rather than assuming sameness.
+            council_configuration_changed = True
+        else:
+            council_configuration_changed = False
         council_replayable = council.get("execution_replayable") if council else None
 
         if run["replayability"] == "R0":
             classification = "inspection_only"
             can_execute = False
-        elif not snapshot_available:
+        elif not snapshot_available or not file_context_available:
             classification = "unavailable_original_context"
             can_execute = False
         elif run["mode"] == "evidence_only":
-            classification = "legacy_current_evidence_rerun" if legacy_basis else "current_evidence_rerun"
+            classification = (
+                "legacy_current_evidence_rerun" if basis_incomplete else "current_evidence_rerun"
+            )
             can_execute = True
         elif not nexus_configured:
             classification = "evidence_refresh_only"
             can_execute = False
-        elif not configured_roster:
+        elif not configured_descriptors:
             classification = "council_configuration_unavailable"
             can_execute = False
-        elif roster_changed:
+        elif council_configuration_changed:
             classification = "changed_configuration_rerun"
             can_execute = True
-        elif stochastic_without_seed or council_replayable is False:
+        elif models["stochastic_without_seed"] or council_replayable is False:
             classification = "live_stochastic_rerun"
             can_execute = True
-        elif legacy_basis:
+        elif basis_incomplete:
             classification = "legacy_declared_input_reexecution"
             can_execute = True
         else:
@@ -298,7 +440,7 @@ class ReplayRuntimeMixin:
             "can_execute": can_execute,
             "original_replayability": run["replayability"],
             "mode": run["mode"],
-            "basis_status": "legacy_incomplete" if legacy_basis else "recorded",
+            "basis_status": "legacy_incomplete" if basis_incomplete else "recorded",
             "retrieval_index_status": basis.get("retrieval_index", {}).get("status"),
             "collection_status": collection_status,
             "original_collection_snapshot_id": (
@@ -308,12 +450,20 @@ class ReplayRuntimeMixin:
             ),
             "current_collection_head_snapshot_id": current_head,
             "collection_membership_drift": membership_drift,
+            "standalone_file_context_available": file_context_available,
+            "unavailable_file_ids": unavailable_file_ids,
             "original_council_roster": original_roster,
             "configured_council_roster": configured_roster,
-            "council_roster_changed": roster_changed,
+            "original_council_member_descriptors": copy.deepcopy(original_descriptors),
+            "configured_council_member_descriptors": copy.deepcopy(configured_descriptors),
+            "council_member_descriptors_complete": descriptors_complete,
+            "council_roster_changed": council_configuration_changed,
             "council_execution_replayable": council_replayable,
-            "model_states": models,
-            "stochastic_without_seed": stochastic_without_seed,
+            "model_states": models["states"],
+            "model_state_total": models["total"],
+            "model_states_truncated": models["truncated"],
+            "model_state_metadata_fingerprint": models["metadata_fingerprint"],
+            "stochastic_without_seed": models["stochastic_without_seed"],
             "current_evidence_is_original_evidence": False,
             "exact_replay_claimed": False,
             "hidden_chain_of_thought_required": False,
@@ -326,13 +476,17 @@ class ReplayRuntimeMixin:
         changes = []
         for key in sorted(set(left) | set(right), key=lambda value: value.encode("utf-8")):
             if left.get(key) != right.get(key):
-                changes.append({"field": key, "original": copy.deepcopy(left.get(key)), "replay": copy.deepcopy(right.get(key))})
+                changes.append(
+                    {
+                        "field": key,
+                        "original": copy.deepcopy(left.get(key)),
+                        "replay": copy.deepcopy(right.get(key)),
+                    }
+                )
         return changes
 
     @classmethod
-    def _roster_diff(
-        cls, left_rows: Any, right_rows: Any
-    ) -> dict[str, Any]:
+    def _roster_diff(cls, left_rows: Any, right_rows: Any) -> dict[str, Any]:
         left = {row["member_id"]: row for row in cls._roster_identity(left_rows)}
         right = {row["member_id"]: row for row in cls._roster_identity(right_rows)}
         added = [right[key] for key in sorted(set(right) - set(left))]
@@ -340,8 +494,15 @@ class ReplayRuntimeMixin:
         changed = []
         for key in sorted(set(left) & set(right)):
             if left[key] != right[key]:
-                changed.append({"member_id": key, "original": left[key], "replay": right[key]})
-        return {"added": added, "removed": removed, "changed": changed, "same": not (added or removed or changed)}
+                changed.append(
+                    {"member_id": key, "original": left[key], "replay": right[key]}
+                )
+        return {
+            "added": added,
+            "removed": removed,
+            "changed": changed,
+            "same": not (added or removed or changed),
+        }
 
     def _collection_comparison(self, original_run: dict[str, Any]) -> dict[str, Any]:
         ref = original_run.get("collection_ref")
@@ -420,23 +581,56 @@ class ReplayRuntimeMixin:
                 "original": copy.deepcopy(original_index),
                 "replay": copy.deepcopy(replay_index),
                 "same_recorded_basis": original_index == replay_index,
-                "legacy_original_basis_incomplete": original_index.get("status") == "not_recorded",
+                "legacy_original_basis_incomplete": original_index.get("status")
+                == "not_recorded",
             },
             "council": {
                 "roster": self._roster_diff(
                     original_council.get("roster", []) if original_council else [],
                     replay_council.get("roster", []) if replay_council else [],
                 ),
+                "request_member_descriptors": {
+                    "original": copy.deepcopy(
+                        original_config.get("council_member_descriptors", [])
+                    ),
+                    "replay": copy.deepcopy(
+                        replay_config.get("council_member_descriptors", [])
+                    ),
+                    "original_complete": bool(
+                        original_config.get("council_member_descriptors_complete", False)
+                    ),
+                    "replay_complete": bool(
+                        replay_config.get("council_member_descriptors_complete", False)
+                    ),
+                },
                 "original_runtime": {
-                    "protocol": original_council.get("nexus_protocol") if original_council else None,
-                    "version": original_council.get("nexus_runtime_version") if original_council else None,
+                    "protocol": (
+                        original_council.get("nexus_protocol") if original_council else None
+                    ),
+                    "version": (
+                        original_council.get("nexus_runtime_version")
+                        if original_council
+                        else None
+                    ),
                 },
                 "replay_runtime": {
                     "protocol": replay_council.get("nexus_protocol") if replay_council else None,
-                    "version": replay_council.get("nexus_runtime_version") if replay_council else None,
+                    "version": (
+                        replay_council.get("nexus_runtime_version")
+                        if replay_council
+                        else None
+                    ),
                 },
-                "original_consensus": copy.deepcopy(original_council.get("consensus")) if original_council else None,
-                "replay_consensus": copy.deepcopy(replay_council.get("consensus")) if replay_council else None,
+                "original_consensus": (
+                    copy.deepcopy(original_council.get("consensus"))
+                    if original_council
+                    else None
+                ),
+                "replay_consensus": (
+                    copy.deepcopy(replay_council.get("consensus"))
+                    if replay_council
+                    else None
+                ),
                 "consensus_is_truth": False,
             },
             "model_state": self.models.compare_runs(original_run_id, replay_run_id),
@@ -446,10 +640,12 @@ class ReplayRuntimeMixin:
                 "replay": copy.deepcopy(replay_config),
             },
             "run_fields": {
-                "question_sha256_same": original_run["question_sha256"] == replay_run["question_sha256"],
+                "question_sha256_same": original_run["question_sha256"]
+                == replay_run["question_sha256"],
                 "mode_same": original_run["mode"] == replay_run["mode"],
                 "file_ids_same": original_run["file_ids"] == replay_run["file_ids"],
-                "collection_ref_same": original_run["collection_ref"] == replay_run["collection_ref"],
+                "collection_ref_same": original_run["collection_ref"]
+                == replay_run["collection_ref"],
             },
             "comparison_is_truth": False,
             "model_state_comparison_is_mind_comparison": False,
@@ -474,7 +670,8 @@ class ReplayRuntimeMixin:
             )
         if classification["council_roster_changed"] and not allow_changed_configuration:
             raise ReplayError(
-                "Council roster changed; explicit allow_changed_configuration is required"
+                "Council execution configuration changed or is incomplete; "
+                "explicit allow_changed_configuration is required"
             )
 
         original = self.interactions.get_run(run_id)
@@ -532,7 +729,8 @@ class ReplayRuntimeMixin:
             "classification_id": classification["classification_id"],
             "changed_configuration_authorized": bool(allow_changed_configuration),
             "original_result_immutable": True,
-            "exact_collection_snapshot_preserved": original["collection_ref"] == result["run_view"]["run"]["collection_ref"],
+            "exact_collection_snapshot_preserved": original["collection_ref"]
+            == result["run_view"]["run"]["collection_ref"],
             "current_evidence_rerun": True,
             "exact_replay_claimed": False,
             "hidden_chain_of_thought_captured": False,
@@ -579,21 +777,37 @@ class ReplayRuntimeMixin:
         if len(run_paths) > 100_000:
             raise ReplayError("run registry exceeds longitudinal scan limit")
 
+        matching: list[tuple[str, dict[str, Any]]] = []
+        for path in run_paths:
+            candidate_id = "sha256:" + path.stem
+            run = self.interactions.get_run(candidate_id)
+            if run["question_sha256"] == question_sha256:
+                matching.append((candidate_id, run))
+        matching.sort(
+            key=lambda item: (self._timestamp_instant(item[1]["created_at"]), item[0])
+        )
+        total = len(matching)
+        selected = matching[-limit:]
+        selected_ids = {candidate_id for candidate_id, _ in selected}
+
         replay_records = self.replays.list_replays()
         replay_by_run = {row["replay_run_id"]: row for row in replay_records}
         children: dict[str, list[str]] = {}
         for row in replay_records:
             children.setdefault(row["original_run_id"], []).append(row["replay_run_id"])
 
+        states_by_run: dict[str, list[dict[str, Any]]] = {value: [] for value in selected_ids}
+        for state in self.models.list_states():
+            state_run_id = state["system"]["control_run_id"]
+            if state_run_id in states_by_run:
+                states_by_run[state_run_id].append(state)
+
         rows = []
-        for path in run_paths:
-            candidate_id = "sha256:" + path.stem
-            run = self.interactions.get_run(candidate_id)
-            if run["question_sha256"] != question_sha256:
-                continue
+        for candidate_id, run in selected:
             events = self.interactions.list_events(candidate_id)
             evidence = self._latest_payload(events, "evidence") or {}
             council = self._latest_council(events)
+            model_summary = self._model_summary_from_states(states_by_run[candidate_id])
             rows.append(
                 {
                     "run_id": candidate_id,
@@ -603,17 +817,25 @@ class ReplayRuntimeMixin:
                     "evidence_state": run["evidence_state"],
                     "evidence_refs": self._evidence_refs(evidence),
                     "collection_ref": copy.deepcopy(run["collection_ref"]),
-                    "council_roster": self._roster_identity(council.get("roster", [])) if council else [],
-                    "council_disposition": council.get("consensus", {}).get("disposition") if council else None,
-                    "nexus_runtime_version": council.get("nexus_runtime_version") if council else None,
-                    "model_states": self._model_summary(candidate_id),
+                    "council_roster": (
+                        self._roster_identity(council.get("roster", [])) if council else []
+                    ),
+                    "council_disposition": (
+                        council.get("consensus", {}).get("disposition") if council else None
+                    ),
+                    "nexus_runtime_version": (
+                        council.get("nexus_runtime_version") if council else None
+                    ),
+                    "model_states": model_summary["states"],
+                    "model_state_total": model_summary["total"],
+                    "model_states_truncated": model_summary["truncated"],
+                    "model_state_metadata_fingerprint": model_summary[
+                        "metadata_fingerprint"
+                    ],
                     "replay_of": replay_by_run.get(candidate_id, {}).get("original_run_id"),
                     "replay_children": sorted(children.get(candidate_id, [])),
                 }
             )
-        rows.sort(key=lambda row: (row["created_at"], row["run_id"]))
-        total = len(rows)
-        rows = rows[-limit:]
 
         transitions = []
         for left, right in zip(rows, rows[1:]):
@@ -623,15 +845,19 @@ class ReplayRuntimeMixin:
                 {
                     "from_run_id": left["run_id"],
                     "to_run_id": right["run_id"],
-                    "evidence_state_changed": left["evidence_state"] != right["evidence_state"],
+                    "evidence_state_changed": left["evidence_state"]
+                    != right["evidence_state"],
                     "evidence_refs_added": sorted(right_refs - left_refs),
                     "evidence_refs_removed": sorted(left_refs - right_refs),
-                    "collection_snapshot_changed": left["collection_ref"] != right["collection_ref"],
-                    "council_roster": self._roster_diff(left["council_roster"], right["council_roster"]),
-                    "model_state_changed": left["model_states"] != right["model_states"],
-                    "runtime_changed": (
-                        left["nexus_runtime_version"] != right["nexus_runtime_version"]
+                    "collection_snapshot_changed": left["collection_ref"]
+                    != right["collection_ref"],
+                    "council_roster": self._roster_diff(
+                        left["council_roster"], right["council_roster"]
                     ),
+                    "model_state_changed": left["model_state_metadata_fingerprint"]
+                    != right["model_state_metadata_fingerprint"],
+                    "runtime_changed": left["nexus_runtime_version"]
+                    != right["nexus_runtime_version"],
                 }
             )
 
@@ -651,4 +877,9 @@ class ReplayRuntimeMixin:
         return {"timeline_id": sha256_ref(canonical_json_bytes(payload)), **payload}
 
 
-__all__ = ["MAX_TIMELINE_RUNS", "REPLAY_CLASSIFICATION_PROTOCOL", "ReplayRuntimeMixin"]
+__all__ = [
+    "MAX_REPLAY_MODEL_STATES",
+    "MAX_TIMELINE_RUNS",
+    "REPLAY_CLASSIFICATION_PROTOCOL",
+    "ReplayRuntimeMixin",
+]

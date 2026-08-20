@@ -36,6 +36,11 @@ class QueryRuntimeMixin:
         mode = request.get("mode")
         if mode not in {"evidence_only", "council"}:
             raise WebUIError("mode must be evidence_only or council")
+
+        # Phase 7 replay-basis metadata is part of the durable run history.
+        # Validate every field it will record before any immutable run exists.
+        self._preflight_replay_basis_request(request, mode=mode)
+
         file_ids = _canonical_strings(request.get("file_ids", []), "file_ids")
         for file_id in file_ids:
             self.store.get_file_record(_require_sha_ref(file_id, "file_id"))
@@ -214,7 +219,7 @@ class QueryRuntimeMixin:
             if not isinstance(ref, str) or OBJECT_REF_RE.fullmatch(ref) is None:
                 raise WebUIError("NEXUS admitted evidence refs must be object:<sha256>")
         nexus_mode = _require_string(
-            request.get("nexus_mode", "analytical"), "nexus_mode", maximum=256
+            request.get("nexus_mode", "analytical"), "nexus_mode", maximum=128
         )
         evidence_state = (
             oracle_response.get("state")
