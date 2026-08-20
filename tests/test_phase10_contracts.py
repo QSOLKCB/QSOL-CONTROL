@@ -46,16 +46,23 @@ class Phase10ContractTests(unittest.TestCase):
         self.assertFalse(hardening["release_verification_decompresses"])
         self.assertFalse(hardening["migration_in_place_rewrite"])
 
-    def test_phase10_roadmap_is_complete_but_deferred_scope_remains_deferred(self):
+    def test_phase10_core_remains_local_while_post_roadmap_extensions_are_separate(self):
         roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
         phase10 = roadmap.split("## Phase 10 — Hardening and release discipline", 1)[1].split(
-            "## Deferred / explicitly not promised yet", 1
+            "## Post-roadmap deferred resolution — PR #15", 1
         )[0]
-        deferred = roadmap.split("## Deferred / explicitly not promised yet", 1)[1]
+        extensions = roadmap.split("## Post-roadmap deferred resolution — PR #15", 1)[1]
         self.assertNotIn("- [ ]", phase10)
-        self.assertIn("- [ ] Remote multi-user deployment.", deferred)
-        self.assertIn("MERGED_MAIN != PUBLISHED_RELEASE", phase10)
-        self.assertIn("GREEN_CI != RELEASED", phase10)
+        self.assertIn("LOOPBACK != REMOTE_AUTH", phase10)
+        self.assertIn("CORE_2_6_0 != EXTENSION_SURFACE", extensions)
+        self.assertIn("Remote multi-user deployment: resolved by", extensions)
+        self.assertIn("AUTOMATIC_TRUTH_SCORING = FORBIDDEN", extensions)
+        hardening = self.load("ai/phase10-hardening-contract.json")
+        self.assertFalse(
+            hardening["network_browser_threat_model"]["remote_multi_user_deployment"]
+        )
+        extension_manifest = self.load("extensions/manifest.json")
+        self.assertEqual(extension_manifest["core_contract_version"], "2.6.0")
 
     def test_phase10_contracts_pin_nonclaims_and_bounds(self):
         hardening = self.load("ai/phase10-hardening-contract.json")
