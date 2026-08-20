@@ -2,7 +2,23 @@
 
 ## Status
 
-This document defines the target machine interface for future runtime implementation. PR #1 does not claim that a network API already exists.
+Phase 6 is implemented as `qsol-control-agent-api/1`.
+
+The first transport is dependency-free local JSONL over stdin/stdout. Operation semantics are transport-neutral; remote multi-user deployment remains deferred and is not implied by this implementation.
+
+Canonical implementation and detailed protocol documentation:
+
+```text
+api/common.py
+api/runtime.py
+api/dispatcher.py
+api/stdio.py
+tools/agent_api.py
+ai/agent-api-contract.json
+schema/agent-api-request.schema.json
+schema/agent-api-response.schema.json
+docs/AGENT-API.md
+```
 
 ## Principle
 
@@ -10,20 +26,34 @@ AI callers are clients, not privileged epistemic authorities.
 
 ```text
 HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
+API_ACCESS != EPISTEMIC_PRIVILEGE
 ```
 
-A machine caller may ask for more structured output. It may not bypass evidence, governance, or storage rules.
+A machine caller may request structured output. It may not bypass evidence, governance, storage, privacy, or provenance rules.
 
 ## Transport
 
-Transport is intentionally deferred. Candidate implementations may include local JSONL/stdin-stdout, loopback HTTP, or an MCP-compatible adapter, but the operation contract should remain transport-neutral.
+Start the local machine interface with:
 
-## Core operations
+```bash
+python3 tools/agent_api.py --root .qsol-control-store
+```
+
+One UTF-8 JSON request is read per line and one canonical JSON response is written per line.
+
+The dispatcher reuses the same CONTROL storage, ORACLE adapter, NEXUS adapter, model-state registry, and lattice runtime as the Human WebUI. It is not a second implementation of those systems.
+
+## Implemented operations
 
 ```text
 control.health
 control.capabilities
 control.ask
+control.file.put
+control.file.get
+control.collection.create
+control.collection.snapshot
+control.collection.search
 control.run.get
 control.run.compare
 control.evidence.get
@@ -31,105 +61,100 @@ control.council.get
 control.models.get
 control.memory.get
 control.memory.trace
-control.replay
 ```
 
-## `control.ask`
+`control.replay` is intentionally absent. Actual replay execution remains Phase 7.
 
-Conceptual request:
+## Request envelope
 
 ```json
 {
+  "protocol": "qsol-control-agent-request/1",
+  "request_id": "req-1",
+  "caller": {
+    "kind": "ai",
+    "id": "research-agent"
+  },
   "operation": "control.ask",
-  "question": "Does the admitted evidence support hypothesis X?",
-  "mode": "council",
-  "include": [
-    "oracle_evidence",
-    "votes",
-    "minority_reports",
-    "model_states",
-    "receipts"
-  ]
+  "params": {
+    "question": "Does the admitted evidence support hypothesis X?",
+    "mode": "council"
+  }
 }
 ```
 
-`mode` is one of:
+External caller kinds are `human` and `ai`. AI-originated runs retain `requester_kind: ai`; human-originated machine-API runs retain `requester_kind: human`. The label changes provenance, not authority.
 
-```text
-evidence_only
-council
-```
+## Response envelope
 
-## Conceptual response envelope
+Successful calls use `qsol-control-agent-response/1`:
 
 ```json
 {
-  "protocol": "QSOL-CONTROL/0.1",
-  "run_id": "sha256:...",
-  "question": "...",
-  "mode": "council",
-  "evidence": {
-    "state": "known|conflict|unknown",
-    "refs": []
-  },
-  "council": {
-    "status": "completed|unavailable|not_requested",
-    "roster": [],
-    "votes": [],
-    "consensus": null,
-    "minority_reports": []
-  },
-  "receipts": [],
-  "model_state_refs": [],
-  "lattice_refs": [],
-  "replayability": "R0|R1|R2|R3"
+  "protocol": "qsol-control-agent-response/1",
+  "request_id": "req-1",
+  "operation": "control.health",
+  "ok": true,
+  "result": {},
+  "authority": "orchestration-only"
 }
 ```
 
-Exact runtime fields remain schema/version controlled when implementation begins.
+Failures use `qsol-control-agent-error/1` with a stable machine-readable error code.
 
-## Error philosophy
-
-Errors should be typed and useful. Examples:
+## Error taxonomy
 
 ```text
-unsupported_operation
-invalid_request
-oracle_unavailable
-nexus_unavailable
-evidence_unavailable
-storage_unavailable
-schema_mismatch
-version_mismatch
-authorization_denied
-resource_limit
+INVALID_JSON
+INVALID_REQUEST
+UNSUPPORTED_PROTOCOL
+UNKNOWN_OPERATION
+AUTHORITY_ESCALATION
+RESOURCE_LIMIT
+QUOTA_EXCEEDED
+OPERATION_FAILED
 ```
 
-Do not replace an unavailable parent service with invented local output unless the caller explicitly requests a labelled simulation mode defined by a future protocol.
+An unavailable parent service remains unavailable. It is never replaced by plausible local invention.
+
+## Resource limits
+
+Phase 6 uses deterministic process-local resource budgets:
+
+```text
+request bytes                         8 MiB
+response bytes                        8 MiB
+File upload                           4 MiB
+requests per caller / process         1000
+mutating requests per caller/process  200
+model states per response             100
+lattice records per response          1000
+runs per lattice trace                100
+```
+
+Quotas are operational controls only. They do not affect epistemic status.
 
 ## Unknown handling
 
 An `unknown` evidence result is valid output.
 
-The API may return bounded `suggested_searches`, but it must retain:
+Suggested searches remain explicitly non-evidence:
 
-```json
-{"search_suggestions_are_evidence": false}
+```text
+SUGGESTED_SEARCH != EVIDENCE
 ```
 
-or an equivalent versioned invariant.
+## Authority firewall
 
-## Security
+The API exposes no ORACLE write operations and no arbitrary NEXUS operation passthrough. It does not expose WorldStore creation, ballot mutation, vote-weight control, consensus-threshold control, hidden chain-of-thought, model-mind capture, or synthetic truth scoring.
 
-Machine input is untrusted. Future runtime implementations must bound:
+```text
+CONTROL_CALL != ORACLE_AUTHORITY
+CONTROL_CALL != NEXUS_GOVERNANCE
+VOTE != EVIDENCE
+CONSENSUS != TRUTH
+MODEL_STATE != MODEL_MIND
+LATTICE_ADDRESS != TRUTH
+```
 
-- question size;
-- include-list size;
-- recursion depth;
-- memory traversal breadth;
-- run comparison cardinality;
-- imported payload size;
-- concurrency;
-- model/Council resource use.
-
-API access must not imply credential access or administrative authority.
+See `docs/AGENT-API.md` for operation-by-operation behavior and exact limits.

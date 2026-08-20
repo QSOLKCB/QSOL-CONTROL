@@ -21,8 +21,15 @@ MAX_QUESTION_CHARACTERS = 2048
 
 
 class QueryRuntimeMixin:
-    def ask(self, request: dict[str, Any]) -> dict[str, Any]:
+    def ask(
+        self,
+        request: dict[str, Any],
+        *,
+        requester_kind: str = "human",
+    ) -> dict[str, Any]:
         _reject_truth_fields(request)
+        if requester_kind not in {"human", "ai", "system"}:
+            raise WebUIError("requester_kind must be human, ai, or system")
         question = _require_string(
             request.get("question"), "question", maximum=MAX_QUESTION_CHARACTERS
         )
@@ -65,7 +72,7 @@ class QueryRuntimeMixin:
         run = self.interactions.create_run(
             question=question,
             mode=mode,
-            requester_kind="human",
+            requester_kind=requester_kind,
             created_at=_utc_now(),
             evidence_state=evidence_state,
             file_ids=file_ids,

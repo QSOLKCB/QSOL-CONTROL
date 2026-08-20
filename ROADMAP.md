@@ -191,17 +191,32 @@ Phase 5's replay/compare surface compares immutable stored runs only. Actual rep
 
 ## Phase 6 — AI / agent API
 
-- [ ] Implement structured request/response API.
-- [ ] Implement `control.health` and capability discovery.
-- [ ] Implement `control.ask`.
-- [ ] Implement File upload/reference operations.
-- [ ] Implement Collection create/snapshot/search operations.
-- [ ] Implement run retrieval/comparison.
-- [ ] Implement evidence/Council/model-state retrieval.
-- [ ] Implement bounded lattice traversal.
-- [ ] Add caller quotas and resource limits.
-- [ ] Add machine-readable error taxonomy.
-- [ ] Keep AI caller epistemic privilege equal to human caller privilege.
+- [x] Implement structured request/response API.
+- [x] Implement `control.health` and capability discovery.
+- [x] Implement `control.ask`.
+- [x] Implement File upload/reference operations.
+- [x] Implement Collection create/snapshot/search operations.
+- [x] Implement run retrieval/comparison.
+- [x] Implement evidence/Council/model-state retrieval.
+- [x] Implement bounded lattice traversal.
+- [x] Add caller quotas and resource limits.
+- [x] Add machine-readable error taxonomy.
+- [x] Keep AI caller epistemic privilege equal to human caller privilege.
+
+### Phase 6 gate
+
+**Satisfied by `qsol-control-agent-api/1`.** The first machine transport is bounded dependency-free JSONL/stdio over a transport-neutral dispatcher. It reuses the Phase 5 CONTROL runtime, read-only ORACLE adapter, governed NEXUS Council adapter, model-state registry, Files/Collections, run storage, and lattice memory rather than creating a parallel authority path.
+
+External `human` and `ai` caller kinds receive the same orchestration-only epistemic privilege. AI-originated runs are recorded as `requester_kind: ai`, but that label does not upgrade evidence, Council authority, storage authority, or truth status.
+
+```text
+HUMAN_CALLER_AUTHORITY == AI_CALLER_AUTHORITY
+API_ACCESS != EPISTEMIC_PRIVILEGE
+CONTROL_CALL != ORACLE_AUTHORITY
+CONTROL_CALL != NEXUS_GOVERNANCE
+```
+
+The Phase 6 transport does not implement remote multi-user deployment or Phase 7 replay execution.
 
 ## Phase 7 — Replay and longitudinal research
 

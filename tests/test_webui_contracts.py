@@ -73,11 +73,11 @@ class WebUIContractTests(unittest.TestCase):
         self.assertIn("Never display a synthetic `truth percentage`", phase)
         self.assertIn("MODEL_STATE != MODEL_MIND", phase)
 
-    def test_manifest_registers_webui_without_claiming_remote_deployment(self):
+    def test_manifest_preserves_webui_after_later_additive_phases(self):
         manifest = json.loads((ROOT / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["interfaces"]["human"], "local-loopback-webui")
         self.assertEqual(manifest["interfaces"]["webui_cli"], "tools/webui.py")
-        self.assertEqual(manifest["status"]["completed_through_roadmap_phase"], 5)
+        self.assertGreaterEqual(manifest["status"]["completed_through_roadmap_phase"], 5)
         self.assertEqual(
             manifest["status"]["webui"], "implemented-phase-5-local-loopback"
         )
