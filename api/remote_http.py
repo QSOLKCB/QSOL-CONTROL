@@ -23,6 +23,8 @@ REMOTE_REQUEST_PROTOCOL = "qsol-control-remote-request/1"
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_PRINCIPALS = 1000
 MAX_ALLOWED_HOSTS = 100
+MIN_BEARER_TOKEN_CHARS = 32
+MAX_BEARER_TOKEN_CHARS = 4096
 SHA256_REF_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 BEARER_RE = re.compile(r"^Bearer[ \t]+([^ \t\r\n]+)$", re.IGNORECASE)
 
@@ -157,6 +159,19 @@ def _validate_principal(row: Any, seen_ids: set[str], seen_tokens: set[str]) -> 
     )
 
 
+def _validate_tls_files(cert: Path, key: Path) -> tuple[Path, Path]:
+    try:
+        cert_resolved = cert.resolve(strict=True)
+        key_resolved = key.resolve(strict=True)
+    except OSError as exc:
+        raise RemoteGatewayError("TLS certificate/key file is unavailable") from exc
+    if not cert_resolved.is_file() or not key_resolved.is_file():
+        raise RemoteGatewayError("TLS certificate/key must resolve to regular files")
+    if os.name == "posix" and key_resolved.stat().st_mode & 0o077:
+        raise RemoteGatewayError("TLS private key must not be group/world accessible")
+    return cert_resolved, key_resolved
+
+
 def load_gateway_config(path: str | Path) -> RemoteGatewayConfig:
     value = _load_json(Path(path))
     required = {
@@ -196,6 +211,9 @@ def load_gateway_config(path: str | Path) -> RemoteGatewayConfig:
         raise RemoteGatewayError("TLS enabled requires cert_file and key_file")
     if not tls["enabled"] and (cert is not None or key is not None):
         raise RemoteGatewayError("TLS disabled must not carry cert/key paths")
+    if tls["enabled"]:
+        assert cert is not None and key is not None
+        cert, key = _validate_tls_files(cert, key)
     if not _is_loopback(bind):
         if not allow_non_loopback:
             raise RemoteGatewayError("non-loopback bind requires allow_non_loopback=true")
@@ -245,7 +263,10 @@ class RemoteGatewayServer(ThreadingHTTPServer):
         match = BEARER_RE.fullmatch(authorization.strip())
         if match is None:
             return None
-        presented = token_digest(match.group(1))
+        token = match.group(1)
+        if not MIN_BEARER_TOKEN_CHARS <= len(token) <= MAX_BEARER_TOKEN_CHARS:
+            return None
+        presented = token_digest(token)
         for principal in self.gateway_config.principals:
             if hmac.compare_digest(principal.token_sha256, presented):
                 return principal
