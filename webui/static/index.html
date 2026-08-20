@@ -89,10 +89,15 @@
     </section>
 
     <section id="panel-replay" role="tabpanel" aria-labelledby="tab-replay" data-view="replay" hidden>
-      <div class="panel-heading"><div><p class="eyebrow">IMMUTABLE HISTORY</p><h2>Replay / compare</h2></div><span class="status-chip">Comparison only in Phase 5</span></div>
-      <p class="lede">This view compares preserved runs. Phase 7 owns actual replay execution and longitudinal rerun semantics.</p>
+      <div class="panel-heading"><div><p class="eyebrow">PHASE 7 / IMMUTABLE HISTORY</p><h2>Replay / compare / longitudinal research</h2></div><span class="status-chip">CLASSIFY BEFORE EXECUTE</span></div>
+      <p class="lede">Replay preserves the original run, binds execution to its exact historical Collection snapshot, queries current evidence separately, and reports configuration drift without claiming exactness it cannot prove.</p>
       <div class="two-col"><label class="field"><span>Original run</span><select id="compare-left"></select></label><label class="field"><span>Comparison run</span><select id="compare-right"></select></label></div>
-      <button id="compare-runs" type="button">Compare immutable runs</button><div id="compare-view" class="stack empty-state">Choose two runs.</div>
+      <div class="button-row"><button id="replay-classify" type="button">Classify replay</button><button id="replay-execute" type="button">Execute classified replay</button><button id="compare-runs" type="button">Compare immutable runs</button><button id="research-timeline" type="button">Recurring-question timeline</button></div>
+      <label class="checkline"><input id="replay-allow-changed-config" type="checkbox"> I explicitly authorize a rerun when the configured Council roster differs from the original.</label>
+      <div id="replay-classification-view" class="stack empty-state">Choose an original run and classify it before execution.</div>
+      <div id="replay-execution-view" class="stack empty-state">No Phase 7 replay executed.</div>
+      <div id="compare-view" class="stack empty-state">Choose two runs for direct immutable comparison.</div>
+      <div id="research-timeline-view" class="stack empty-state">Choose an original run to inspect recurring-question history.</div>
     </section>
 
     <section id="panel-collections" role="tabpanel" aria-labelledby="tab-collections" data-view="collections" hidden>
