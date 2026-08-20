@@ -17,10 +17,12 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile Python
-        run: python3 -m compileall -q tools tests storage adapters
+        run: python3 -m compileall -q tools tests storage adapters webui api
       - name: Validate contracts
         run: python3 tools/validate_control.py
       - name: Validate cold-restore contracts
         run: python3 tools/validate_restore_contracts.py
+      - name: Validate agent API CLI
+        run: python3 tools/agent_api.py --help
       - name: Run tests
         run: python3 -W default -m unittest discover -s tests -v
