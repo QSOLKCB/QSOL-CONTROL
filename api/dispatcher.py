@@ -7,7 +7,12 @@ from adapters.oracle import OracleAdapterError
 from storage.control_store import StorageError
 from storage.dna_lattice import DnaLatticeError
 from storage.model_state import ModelStateError
-from webui.common import WebUIConfig, WebUIError
+from webui.common import (
+    WebUIConfig,
+    WebUIError,
+    _canonical_strings,
+    _require_sha_ref,
+)
 
 from .common import (
     MAX_MUTATIONS_PER_CALLER,
@@ -59,9 +64,13 @@ class AgentAPIDispatcher:
         self, caller: Caller, params: dict[str, Any]
     ) -> dict[str, Any]:
         request = dict(params)
-        file_ids = request.pop("file_ids", [])
-        if not isinstance(file_ids, list):
-            raise AgentAPIError("INVALID_REQUEST", "file_ids must be an array")
+        file_ids = _canonical_strings(request.pop("file_ids", []), "file_ids")
+        for file_id in file_ids:
+            canonical = _require_sha_ref(file_id, "file_id")
+            self.runtime.control.store.get_file_record(canonical)
+
+        # Only mutate after every initial member has been validated. A failed
+        # member reference must not leave behind a partially-created Collection.
         collection = self.runtime.collection_create(caller, request)
         collection_id = collection["collection_id"]
         current = self.runtime.control.store.get_collection_snapshot(collection_id)
