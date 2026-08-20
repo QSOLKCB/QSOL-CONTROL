@@ -29,6 +29,7 @@ MUTATION_OPERATIONS = {
     "control.ask",
     "control.file.put",
     "control.collection.create",
+    "control.replay.execute",
 }
 
 OPERATIONS = (
@@ -42,6 +43,10 @@ OPERATIONS = (
     "control.collection.search",
     "control.run.get",
     "control.run.compare",
+    "control.replay.classify",
+    "control.replay.execute",
+    "control.replay.get",
+    "control.research.timeline",
     "control.evidence.get",
     "control.council.get",
     "control.models.get",
