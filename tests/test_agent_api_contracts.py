@@ -65,8 +65,9 @@ class AgentAPIContractTests(unittest.TestCase):
         self.assertEqual(manifest["interfaces"]["ai"], "structured-jsonl-stdio-api")
         self.assertEqual(manifest["validation"]["agent_api_command"], "python3 tools/agent_api.py")
         self.assertEqual(bootstrap["interfaces"]["ai"], "structured_jsonl_stdio_api")
-        self.assertEqual(bootstrap["agent_api"]["status"], "implemented_phase6")
+        self.assertTrue(bootstrap["agent_api"]["status"].startswith("implemented_phase6"))
         self.assertTrue(bootstrap["agent_api"]["human_ai_epistemic_authority_equal"])
+        self.assertTrue(bootstrap["agent_api"]["phase7_replay_execution"])
 
     def test_phase6_roadmap_remains_complete_after_later_phases(self):
         roadmap = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
