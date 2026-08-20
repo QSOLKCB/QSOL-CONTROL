@@ -34,7 +34,7 @@ from .common import (
 )
 from .runtime import ControlAgentAPIRuntime
 
-ASK_PARAMS = {
+ASK_BASE_PARAMS = {
     "question",
     "mode",
     "file_ids",
@@ -42,6 +42,8 @@ ASK_PARAMS = {
     "snapshot_id",
     "oracle_max_age_seconds",
     "suggested_searches",
+}
+ASK_COUNCIL_PARAMS = {
     "members",
     "nexus_evidence_refs",
     "nexus_mode",
@@ -106,15 +108,17 @@ class AgentAPIDispatcher:
             raise AgentAPIError("INVALID_REQUEST", str(exc)) from exc
 
     def _preflight_ask(self, params: dict[str, Any]) -> None:
-        unknown = sorted(set(params) - ASK_PARAMS)
+        mode = params.get("mode")
+        allowed = ASK_BASE_PARAMS | (ASK_COUNCIL_PARAMS if mode == "council" else set())
+        unknown = sorted(set(params) - allowed)
         if unknown:
             raise AgentAPIError(
                 "INVALID_REQUEST",
-                "control.ask contains unknown fields",
+                "control.ask contains fields that are unsupported for the selected mode",
                 details={"fields": unknown},
             )
 
-        if params.get("mode") != "council":
+        if mode != "council":
             return
 
         privacy_class = params.get("privacy_class", "INTERNAL")
