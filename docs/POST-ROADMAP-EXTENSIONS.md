@@ -13,7 +13,7 @@ OPTIONAL_EXTENSION != CORE_AUTHORITY
 
 | Old deferred item | PR #15 disposition |
 | --- | --- |
-| Remote multi-user deployment | Authenticated remote **Agent API gateway** implemented as an optional extension. The local WebUI is not remotely exposed. |
+| Remote multi-user deployment | Authenticated and record-authorized remote **Agent API gateway** implemented as an optional extension. The local WebUI is not remotely exposed. |
 | Mobile native applications | Native iOS/SwiftUI and Android/Kotlin reference clients implemented as thin HTTPS clients. App-store packaging is not claimed. |
 | Distributed consensus for CONTROL storage | External consensus coordination adapter implemented. CONTROL does not embed a consensus algorithm or let a quorum receipt rewrite storage by itself. |
 | Automatic truth scoring | Permanent non-goal. Forbidden. |
@@ -47,12 +47,26 @@ The remote request protocol contains no caller object:
 
 A gateway principal maps the token digest to a fixed local Agent API caller identity plus an explicit operation allowlist. The client cannot self-award `caller.kind`, `caller.id`, ORACLE authority, NEXUS governance, or any extra epistemic privilege.
 
-Gateway config stores `sha256(token_utf8)`, never the raw bearer token. On POSIX the config is required to be private (`0600`-style permissions). Non-loopback binds require both explicit `allow_non_loopback=true` and TLS with a minimum of TLS 1.2. Host allowlisting is mandatory. CORS is not enabled.
+### Authentication is not authorization
+
+Each principal also carries a privacy ceiling and record ACLs for File, Collection, run, model-state, and replay identities. PUBLIC Files/Collections may be shared within the privacy ceiling. INTERNAL/RESTRICTED Files/Collections require explicit ACL or ownership established by a prior successful authenticated gateway action. Runs/replays/model-state records are not globally readable merely because an ID is known.
+
+Successful gateway-created resources are associated with the authenticated principal through content-addressed `qsol-control-remote-audit/1` records under `records/remote-audit/`. The audit preserves principal ID, caller mapping, request ID, operation, outcome, requested refs, and created refs while explicitly recording `credential_material_captured=false`. Bearer headers/tokens are never persisted.
+
+```text
+AUTHENTICATION != RECORD_AUTHORIZATION
+AUTHENTICATED != AUTHORITATIVE
+CLIENT_IDENTITY != SELF_ASSERTED_CALLER_IDENTITY
+```
+
+### Network and availability boundary
+
+Gateway config stores `sha256(token_utf8)`, never the raw bearer token. Presented bearer tokens must be 32..4096 characters. On POSIX the config and TLS private key are required to be private. Non-loopback binds require both explicit `allow_non_loopback=true` and TLS with a minimum of TLS 1.2. Host allowlisting is mandatory. CORS is not enabled.
+
+The public `build_server()` factory revalidates those rules even for programmatically constructed configurations. The server bounds accepted connections to 64, gives accepted sockets a 10-second timeout, and acquires the connection slot before creating the request thread. The underlying Agent API dispatcher is renewed on a 60-second quota window so the persistent gateway does not permanently exhaust stdio-style lifetime quotas.
 
 ```text
 REMOTE_ACCESS != EPISTEMIC_PRIVILEGE
-AUTHENTICATED != AUTHORITATIVE
-CLIENT_IDENTITY != SELF_ASSERTED_CALLER_IDENTITY
 REMOTE_GATEWAY != REMOTE_WEBUI
 ```
 
@@ -95,12 +109,14 @@ intent_id = sha256(canonical intent payload)
 
 The intent binds:
 
-- CONTROL operation;
-- exact parameters;
+- a known CONTROL mutation operation;
+- exact parameters that pass the Agent API forbidden-field boundary;
 - expected current CONTROL store fingerprint;
 - coordination-only authority.
 
-An external provider forms quorum and returns `qsol-control-consensus-receipt/1`. CONTROL validates exact intent binding, member-set/state fingerprints, epoch/index shape, quorum satisfaction, provider verification, and the no-authority-escalation contract.
+A caller-supplied intent is fully revalidated before the external provider is invoked; a valid content hash is not enough to bless invalid semantics.
+
+An external provider forms quorum and returns `qsol-control-consensus-receipt/1`. CONTROL validates exact intent binding, member-set/state fingerprints, epoch/index shape, quorum satisfaction, provider verification, and the no-authority-escalation contract. Provider stdout is capped at 4 MiB and stderr at 1 MiB **while the child is running**; the provider is terminated on overflow. After a proposal receipt passes local validation, CONTROL asks the provider to verify that exact receipt again before returning it.
 
 The adapter itself does **not** apply the mutation to CONTROL storage. A quorum receipt is an admission/coordination artifact for a higher-level deployment workflow, not a magic distributed write primitive.
 
