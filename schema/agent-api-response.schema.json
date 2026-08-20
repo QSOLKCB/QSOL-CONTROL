@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/agent-api-response.schema.json",
+  "title": "QSOL-CONTROL Agent API Response",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "request_id", "operation", "ok", "result", "authority"],
+      "properties": {
+        "protocol": {"const": "qsol-control-agent-response/1"},
+        "request_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "operation": {"type": "string", "minLength": 1},
+        "ok": {"const": true},
+        "result": {},
+        "authority": {"const": "orchestration-only"}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "request_id", "operation", "ok", "error", "authority"],
+      "properties": {
+        "protocol": {"const": "qsol-control-agent-error/1"},
+        "request_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "operation": {"type": ["string", "null"]},
+        "ok": {"const": false},
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "retryable", "details"],
+          "properties": {
+            "code": {
+              "enum": [
+                "INVALID_JSON",
+                "INVALID_REQUEST",
+                "UNSUPPORTED_PROTOCOL",
+                "UNKNOWN_OPERATION",
+                "AUTHORITY_ESCALATION",
+                "RESOURCE_LIMIT",
+                "QUOTA_EXCEEDED",
+                "OPERATION_FAILED"
+              ]
+            },
+            "message": {"type": "string", "minLength": 1},
+            "retryable": {"type": "boolean"},
+            "details": {"type": "object"}
+          }
+        },
+        "authority": {"const": "none"}
+      }
+    }
+  ]
+}
