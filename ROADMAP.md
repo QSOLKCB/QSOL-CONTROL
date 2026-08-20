@@ -315,18 +315,38 @@ RAW_OBJECT_BYTES = CANONICAL
 
 ## Phase 10 — Hardening and release discipline
 
-- [ ] Threat-model network and browser boundaries.
-- [ ] Expand secret-scrubbing tests for File metadata/imports.
+- [x] Threat-model network and browser boundaries.
+- [x] Expand secret-scrubbing tests for File metadata/imports.
 - [x] Add same-origin session-token / no-CORS baseline for the local WebUI.
 - [x] Strict local-bind default for operator service.
 - [x] Add portable CONCAP metadata/count limits and hostile-input guards.
-- [ ] Import/export decompression-bomb defenses where compressed untrusted inputs are accepted.
-- [ ] Fuzz/adversarial storage tests.
-- [ ] Reproducible release bundle.
-- [ ] Versioned migration policy.
-- [ ] Release checklist and changelog discipline.
+- [x] Import/export decompression-bomb defenses where compressed untrusted inputs are accepted.
+- [x] Fuzz/adversarial storage tests.
+- [x] Reproducible release bundle.
+- [x] Versioned migration policy.
+- [x] Release checklist and changelog discipline.
 
-The broader Phase 10 browser/network threat model remains open even though Phase 5 implements a concrete local-only/session-token baseline.
+### Phase 10 gate
+
+**Satisfied by `qsol-control-phase10-hardening/1`.** The actual network/browser surface is threat-modelled as a loopback-only operator service plus local JSONL/stdio machine API; CONTROL does not claim remote multi-user authentication, authorization, TLS termination, browser-extension isolation, or host-malware resistance. Existing same-origin/session-token/no-CORS and strict local-bind protections remain the concrete WebUI baseline.
+
+File/Collection metadata now has a deterministic read/import-side secret audit in addition to existing write-time marker rejection. The audit rejects credential-labelled keys, high-confidence token markers, credential-bearing locators, duplicate JSON members, malformed identities, and rehashed hostile records without silently redacting canonical history.
+
+Compressed untrusted archive input is default-deny. The Phase 10 release verifier accepts bounded `ZIP_STORED` members only, rejects traversal/symlinks/duplicates/unexpected members, and performs no decompression or extraction. A future compressed import path would require its own separately reviewed bounded decoder rather than silently widening this contract.
+
+The deterministic adversarial storage battery is a CI gate. `qsol-control-migration/1` is forward-only, source-preserving, fail-closed on downgrades/unknown majors, and emits content-addressed procedure receipts without in-place canonical rewrites. `qsol-control-release-bundle/1` produces byte-reproducible fixed-metadata source ZIPs whose `RELEASE.json` binds the declared release version/source commit, exact per-file hashes, and deterministic source-tree SHA-256. Release checklist/changelog discipline preserves implementation/merge/release state distinctions.
+
+```text
+LOOPBACK != REMOTE_AUTH
+SESSION_TOKEN != EPISTEMIC_PRIVILEGE
+COMPRESSED_UNTRUSTED_INPUT != ACCEPTED_BY_DEFAULT
+MIGRATION != REINTERPRETATION
+RELEASE_HASH != SEMANTIC_TRUTH
+MERGED_MAIN != PUBLISHED_RELEASE
+GREEN_CI != RELEASED
+```
+
+The numbered QSOL-CONTROL roadmap is complete through Phase 10. This does not convert the explicitly deferred/non-promised items below into commitments or implemented features.
 
 ## Deferred / explicitly not promised yet
 
