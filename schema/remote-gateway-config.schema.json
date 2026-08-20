@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/remote-gateway-config.schema.json",
+  "title": "QSOL-CONTROL Remote Gateway Config",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol", "bind", "port", "allow_non_loopback", "allowed_hosts", "tls", "principals"],
+  "properties": {
+    "protocol": {"const": "qsol-control-remote-gateway/1"},
+    "bind": {"type": "string", "minLength": 1, "maxLength": 253},
+    "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+    "allow_non_loopback": {"type": "boolean"},
+    "allowed_hosts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 253}
+    },
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "cert_file", "key_file", "minimum_version"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "cert_file": {"type": ["string", "null"]},
+        "key_file": {"type": ["string", "null"]},
+        "minimum_version": {"const": "TLSv1.2"}
+      }
+    },
+    "principals": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["principal_id", "token_sha256", "caller_kind", "caller_id", "allowed_operations"],
+        "properties": {
+          "principal_id": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,256}$"},
+          "token_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "caller_kind": {"enum": ["human", "ai"]},
+          "caller_id": {"type": "string", "minLength": 1, "maxLength": 256},
+          "allowed_operations": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^control\\."}
+          }
+        }
+      }
+    }
+  }
+}
