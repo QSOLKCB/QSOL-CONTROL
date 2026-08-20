@@ -346,17 +346,41 @@ MERGED_MAIN != PUBLISHED_RELEASE
 GREEN_CI != RELEASED
 ```
 
-The numbered QSOL-CONTROL roadmap is complete through Phase 10. This does not convert the explicitly deferred/non-promised items below into commitments or implemented features.
+The numbered QSOL-CONTROL roadmap is complete through Phase 10. Post-roadmap extensions are separately versioned so the completed `2.6.0` core does not silently acquire new transport or deployment semantics.
 
-## Deferred / explicitly not promised yet
+## Post-roadmap deferred resolution — PR #15
 
-- [ ] Remote multi-user deployment.
-- [ ] Mobile native applications.
-- [ ] Distributed consensus for CONTROL storage.
-- [ ] Automatic truth scoring.
-- [ ] Hidden chain-of-thought capture.
-- [ ] Literal geometric-cognition claims from the lattice.
-- [ ] Biological claims from the DNA-symbol codec.
-- [ ] Claims that φ traversal is physically optimal storage.
+- [x] Remote multi-user deployment: resolved by the optional authenticated remote Agent API gateway (`qsol-control-remote-gateway/1`). The local WebUI remains local-only.
+- [x] Mobile native applications: resolved by thin native iOS/SwiftUI and Android/Kotlin reference clients speaking `qsol-control-remote-request/1` over HTTPS. Signed store releases are not claimed.
+- [x] Distributed consensus for CONTROL storage: resolved by an external consensus coordination adapter (`qsol-control-consensus-adapter/1`). CONTROL does not embed a consensus algorithm or let a quorum receipt directly mutate core storage.
+- [x] Automatic truth scoring: resolved as a permanent forbidden non-goal.
+- [x] Hidden chain-of-thought capture: resolved as a permanent forbidden non-goal.
+- [x] Literal geometric-cognition claims from the lattice: resolved as a permanent forbidden non-goal.
+- [x] Biological claims from the DNA-symbol codec: resolved as a permanent forbidden non-goal.
+- [x] Claims that φ traversal is physically optimal storage: resolved as a permanent forbidden non-goal.
 
-The last four are less "deferred" and more "please do not invent these while nobody is looking."
+### Post-roadmap extension gate
+
+Machine entrypoint: `extensions/manifest.json` (`qsol-control-post-roadmap-extensions/1`), explicitly bound to core contract `2.6.0`.
+
+The remote gateway reuses the reviewed Agent API dispatcher, maps digest-authenticated principals to fixed caller identities, enforces per-principal operation allowlists and Host allowlisting, and requires explicit TLS-enabled configuration for non-loopback binds. Remote access does not expose the local WebUI and does not add epistemic privilege.
+
+The native clients remain presentation/transport shells. The external consensus adapter content-addresses exact mutation intents and validates quorum receipts, but quorum formation, cryptographic membership, liveness and fault tolerance remain responsibilities of the external consensus provider.
+
+The five epistemic/ontological items are not features with a future implementation date. They are pinned by `ai/permanent-nongoals.json` as permanent prohibitions.
+
+```text
+CORE_2_6_0 != EXTENSION_SURFACE
+REMOTE_ACCESS != EPISTEMIC_PRIVILEGE
+AUTHENTICATED != AUTHORITATIVE
+MOBILE_CLIENT != CONTROL_AUTHORITY
+CONSENSUS_RECEIPT != SEMANTIC_AUTHORITY
+QUORUM != TRUTH
+AUTOMATIC_TRUTH_SCORING = FORBIDDEN
+HIDDEN_CHAIN_OF_THOUGHT_CAPTURE = FORBIDDEN
+LATTICE_GEOMETRY != COGNITION_CLAIM
+DNA_CODEC != BIOLOGICAL_CLAIM
+PHI_TRAVERSAL != PHYSICAL_OPTIMALITY
+```
+
+See `docs/POST-ROADMAP-EXTENSIONS.md` for deployment boundaries and exact dispositions.
