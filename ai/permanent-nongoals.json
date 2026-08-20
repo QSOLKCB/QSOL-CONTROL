@@ -1,0 +1,40 @@
+{
+  "type": "qsol-control-permanent-nongoals",
+  "protocol": "qsol-control-permanent-nongoals/1",
+  "schema_version": "1.0.0",
+  "status": "permanent",
+  "items": {
+    "automatic_truth_scoring": {
+      "implemented": false,
+      "forbidden": true,
+      "reason": "votes, retrieval, model agreement, confidence, geometry, or metadata do not establish truth"
+    },
+    "hidden_chain_of_thought_capture": {
+      "implemented": false,
+      "forbidden": true,
+      "reason": "CONTROL preserves visible outputs and reproducibility metadata, not private model reasoning"
+    },
+    "literal_geometric_cognition_claims": {
+      "implemented": false,
+      "forbidden": true,
+      "reason": "lattice geometry is deterministic storage/navigation metadata only"
+    },
+    "biological_claims_from_dna_codec": {
+      "implemented": false,
+      "forbidden": true,
+      "reason": "A/C/G/T encoding is a reversible byte codec, not biology"
+    },
+    "phi_traversal_physical_optimality_claims": {
+      "implemented": false,
+      "forbidden": true,
+      "reason": "phi traversal is a deterministic optional ordering rule, not a physical optimality result"
+    }
+  },
+  "invariants": [
+    "AUTOMATIC_TRUTH_SCORING = FORBIDDEN",
+    "HIDDEN_CHAIN_OF_THOUGHT_CAPTURE = FORBIDDEN",
+    "LATTICE_GEOMETRY != COGNITION_CLAIM",
+    "DNA_CODEC != BIOLOGICAL_CLAIM",
+    "PHI_TRAVERSAL != PHYSICAL_OPTIMALITY"
+  ]
+}
