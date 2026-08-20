@@ -7,10 +7,12 @@ import json
 import os
 import re
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from storage.control_store import StorageError, canonical_json_bytes, sha256_ref
+from storage.interaction_store import InteractionStore
 
 REPLAY_RECORD_PROTOCOL = "qsol-control-replay-record/1"
 REPLAY_REPORT_PROTOCOL = "qsol-control-replay-report/1"
@@ -21,6 +23,44 @@ SHA_REF_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 MAX_REPLAY_RECORD_BYTES = 8 * 1024 * 1024
 MAX_REPLAY_RECORDS = 100_000
 
+REPORT_KEYS = {
+    "report_id",
+    "protocol",
+    "original_run_id",
+    "replay_run_id",
+    "classification_id",
+    "classification",
+    "original_result",
+    "evidence",
+    "collection",
+    "retrieval_index",
+    "council",
+    "model_state",
+    "configuration",
+    "run_fields",
+    "comparison_is_truth",
+    "model_state_comparison_is_mind_comparison",
+    "authority",
+}
+REPLAY_KEYS = {
+    "replay_id",
+    "protocol",
+    "original_run_id",
+    "replay_run_id",
+    "report_id",
+    "executed_at",
+    "requested_by_kind",
+    "classification",
+    "classification_id",
+    "changed_configuration_authorized",
+    "original_result_immutable",
+    "exact_collection_snapshot_preserved",
+    "current_evidence_rerun",
+    "exact_replay_claimed",
+    "hidden_chain_of_thought_captured",
+    "authority",
+}
+
 
 class ReplayError(StorageError):
     """Raised when replay records, reports, or longitudinal views are invalid."""
@@ -29,6 +69,19 @@ class ReplayError(StorageError):
 def _validate_sha(value: Any, label: str) -> str:
     if not isinstance(value, str) or SHA_REF_RE.fullmatch(value) is None:
         raise ReplayError(f"{label} must be a sha256: reference")
+    return value
+
+
+def _validate_timestamp(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ReplayError(f"{label} must be a non-empty ISO-8601 timestamp")
+    candidate = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError as exc:
+        raise ReplayError(f"{label} must be valid ISO-8601") from exc
+    if parsed.tzinfo is None:
+        raise ReplayError(f"{label} must include an explicit UTC offset")
     return value
 
 
@@ -78,6 +131,7 @@ class ReplayStore:
         self.reports = self.root / "records" / "replay-reports"
         self.records.mkdir(parents=True, exist_ok=True)
         self.reports.mkdir(parents=True, exist_ok=True)
+        self.interactions = InteractionStore(self.root)
 
     @staticmethod
     def _identity(payload: dict[str, Any]) -> str:
@@ -88,17 +142,111 @@ class ReplayStore:
         _validate_sha(ref, "content identity")
         return directory / f"{ref.removeprefix('sha256:')}.json"
 
+    def _require_run(self, run_id: str, label: str) -> None:
+        _validate_sha(run_id, label)
+        try:
+            self.interactions.get_run(run_id)
+        except (StorageError, OSError, ValueError) as exc:
+            raise ReplayError(f"{label} references an unavailable CONTROL run") from exc
+
+    def _validate_report(self, record: dict[str, Any]) -> None:
+        if set(record) != REPORT_KEYS:
+            raise ReplayError("replay report fields do not match qsol-control-replay-report/1")
+        if record.get("protocol") != REPLAY_REPORT_PROTOCOL:
+            raise ReplayError("replay report protocol mismatch")
+        report_id = _validate_sha(record.get("report_id"), "report_id")
+        original_run_id = _validate_sha(record.get("original_run_id"), "original_run_id")
+        replay_run_id = _validate_sha(record.get("replay_run_id"), "replay_run_id")
+        if original_run_id == replay_run_id:
+            raise ReplayError("replay report must reference a distinct replay run")
+        _validate_sha(record.get("classification_id"), "classification_id")
+        classification = record.get("classification")
+        if not isinstance(classification, str) or not classification or len(classification) > 128:
+            raise ReplayError("replay report classification is invalid")
+        original = record.get("original_result")
+        if not isinstance(original, dict) or set(original) != {
+            "immutable", "fingerprint_before", "fingerprint_after", "run_id_unchanged"
+        }:
+            raise ReplayError("replay report original_result is invalid")
+        before = _validate_sha(original.get("fingerprint_before"), "fingerprint_before")
+        after = _validate_sha(original.get("fingerprint_after"), "fingerprint_after")
+        if original.get("immutable") is not True or original.get("run_id_unchanged") is not True:
+            raise ReplayError("replay report must preserve the original result immutably")
+        if before != after:
+            raise ReplayError("replay report immutability fingerprints disagree")
+        for field in (
+            "evidence", "collection", "retrieval_index", "council", "model_state",
+            "configuration", "run_fields",
+        ):
+            if not isinstance(record.get(field), dict):
+                raise ReplayError(f"replay report {field} must be an object")
+        if record.get("comparison_is_truth") is not False:
+            raise ReplayError("replay comparison must not claim truth")
+        if record.get("model_state_comparison_is_mind_comparison") is not False:
+            raise ReplayError("replay model-state comparison must not claim mind comparison")
+        if record.get("authority") != "comparison-only":
+            raise ReplayError("replay report authority must remain comparison-only")
+        payload = {key: value for key, value in record.items() if key != "report_id"}
+        if self._identity(payload) != report_id:
+            raise ReplayError("replay report content identity mismatch")
+        self._require_run(original_run_id, "original_run_id")
+        self._require_run(replay_run_id, "replay_run_id")
+
+    def _validate_replay(self, record: dict[str, Any], report: dict[str, Any]) -> None:
+        if set(record) != REPLAY_KEYS:
+            raise ReplayError("replay record fields do not match qsol-control-replay-record/1")
+        if record.get("protocol") != REPLAY_RECORD_PROTOCOL:
+            raise ReplayError("replay protocol mismatch")
+        replay_id = _validate_sha(record.get("replay_id"), "replay_id")
+        original_run_id = _validate_sha(record.get("original_run_id"), "original_run_id")
+        replay_run_id = _validate_sha(record.get("replay_run_id"), "replay_run_id")
+        if original_run_id == replay_run_id:
+            raise ReplayError("replay record must reference a distinct replay run")
+        report_id = _validate_sha(record.get("report_id"), "report_id")
+        classification_id = _validate_sha(record.get("classification_id"), "classification_id")
+        _validate_timestamp(record.get("executed_at"), "executed_at")
+        if record.get("requested_by_kind") not in {"human", "ai", "system"}:
+            raise ReplayError("replay requested_by_kind is invalid")
+        classification = record.get("classification")
+        if not isinstance(classification, str) or not classification or len(classification) > 128:
+            raise ReplayError("replay classification is invalid")
+        for field in ("changed_configuration_authorized", "exact_collection_snapshot_preserved"):
+            if type(record.get(field)) is not bool:
+                raise ReplayError(f"replay {field} must be boolean")
+        if record.get("original_result_immutable") is not True:
+            raise ReplayError("replay must preserve original_result_immutable=true")
+        if record.get("current_evidence_rerun") is not True:
+            raise ReplayError("replay must preserve current_evidence_rerun=true")
+        if record.get("exact_replay_claimed") is not False:
+            raise ReplayError("replay must never claim exact replay")
+        if record.get("hidden_chain_of_thought_captured") is not False:
+            raise ReplayError("replay must never claim hidden chain-of-thought capture")
+        if record.get("authority") != "orchestration-and-comparison-only":
+            raise ReplayError("replay authority must remain orchestration-and-comparison-only")
+        payload = {key: value for key, value in record.items() if key != "replay_id"}
+        if self._identity(payload) != replay_id:
+            raise ReplayError("replay content identity mismatch")
+        self._require_run(original_run_id, "original_run_id")
+        self._require_run(replay_run_id, "replay_run_id")
+        if report.get("report_id") != report_id:
+            raise ReplayError("replay/report report_id mismatch")
+        if report.get("original_run_id") != original_run_id:
+            raise ReplayError("replay/report original_run_id mismatch")
+        if report.get("replay_run_id") != replay_run_id:
+            raise ReplayError("replay/report replay_run_id mismatch")
+        if report.get("classification_id") != classification_id:
+            raise ReplayError("replay/report classification_id mismatch")
+        if report.get("classification") != classification:
+            raise ReplayError("replay/report classification mismatch")
+        if report.get("original_result", {}).get("immutable") is not True:
+            raise ReplayError("replay/report original immutability mismatch")
+
     def write_report(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise ReplayError("replay report payload must be an object")
-        if payload.get("protocol") != REPLAY_REPORT_PROTOCOL:
-            raise ReplayError("replay report protocol mismatch")
-        if payload.get("authority") != "comparison-only":
-            raise ReplayError("replay report authority must remain comparison-only")
-        _validate_sha(payload.get("original_run_id"), "original_run_id")
-        _validate_sha(payload.get("replay_run_id"), "replay_run_id")
         report_id = self._identity(payload)
         record = {"report_id": report_id, **payload}
+        self._validate_report(record)
         path = self._path(self.reports, report_id)
         encoded = canonical_json_bytes(record)
         if len(encoded) > MAX_REPLAY_RECORD_BYTES:
@@ -113,15 +261,11 @@ class ReplayStore:
     def write_replay(self, payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(payload, dict):
             raise ReplayError("replay payload must be an object")
-        if payload.get("protocol") != REPLAY_RECORD_PROTOCOL:
-            raise ReplayError("replay protocol mismatch")
-        if payload.get("authority") != "orchestration-and-comparison-only":
-            raise ReplayError("replay authority must remain orchestration-and-comparison-only")
-        _validate_sha(payload.get("original_run_id"), "original_run_id")
-        _validate_sha(payload.get("replay_run_id"), "replay_run_id")
-        _validate_sha(payload.get("report_id"), "report_id")
         replay_id = self._identity(payload)
         record = {"replay_id": replay_id, **payload}
+        report_id = _validate_sha(record.get("report_id"), "report_id")
+        report = self.get_report(report_id)
+        self._validate_replay(record, report)
         path = self._path(self.records, replay_id)
         encoded = canonical_json_bytes(record)
         if len(encoded) > MAX_REPLAY_RECORD_BYTES:
@@ -140,9 +284,7 @@ class ReplayStore:
         record = _read(path)
         if record.get("report_id") != report_id:
             raise ReplayError("replay report path/content identity mismatch")
-        payload = {key: value for key, value in record.items() if key != "report_id"}
-        if self._identity(payload) != report_id:
-            raise ReplayError("replay report content identity mismatch")
+        self._validate_report(record)
         return record
 
     def get_replay(self, replay_id: str) -> dict[str, Any]:
@@ -152,10 +294,8 @@ class ReplayStore:
         record = _read(path)
         if record.get("replay_id") != replay_id:
             raise ReplayError("replay path/content identity mismatch")
-        payload = {key: value for key, value in record.items() if key != "replay_id"}
-        if self._identity(payload) != replay_id:
-            raise ReplayError("replay content identity mismatch")
-        report = self.get_report(record["report_id"])
+        report = self.get_report(_validate_sha(record.get("report_id"), "report_id"))
+        self._validate_replay(record, report)
         return {**record, "report": report}
 
     def list_replays(self, *, original_run_id: str | None = None) -> list[dict[str, Any]]:
