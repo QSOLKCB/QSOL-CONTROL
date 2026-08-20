@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qsol.example/schema/replay-report.schema.json",
+  "title": "QSOL-CONTROL Replay Comparison Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "protocol",
+    "original_run_id",
+    "replay_run_id",
+    "classification_id",
+    "classification",
+    "original_result",
+    "evidence",
+    "collection",
+    "retrieval_index",
+    "council",
+    "model_state",
+    "configuration",
+    "run_fields",
+    "comparison_is_truth",
+    "model_state_comparison_is_mind_comparison",
+    "authority"
+  ],
+  "properties": {
+    "report_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "protocol": {"const": "qsol-control-replay-report/1"},
+    "original_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "replay_run_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "classification_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "classification": {"type": "string", "minLength": 1, "maxLength": 128},
+    "original_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["immutable", "fingerprint_before", "fingerprint_after", "run_id_unchanged"],
+      "properties": {
+        "immutable": {"const": true},
+        "fingerprint_before": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "fingerprint_after": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "run_id_unchanged": {"const": true}
+      }
+    },
+    "evidence": {"type": "object"},
+    "collection": {"type": "object"},
+    "retrieval_index": {"type": "object"},
+    "council": {"type": "object"},
+    "model_state": {"type": "object"},
+    "configuration": {"type": "object"},
+    "run_fields": {"type": "object"},
+    "comparison_is_truth": {"const": false},
+    "model_state_comparison_is_mind_comparison": {"const": false},
+    "authority": {"const": "comparison-only"}
+  }
+}
