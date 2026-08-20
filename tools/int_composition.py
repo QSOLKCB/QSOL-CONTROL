@@ -13,7 +13,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS_PATH = ROOT / "composition" / "parent-pins.json"
@@ -83,6 +83,8 @@ def _require(condition: bool, message: str) -> None:
 
 
 def _major(value: Any) -> int | None:
+    if type(value) is int:
+        return value if value >= 0 else None
     if not isinstance(value, str) or not value:
         return None
     head = value.split("/", 1)[-1] if "/" in value else value
@@ -195,7 +197,11 @@ def _validate_observed_shape(value: dict[str, Any]) -> None:
             _require(isinstance(protocol, str) and protocol, f"observed {name} protocol invalid")
         schema_version = row.get("schema_version")
         if schema_version is not None:
-            _require(isinstance(schema_version, str) and schema_version, f"observed {name} schema_version invalid")
+            _require(
+                (isinstance(schema_version, str) and bool(schema_version))
+                or (type(schema_version) is int and schema_version >= 0),
+                f"observed {name} schema_version invalid",
+            )
 
 
 def classify_observed_parents(pins: dict[str, Any], observed: dict[str, Any] | None) -> dict[str, Any]:
