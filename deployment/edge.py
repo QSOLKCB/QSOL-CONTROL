@@ -111,7 +111,7 @@ def _nexus(vendor_root: Path) -> dict[str, Any]:
         # A fresh local control process is used for discovery only. No
         # WorldStore root or provider credentials are configured.
         with NexusCouncilAdapter.from_command(
-            [sys.executable, "-m", "nexus_runtime"],
+            [sys.executable, "-B", "-m", "nexus_runtime"],
             cwd=root / "src", timeout_seconds=12.0,
         ) as adapter:
             discovery = adapter.discover()
@@ -281,17 +281,22 @@ class EdgeServer(ThreadingHTTPServer):
         finally:
             self._slots.release()
 
-    def admit(self, ip: str) -> bool:
+    def admit(self, principal_id: str) -> bool:
+        """Quota only authenticated CONTROL principals, never proxy socket IPs.
+
+        No forwarded client-IP header is trusted for identity or rate limits.
+        Anonymous requests cannot exhaust a real operator's minute budget.
+        """
         with self._quota_lock:
             now = time.monotonic()
             self._quotas = {key: val for key, val in self._quotas.items()
                             if now - val[0] < 60}
-            if ip not in self._quotas and len(self._quotas) >= 2048:
+            if principal_id not in self._quotas and len(self._quotas) >= 2048:
                 return False
-            start, count = self._quotas.get(ip, (now, 0))
+            start, count = self._quotas.get(principal_id, (now, 0))
             if count >= MAX_RATE_PER_MINUTE:
                 return False
-            self._quotas[ip] = (start, count + 1)
+            self._quotas[principal_id] = (start, count + 1)
             return True
 
 
@@ -352,9 +357,6 @@ class EdgeHandler(BaseHTTPRequestHandler):
         if len(origin) > 1 or (origin and origin[0] !=
                                 "https://" + self.server.config.public_host):
             self._error(HTTPStatus.FORBIDDEN, "origin_rejected")
-            return False
-        if not self.server.admit(self.client_address[0]):
-            self._error(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited")
             return False
         return True
 
@@ -431,6 +433,11 @@ class EdgeHandler(BaseHTTPRequestHandler):
         principal = self._principal()
         if principal is None:
             self._error(HTTPStatus.UNAUTHORIZED, "auth_required")
+            return
+        # Authenticate with CONTROL before charging this principal's quota.
+        # Sharing a Render proxy socket cannot consume other principals' quota.
+        if not self.server.admit(principal.principal_id):
+            self._error(HTTPStatus.TOO_MANY_REQUESTS, "rate_limited")
             return
         raw = self._body(MAX_AGENT_BODY if self.path == "/v1/agent" else MAX_BODY)
         if raw is None:

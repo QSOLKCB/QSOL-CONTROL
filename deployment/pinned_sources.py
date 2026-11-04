@@ -5,11 +5,14 @@ Requires only Python 3.11+ and git. An absent or changed pin fails closed.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -50,6 +53,68 @@ def _git(*args: str, cwd: Path | None = None, timeout: int = 120) -> str:
     return result.stdout.strip()
 
 
+def _git_bytes(*args: str, timeout: int = 120) -> bytes:
+    """Read a bounded Git result without losing NUL-delimited path bytes."""
+    result = subprocess.run(
+        ["git", *args], check=True, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, timeout=timeout,
+    )
+    return result.stdout
+
+
+def _verify_worktree_bytes(root: Path) -> None:
+    """Compare every checked-out file with HEAD's tree, not the cached index.
+
+    Git status alone can miss assume-unchanged/index-masked modifications;
+    source imports also need protection against *ignored* or untracked files.
+    All tracked blobs are byte-compared to their Git object identities.
+    """
+    entries = _git_bytes("-C", str(root), "ls-tree", "-r", "-z", "--full-tree", "HEAD")
+    if not entries:
+        raise PinError("pinned checkout has no tracked source files")
+    inspected = 0
+    for entry in entries.split(b"\0"):
+        if not entry:
+            continue
+        try:
+            meta, raw_path = entry.split(b"\t", 1)
+            mode, kind, expected_blob = meta.decode("ascii").split(" ")
+            relative = PurePosixPath(os.fsdecode(raw_path))
+        except (ValueError, UnicodeError) as exc:
+            raise PinError("invalid tracked source tree entry") from exc
+        if (kind != "blob" or mode not in {"100644", "100755"}
+                or not relative.parts or relative.is_absolute()
+                or any(part in {".", ".."} for part in relative.parts)
+                or len(expected_blob) != 40):
+            raise PinError("unsupported source entry type or path")
+        current = root
+        for segment in relative.parts:
+            current = current / segment
+            if current.is_symlink():
+                raise PinError("symlink in pinned source path")
+        try:
+            file_stat = current.lstat()
+            if not stat.S_ISREG(file_stat.st_mode):
+                raise PinError("non-regular pinned source object")
+            if os.name == "posix" and bool(file_stat.st_mode & stat.S_IXUSR) != (mode == "100755"):
+                raise PinError("tracked source executable bit drift")
+            contents = current.read_bytes()
+        except (OSError, ValueError) as exc:
+            raise PinError("pinned source file could not be verified") from exc
+        object_input = b"blob " + str(len(contents)).encode("ascii") + b"\0" + contents
+        if hashlib.sha1(object_input).hexdigest() != expected_blob:
+            raise PinError("pinned source byte hash mismatch")
+        inspected += 1
+    if not inspected:
+        raise PinError("no source files verified")
+    # Includes ignored .pyc, __pycache__, shadow modules and untracked files.
+    # All source-backed Python entrypoints must run with -B (no bytecode writes).
+    dirty = _git("-C", str(root), "status", "--porcelain=v1",
+                 "--untracked-files=all", "--ignored=matching")
+    if dirty:
+        raise PinError("pinned source checkout contains modified or extra files")
+
+
 def verify_sources() -> dict[str, str]:
     expected = pins()
     for name, sha in expected.items():
@@ -62,6 +127,7 @@ def verify_sources() -> dict[str, str]:
         remote = _git("-C", str(root), "remote", "get-url", "origin")
         if remote != REPOS[name]:
             raise PinError(f"unexpected pinned checkout origin: {name}")
+        _verify_worktree_bytes(root)
     return expected
 
 

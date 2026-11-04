@@ -6,10 +6,12 @@ services:
     runtime: python
     plan: free
     region: singapore
-    buildCommand: python3 -m deployment.pinned_sources && python3 -m unittest discover -s deployment -p 'test_*.py' -v
-    startCommand: python3 -m deployment.edge
+    buildCommand: python3 -B -m deployment.pinned_sources && python3 -B -m unittest discover -s deployment -p 'test_*.py' -v
+    startCommand: python3 -B -m deployment.edge
     healthCheckPath: /healthz
     autoDeployTrigger: off
     envVars:
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
       - key: QSOL_GATEWAY_TOKEN_SHA256
         sync: false

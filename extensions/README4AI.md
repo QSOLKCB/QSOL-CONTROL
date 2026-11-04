@@ -10,7 +10,8 @@
     "authenticated_remote_agent_gateway",
     "ios_swiftui_reference_client",
     "android_kotlin_reference_client",
-    "external_consensus_coordination_adapter"
+    "external_consensus_coordination_adapter",
+    "render_readonly_authenticated_operator_preview"
   ],
   "permanent_nongoals": "../ai/permanent-nongoals.json",
   "authority": "none",
@@ -20,7 +21,9 @@
     "../ai/mobile-client-contract.json",
     "../ai/consensus-adapter-contract.json",
     "../ai/permanent-nongoals.json",
-    "../docs/POST-ROADMAP-EXTENSIONS.md"
+    "../docs/POST-ROADMAP-EXTENSIONS.md",
+    "../deployment/edge-contract.json",
+    "../deployment/README.md"
   ],
   "invariants": [
     "CORE_2_6_0 != EXTENSION_SURFACE",
@@ -28,6 +31,8 @@
     "CONSENSUS_RECEIPT != SEMANTIC_AUTHORITY",
     "MOBILE_CLIENT != CONTROL_AUTHORITY",
     "AUTOMATIC_TRUTH_SCORING = FORBIDDEN",
-    "HIDDEN_CHAIN_OF_THOUGHT_CAPTURE = FORBIDDEN"
+    "HIDDEN_CHAIN_OF_THOUGHT_CAPTURE = FORBIDDEN",
+    "PUBLIC_READONLY_INSPECTION != REMOTE_MUTATION",
+    "EPHEMERAL_AUDIT != DURABLE_AUDIT"
   ]
 }

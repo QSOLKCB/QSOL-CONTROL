@@ -5,11 +5,14 @@ import hashlib
 import http.client
 import json
 import socket
+import subprocess
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from deployment import pinned_sources
 from api.remote_http import build_server
 from deployment.edge import EdgeConfig, EdgeError, EdgeServer, _internal_config
 from deployment.pinned_sources import PINS, pins
@@ -31,6 +34,99 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(set(p), {"nexus", "fed", "oracle"})
         self.assertEqual(len(p["nexus"]), 40)
         self.assertTrue(PINS.is_file())
+
+    def test_pins_reject_modified_shadow_and_ignored_files(self):
+        """Use local Git fixtures; no network calls and no trusted clean-index assumption."""
+        with tempfile.TemporaryDirectory() as temp:
+            tmp = Path(temp)
+            checkout = tmp / "donors" / "nexus"
+            checkout.mkdir(parents=True)
+            origin = "https://github.com/QSOLKCB/QSOL-NEXUS.git"
+
+            def git(*args):
+                return subprocess.run(
+                    ["git", "-C", str(checkout), *args],
+                    check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    text=True,
+                ).stdout.strip()
+
+            git("init", "-q")
+            source = checkout / "module.py"
+            original = "VALUE = 1\n"
+            source.write_text(original, encoding="utf-8")
+            (checkout / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
+            git("add", "module.py", ".gitignore")
+            git("-c", "user.name=Fixture", "-c", "user.email=fixture@invalid",
+                "commit", "-qm", "Pinned source fixture")
+            git("remote", "add", "origin", origin)
+            sha = git("rev-parse", "HEAD")
+            pinfile = tmp / "pins.json"
+            pinfile.write_text(json.dumps({
+                "protocol": "qsol-edge-pinned-sources/1",
+                "commits": {"nexus": sha},
+            }), encoding="utf-8")
+
+            with (patch.object(pinned_sources, "REPOS", {"nexus": origin}),
+                  patch.object(pinned_sources, "VENDOR", checkout.parent),
+                  patch.object(pinned_sources, "PINS", pinfile)):
+                self.assertEqual(pinned_sources.verify_sources(), {"nexus": sha})
+
+                # Even an assume-unchanged index flag may not mask content drift.
+                git("update-index", "--assume-unchanged", "module.py")
+                source.write_text("VALUE = 999\n", encoding="utf-8")
+                with self.assertRaises(pinned_sources.PinError):
+                    pinned_sources.verify_sources()
+                source.write_text(original, encoding="utf-8")
+                git("update-index", "--no-assume-unchanged", "module.py")
+                self.assertEqual(pinned_sources.verify_sources(), {"nexus": sha})
+
+                rogue = checkout / "shadow.py"
+                rogue.write_text("VALUE = 123\n", encoding="utf-8")
+                with self.assertRaises(pinned_sources.PinError):
+                    pinned_sources.verify_sources()
+                rogue.unlink()
+
+                ignored = checkout / "shadow.pyc"
+                ignored.write_bytes(b"malicious-import-bytecode")
+                with self.assertRaises(pinned_sources.PinError):
+                    pinned_sources.verify_sources()
+                ignored.unlink()
+
+                source.unlink()
+                source.symlink_to(checkout / ".gitignore")
+                with self.assertRaises(pinned_sources.PinError):
+                    pinned_sources.verify_sources()
+
+    def test_discovery_documents_are_synchronized(self):
+        root = Path(__file__).resolve().parents[1]
+        def read(name):
+            return json.loads((root / name).read_text(encoding="utf-8"))
+
+        core = read("manifest.json")
+        machine = read("README4AI.md")
+        extensions = read("extensions/manifest.json")
+        extension_bootstrap = read("extensions/README4AI.md")
+        remote = read("ai/remote-gateway-contract.json")
+        edge = read("deployment/edge-contract.json")
+        self.assertEqual(core["interfaces"]["optional_render_readonly_edge"],
+                         "deployment/edge.py")
+        for path in ("deployment/README.md", "deployment/edge-contract.json",
+                     "render.yaml"):
+            self.assertIn(path, core["documentation"])
+        self.assertEqual(machine["optional_extensions"]["render_readonly_edge"]["protocol"],
+                         "qsol-control-render-edge/1")
+        self.assertEqual(extensions["extensions"]["render_readonly_edge"]["status"],
+                         "implemented-source-not-deployed")
+        self.assertIn("render_readonly_authenticated_operator_preview",
+                      extension_bootstrap["extension_surfaces"])
+        self.assertEqual(remote["render_edge_preview"]["source"],
+                         "deployment/edge.py")
+        self.assertEqual(edge["status"], "implemented_source_not_deployed")
+        self.assertFalse(edge["security"]["durable_multiuser"])
+        self.assertEqual(edge["public_endpoints"][2]["operations"],
+                         ["control.health", "control.capabilities"])
+        self.assertIn("PUBLIC_READONLY_INSPECTION != REMOTE_MUTATION",
+                      extension_bootstrap["invariants"])
 
     def test_configuration_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -111,6 +207,31 @@ class EdgeHTTPTests(unittest.TestCase):
         except json.JSONDecodeError:
             content = body
         return status, content, response_headers
+
+    def test_anonymous_requests_cannot_spend_operator_quota(self):
+        # Requests arrive on one proxy socket IP, so socket-IP limiting must
+        # never let unauthenticated traffic starve a valid operator.
+        from deployment.edge import MAX_RATE_PER_MINUTE
+        payload = {
+            "protocol": "qsol-control-remote-request/1",
+            "request_id": "read-health",
+            "operation": "control.health",
+            "params": {},
+        }
+        for _ in range(MAX_RATE_PER_MINUTE + 8):
+            code, body, _ = self.request("POST", "/v1/agent", payload, auth=False,
+                                         extra={"X-Forwarded-For": "203.0.113.100"})
+            self.assertEqual((code, body["error"]), (401, "auth_required"))
+        for _ in range(MAX_RATE_PER_MINUTE):
+            code, body, _ = self.request("POST", "/v1/agent", payload,
+                                         extra={"X-Forwarded-For": "203.0.113.100"})
+            self.assertEqual(code, 200)
+            self.assertTrue(body["ok"])
+        code, body, _ = self.request("POST", "/v1/agent", payload)
+        self.assertEqual((code, body["error"]), (429, "rate_limited"))
+        # Public assets never consume the credential's operation budget.
+        code, _, _ = self.request("GET", "/", auth=False)
+        self.assertEqual(code, 200)
 
     def test_unauthed_and_cross_origin_requests_fail(self):
         code, body, headers = self.request("POST", "/v1/snapshot", {}, auth=False)
