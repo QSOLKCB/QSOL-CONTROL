@@ -26,6 +26,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from adapters.nexus import NexusCouncilAdapter, NexusAdapterError
 from adapters.oracle import OracleAdapter, OracleAdapterError
@@ -425,9 +426,14 @@ class EdgeHandler(BaseHTTPRequestHandler):
         self._error(HTTPStatus.METHOD_NOT_ALLOWED, "cors_disabled")
 
     def do_GET(self) -> None:  # noqa: N802
+        # Browsers and link wrappers can add harmless query strings, e.g.
+        # /?utm_source=chatgpt.com. Match only the parsed path for public
+        # static GETs; never interpret query parameters as routing authority.
+        # POST remains exact-path and rejects query parameters.
+        path = urlsplit(self.path).path
         # Render's own health probes may use an internal HTTP hop without
         # Forwarded-Proto. This exact fixed response contains no private state.
-        if self.path == "/healthz":
+        if path == "/healthz":
             if self.headers.get_all("Host", []) != [self.server.config.public_host]:
                 self._error(HTTPStatus.BAD_REQUEST, "host_rejected")
                 return
@@ -437,15 +443,21 @@ class EdgeHandler(BaseHTTPRequestHandler):
             return
         if not self._policy():
             return
+        # A browser may probe for a favicon. Do not manufacture a JSON
+        # application error for that browser-only optional asset.
+        if path == "/favicon.ico":
+            self._send(HTTPStatus.NO_CONTENT, b"", "image/x-icon")
+            return
         paths = {
             "/": ("operator.html", "text/html; charset=utf-8"),
+            "/index.html": ("operator.html", "text/html; charset=utf-8"),
             "/operator.css": ("operator.css", "text/css; charset=utf-8"),
             "/operator.js": ("operator.js", "text/javascript; charset=utf-8"),
         }
-        if self.path not in paths:
+        if path not in paths:
             self._error(HTTPStatus.NOT_FOUND, "not_found")
             return
-        filename, typ = paths[self.path]
+        filename, typ = paths[path]
         try:
             data = (Path(__file__).parent / filename).read_bytes()
         except OSError:

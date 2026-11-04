@@ -325,6 +325,43 @@ class EdgeHTTPTests(unittest.TestCase):
                                      host="wrong.invalid")
         self.assertEqual((code, body["error"]), (400, "host_rejected"))
 
+    def test_static_routes_ignore_harmless_query_strings(self):
+        # ChatGPT and other link wrappers may append tracking parameters.
+        cases = (
+            ("/", b"<!doctype html"),
+            ("/?utm_source=chatgpt.com", b"<!doctype html"),
+            ("/index.html?utm_source=chatgpt.com", b"<!doctype html"),
+            ("/operator.css?v=1", b":root"),
+            ("/operator.js?cache=1", b'"use strict"'),
+        )
+        for url, expected in cases:
+            with self.subTest(url=url):
+                code, body, headers = self.request("GET", url, auth=False)
+                self.assertEqual(code, 200)
+                self.assertIsInstance(body, bytes)
+                self.assertIn(expected, body)
+                self.assertEqual(headers.get("Cache-Control"), "no-store")
+        code, body, _ = self.request("GET", "/favicon.ico", auth=False)
+        self.assertEqual((code, body), (204, b""))
+        code, body, _ = self.request("GET", "/healthz?utm_source=chatgpt.com", auth=False, proto="http")
+        self.assertEqual((code, body["readiness"]), (200, "edge_only"))
+
+    def test_api_and_unknown_routes_stay_exact(self):
+        request = {
+            "protocol": "qsol-control-remote-request/1",
+            "request_id": "no-query-on-post",
+            "operation": "control.health",
+            "params": {},
+        }
+        code, body, _ = self.request("POST", "/v1/agent?utm_source=chatgpt.com", request)
+        self.assertEqual((code, body["error"]), (404, "not_found"))
+        code, body, _ = self.request("POST", "/v1/snapshot?utm_source=chatgpt.com", {})
+        self.assertEqual((code, body["error"]), (404, "not_found"))
+        code, body, _ = self.request("GET", "/v1/snapshot?utm_source=chatgpt.com", auth=False)
+        self.assertEqual((code, body["error"]), (404, "not_found"))
+        code, body, _ = self.request("GET", "/not-a-real-route?utm_source=chatgpt.com", auth=False)
+        self.assertEqual((code, body["error"]), (404, "not_found"))
+
     def test_healthz_is_public_and_reports_only_edge_readiness(self):
         code, body, _ = self.request("GET", "/healthz", auth=False, proto="http")
         self.assertEqual(code, 200)
