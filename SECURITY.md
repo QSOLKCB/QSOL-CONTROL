@@ -64,6 +64,18 @@ ENCODED != REDACTED
 DNA_PROJECTION_INHERITS_SOURCE_PRIVACY
 ```
 
+## Optional Render read-only edge (not a production security claim)
+
+The separate `deployment/edge.py` server is a proposed HTTPS-fronted **read-only** operator surface. It reuses CONTROL's authenticated Agent API gateway on loopback, validates the Render public host, enforces bearer authentication and an exact read-only operation allowlist, disables CORS, requires a forwarded HTTPS origin for sensitive routes, and bounds requests and concurrency. It does **not** expose the local CONTROL WebUI. NEXUS discovery, FED SDK conformance and ORACLE exact-subject ledger reads remain source-pinned, non-authoritative and non-mutating.
+
+The example Free Render service has **no persistent audit storage**. Audit records are lost on idle spin-down, restart or redeploy. CI success is not evidence of live cloud deployment or production durability. See `deployment/README.md` and `deployment/edge-contract.json`.
+
+```text
+REMOTE_INSPECTION != REMOTE_MUTATION
+SOURCE_REVIEW != DEPLOYMENT_VERIFICATION
+EPHEMERAL_AUDIT != DURABLE_AUDIT
+```
+
 ## Browser/WebUI boundary
 
 The implemented WebUI uses:
