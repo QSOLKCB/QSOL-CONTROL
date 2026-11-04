@@ -45,6 +45,7 @@ MAX_AGENT_BODY = 16384
 MAX_OUTPUT = 65536
 MAX_THREADS = 24
 MAX_RATE_PER_MINUTE = 35
+EDGE_READ_TIMEOUT_SECONDS = 5.0
 
 
 class EdgeError(ValueError):
@@ -282,6 +283,16 @@ class EdgeServer(ThreadingHTTPServer):
         self._quota_lock = threading.Lock()
         self._quotas: dict[str, tuple[float, int]] = {}
         self._inspections = threading.BoundedSemaphore(2)
+
+    def get_request(self):
+        """Bound incomplete headers/bodies before a request occupies a worker.
+
+        Timeout is attached to the accepted socket before process_request()
+        acquires a slot. Timed-out handlers release the slot in finally.
+        """
+        request, client_address = super().get_request()
+        request.settimeout(EDGE_READ_TIMEOUT_SECONDS)
+        return request, client_address
 
     def process_request(self, request, client_address) -> None:
         if not self._slots.acquire(blocking=False):

@@ -32,7 +32,8 @@ async function request(path, payload) {
   return body;
 }
 connect.addEventListener("click", async function () {
-  token = input.value.trim();
+  const replacement = input.value.trim();
+  if (replacement) token = replacement;
   input.value = "";
   busy(true);
   status.textContent = "INSPECTING";

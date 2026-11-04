@@ -40,6 +40,8 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Isolated security and HTTP tests
         run: python3 -B -m unittest discover -s deployment -p 'test_*.py' -v
+      - name: Browser-script session tests (Node built-ins only, no npm)
+        run: node --test deployment/test_operator.cjs
       - name: Validate CONTROL core and extension contracts
         run: |
           python3 -B tools/validate_control.py

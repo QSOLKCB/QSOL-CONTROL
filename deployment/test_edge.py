@@ -273,6 +273,43 @@ class EdgeHTTPTests(unittest.TestCase):
         code, _, _ = self.request("GET", "/", auth=False)
         self.assertEqual(code, 200)
 
+    def test_incomplete_headers_release_all_edge_slots(self):
+        """Reproduce 24 slow header connections; capacity recovers on timeout."""
+        from deployment.edge import MAX_THREADS
+        import time
+
+        stalled = []
+        try:
+            with patch("deployment.edge.EDGE_READ_TIMEOUT_SECONDS", 0.8):
+                for _ in range(MAX_THREADS):
+                    connection = socket.create_connection(
+                        ("127.0.0.1", self.edge.server_port), timeout=2)
+                    stalled.append(connection)
+                    connection.sendall(
+                        b"GET /healthz HTTP/1.1\\r\\nHost: edge.invalid\\r\\n"
+                        .replace(b"\\r", b"\r").replace(b"\\n", b"\n")
+                    )
+                # Allow the server thread to accept and assign each request.
+                deadline = time.monotonic() + 0.6
+                while self.edge._slots._value and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertEqual(self.edge._slots._value, 0,
+                                 "all 24 incomplete connections should occupy slots")
+
+                # Unlike the old implementation, stalled clients expire
+                # without asking the clients to close their connections.
+                deadline = time.monotonic() + 3
+                while self.edge._slots._value < MAX_THREADS and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertEqual(self.edge._slots._value, MAX_THREADS,
+                                 "stalled headers did not release all slots")
+                code, body, _ = self.request("GET", "/healthz", auth=False)
+                self.assertEqual(code, 200)
+                self.assertEqual(body["readiness"], "edge_only")
+        finally:
+            for connection in stalled:
+                connection.close()
+
     def test_unauthed_and_cross_origin_requests_fail(self):
         code, body, headers = self.request("POST", "/v1/snapshot", {}, auth=False)
         self.assertEqual(code, 401)
