@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex,nofollow">
+  <title>QSOL / Operator Gateway</title>
+  <link rel="stylesheet" href="/operator.css">
+  <script src="/operator.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#content">Skip to controls</a>
+  <header class="top">
+    <div class="container top-inner">
+      <a class="brand" href="https://qsolkcb.github.io/QSOL-NEXUS/" rel="noopener noreferrer">◇ QSOL<span>/</span>NEXUS</a>
+      <span class="rail">CONTROL · AUTHENTICATED · READ-ONLY</span>
+    </div>
+  </header>
+  <main id="content" class="container">
+    <div class="eyebrow">QSOL-IMC / DEPLOYMENT PHASE 01</div>
+    <h1>The operator <em>gateway.</em></h1>
+    <p class="intro">Inspect real, pinned QSOL components through a constrained session. The browser never receives CONTROL's private listening address, the NEXUS JSONL protocol, or credentials for model providers.</p>
+    <div class="two">
+      <section class="panel">
+        <h2>01 · Authenticate</h2>
+        <label for="token">Operator bearer token</label>
+        <input type="password" id="token" maxlength="4096" autocomplete="off" spellcheck="false" placeholder="Paste locally generated token">
+        <p class="hint">The token stays in this tab's memory. It is never stored in cookies, browser storage or this site's HTML.</p>
+        <div class="actions"><button id="connect" type="button">Inspect all four components</button><button id="clear" type="button" class="muted">Clear token</button></div>
+      </section>
+      <section class="panel">
+        <h2>02 · ORACLE evidence</h2>
+        <label for="subject">Exact recorded subject</label>
+        <input id="subject" type="text" maxlength="256" spellcheck="false" placeholder="Subject string from the ORACLE ledger">
+        <p class="hint">Queries the pinned ORACLE ledger through its read-only adapter. Unknown remains unknown; no search results are promoted into truth.</p>
+        <button id="oracle" type="button">Query exact subject</button>
+      </section>
+    </div>
+    <section class="panel output">
+      <div class="outhead"><h2>03 · Inspectable response</h2><span id="state" role="status" aria-live="polite">NOT AUTHENTICATED</span></div>
+      <pre id="result" aria-live="polite">Connect using your own locally generated credential to inspect the pinned runtimes.</pre>
+    </section>
+    <section class="boundaries">
+      <h2>Boundaries remain intact</h2>
+      <div class="rules"><p>CONSENSUS ≠ EVIDENCE</p><p>SIGNATURE ≠ TRUTH</p><p>TRANSPORT ≠ AUTHORITY</p><p>DISCOVERY ≠ FEDERATION</p></div>
+      <p>No public Council run, WorldStore write, ORACLE append, FED peer enrollment, CONTROL storage mutation or provider credentials are exposed. The proposed free-tier preview uses ephemeral storage and <strong>does not preserve operational history across restarts</strong>.</p>
+    </section>
+  </main>
+  <footer class="container foot"><a href="https://github.com/QSOLKCB/QSOL-CONTROL" rel="noopener noreferrer">SOURCE</a><span>AUTHENTICATION IS NOT EPISTEMIC AUTHORITY.</span></footer>
+</body>
+</html>

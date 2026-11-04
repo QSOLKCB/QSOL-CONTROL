@@ -1,0 +1,8 @@
+{
+  "protocol": "qsol-edge-pinned-sources/1",
+  "commits": {
+    "nexus": "d94f61e79e9820708eb2dec4a780cb028392a5d7",
+    "fed": "db81331f21c8cf83e50444ad5623354cd8eb2713",
+    "oracle": "043e864b3c25dfeca3ce1752b3110479479071b1"
+  }
+}
