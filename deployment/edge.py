@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import threading
 import time
 from dataclasses import dataclass
@@ -108,13 +109,30 @@ def _nexus(vendor_root: Path) -> dict[str, Any]:
     if not (root / "src" / "nexus_runtime" / "__main__.py").is_file():
         return _result("unavailable", reason="pinned_source_unavailable")
     try:
-        # A fresh local control process is used for discovery only. No
-        # WorldStore root or provider credentials are configured.
-        with NexusCouncilAdapter.from_command(
-            [sys.executable, "-B", "-m", "nexus_runtime"],
-            cwd=root / "src", timeout_seconds=12.0,
-        ) as adapter:
-            discovery = adapter.discover()
+        # NEXUS creates a default Stenographer store at Path.cwd(), even
+        # for system.health/system.operations. Never run it in a pinned tree.
+        # Isolate all possible state roots from the donor checkout, and use
+        # -I to prevent PYTHONPATH/site injection, -B to avoid bytecode writes.
+        with tempfile.TemporaryDirectory(prefix="qsol-edge-nexus-") as scratch:
+            workdir = Path(scratch)
+            loader = (
+                "import sys; "
+                "sys.path.insert(0, sys.argv[1]); "
+                "from nexus_runtime.__main__ import main; "
+                "raise SystemExit(main(sys.argv[2:]))"
+            )
+            command = [
+                sys.executable, "-B", "-I", "-c", loader,
+                str((root / "src").resolve(strict=True)),
+                "--world", str(workdir / "world"),
+                "--auth-root", str(workdir / "auth"),
+                "--trap-root", str(workdir / "trap"),
+                "--stenographer-root", str(workdir / "stenographer"),
+            ]
+            with NexusCouncilAdapter.from_command(
+                command, cwd=workdir, timeout_seconds=12.0,
+            ) as adapter:
+                discovery = adapter.discover()
         return _result(
             "available", runtime_version=discovery["nexus_runtime_version"],
             protocol=discovery["nexus_protocol"],

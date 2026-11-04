@@ -158,7 +158,9 @@ def main(argv: list[str]) -> int:
                           "commits": result}, sort_keys=True))
         return 0
     except (PinError, OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
-        print(f"source pin verification failed: {type(exc).__name__}", file=sys.stderr)
+        # PinError messages are fixed, nonsecret validation reasons.
+        reason = str(exc) if isinstance(exc, PinError) else type(exc).__name__
+        print(f"source pin verification failed: {reason}", file=sys.stderr)
         return 2
 
 

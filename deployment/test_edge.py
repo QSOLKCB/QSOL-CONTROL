@@ -128,6 +128,46 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("PUBLIC_READONLY_INSPECTION != REMOTE_MUTATION",
                       extension_bootstrap["invariants"])
 
+    def test_nexus_probe_uses_disjoint_temporary_roots(self):
+        """Discovery may initialize the Stenographer; donor trees stay read-only."""
+        from unittest.mock import MagicMock
+        from deployment.edge import _nexus
+        with tempfile.TemporaryDirectory() as outer:
+            vendor = Path(outer)
+            source = vendor / "nexus" / "src" / "nexus_runtime"
+            source.mkdir(parents=True)
+            (source / "__main__.py").write_text("pass\\n".replace("\\n", "\n"), encoding="utf-8")
+            created = []
+            adapter = MagicMock()
+            adapter.__enter__.return_value.discover.return_value = {
+                "nexus_runtime_version": "2.1.1",
+                "nexus_protocol": "nexus/0.15",
+                "control_transport": "jsonl_stdio",
+                "operations": ["system.health", "system.operations"],
+                "operations_sha256": "sha256:fixture",
+            }
+            def factory(command, *, cwd, timeout_seconds):
+                self.assertNotEqual(cwd, vendor / "nexus" / "src")
+                self.assertEqual(command[1:4], ["-B", "-I", "-c"])
+                self.assertEqual(command[5], str((vendor / "nexus" / "src").resolve()))
+                self.assertEqual(timeout_seconds, 12.0)
+                self.assertEqual(command[6::2],
+                                 ["--world", "--auth-root", "--trap-root", "--stenographer-root"])
+                for target in command[7::2]:
+                    self.assertTrue(Path(target).is_relative_to(cwd))
+                    self.assertFalse(Path(target).is_relative_to(vendor / "nexus"))
+                # Simulate the real runtime's default Stenographer write.
+                (cwd / ".nexus-stenographer").mkdir()
+                created.append(cwd)
+                return adapter
+            with patch("deployment.edge.NexusCouncilAdapter.from_command", side_effect=factory):
+                result = _nexus(vendor)
+            self.assertEqual(result["availability"], "available")
+            self.assertEqual(len(created), 1)
+            self.assertFalse(created[0].exists())
+            self.assertEqual((source / "__main__.py").read_text(), "pass\\n".replace("\\n", "\n"))
+            self.assertEqual([p.name for p in source.iterdir()], ["__main__.py"])
+
     def test_configuration_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             common = dict(public_host="edge.invalid", port=10000,
