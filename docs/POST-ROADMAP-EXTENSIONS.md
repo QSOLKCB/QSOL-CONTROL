@@ -80,6 +80,12 @@ python3 tools/remote_gateway.py \
 
 The committed `examples/remote-gateway.loopback.json` is a synthetic shape reference only. Real token material and TLS private keys must not enter the repository.
 
+## Separate Render read-only edge preview
+
+The deployment-only composition `deployment/edge.py` calls the reviewed CONTROL remote Agent API on loopback and serves a **separate** operator page over Render-managed HTTPS. It source-pins the NEXUS, FED and ORACLE donor commits, and performs NEXUS discovery, FED SDK conformance, ORACLE read-only exact-subject queries and CONTROL health/capabilities. It neither rewrites the existing `qsol-control-remote-gateway/1` contract nor authorizes the local WebUI for remote use.
+
+The proposed Free instance has **ephemeral** audit/state storage. The reference gateway writes per-request audit records, but this cloud preview does **not** inherit a durable-audit or production multi-user claim. See `deployment/README.md` and `deployment/edge-contract.json`.
+
 ## Native mobile reference clients
 
 The mobile clients are intentionally thin:

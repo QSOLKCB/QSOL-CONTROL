@@ -391,6 +391,18 @@ Automatic truth scoring, hidden chain-of-thought capture, literal lattice-cognit
 
 See [`EXTENSIONS.md`](EXTENSIONS.md), [`extensions/manifest.json`](extensions/manifest.json), [`extensions/README4AI.md`](extensions/README4AI.md), and [`docs/POST-ROADMAP-EXTENSIONS.md`](docs/POST-ROADMAP-EXTENSIONS.md).
 
+## Optional Render read-only inspection edge (development preview)
+
+The `deployment/` overlay composes **pinned** NEXUS, FED and ORACLE sources with CONTROL's existing authenticated Agent API gateway. It supports real NEXUS operation discovery, FED SDK conformance, ORACLE exact-subject read-only queries and CONTROL health/capabilities. It serves a separate operator page, **not** the loopback WebUI. The Free Render example has **ephemeral audit storage** and is not a production deployment.
+
+There is no new Council execution, WorldStore mutation, FED peer networking, ORACLE append, CONTROL storage write or provider credential handling. See [deployment/README.md](deployment/README.md), [deployment/edge-contract.json](deployment/edge-contract.json) and [render.yaml](render.yaml).
+
+```text
+AUTHENTICATED_INSPECTION != GOVERNANCE_AUTHORITY
+FED_SDK_CONFORMANCE != LIVE_FEDERATION
+EPHEMERAL_AUDIT != DURABLE_AUDIT
+```
+
 ## Validation
 
 Validation is dependency-free and requires Python 3.11 or newer. CI uses Python 3.12.

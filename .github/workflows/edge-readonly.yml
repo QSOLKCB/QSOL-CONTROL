@@ -1,0 +1,62 @@
+name: QSOL Render read-only edge
+
+on:
+  pull_request:
+    paths:
+      - 'deployment/**'
+      - 'render.yaml'
+      - '.github/workflows/edge-readonly.yml'
+      - 'README.md'
+      - 'README4AI.md'
+      - 'manifest.json'
+      - 'SECURITY.md'
+      - 'ai/remote-gateway-contract.json'
+      - 'extensions/**'
+      - 'docs/POST-ROADMAP-EXTENSIONS.md'
+  push:
+    branches:
+      - main
+    paths:
+      - 'deployment/**'
+      - 'render.yaml'
+      - '.github/workflows/edge-readonly.yml'
+      - 'README.md'
+      - 'README4AI.md'
+      - 'manifest.json'
+      - 'SECURITY.md'
+      - 'ai/remote-gateway-contract.json'
+      - 'extensions/**'
+      - 'docs/POST-ROADMAP-EXTENSIONS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Isolated security and HTTP tests
+        run: python3 -B -m unittest discover -s deployment -p 'test_*.py' -v
+      - name: Browser-script session tests (Node built-ins only, no npm)
+        run: node --test deployment/test_operator.cjs
+      - name: Validate CONTROL core and extension contracts
+        run: |
+          python3 -B tools/validate_control.py
+          python3 -B tools/validate_extensions.py
+
+  pinned-donors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Fetch and verify exact three donor commits
+        run: |
+          python3 -B -m deployment.pinned_sources
+          python3 -B -m deployment.pinned_sources --verify
+      - name: Probe actual CONTROL NEXUS FED ORACLE read paths
+        run: python3 -B -m deployment.edge --probe
+      - name: Verify donor trees remained clean after running probes
+        run: python3 -B -m deployment.pinned_sources --verify

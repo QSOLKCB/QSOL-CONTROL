@@ -72,5 +72,23 @@
     "REMOTE_GATEWAY != REMOTE_WEBUI",
     "TOKEN_DIGEST != TOKEN",
     "CLIENT_IDENTITY != SELF_ASSERTED_CALLER_IDENTITY"
-  ]
+  ],
+  "render_edge_preview": {
+    "protocol": "qsol-control-render-edge/1",
+    "contract": "deployment/edge-contract.json",
+    "source": "deployment/edge.py",
+    "status": "source_implemented_not_deployed",
+    "reuse": "qsol-control-remote-gateway/1_loopback_only",
+    "existing_remote_webui_exposed": false,
+    "control_operation_allowlist": [
+      "control.health",
+      "control.capabilities"
+    ],
+    "mutation_allowed": false,
+    "durable_audit_on_free_compute": false,
+    "rate_limit_identity": "authenticated_control_principal",
+    "untrusted_proxy_forwarded_for_used_for_identity": false,
+    "source_verification": "full_tracked_blob_and_extra_file_rejection",
+    "authority": "none"
+  }
 }

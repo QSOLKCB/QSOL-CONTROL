@@ -47,6 +47,23 @@
       "provider_stderr_max_bytes": 1048576,
       "post_proposal_receipt_verification": true,
       "control_storage_mutated_by_adapter": false
+    },
+    "render_readonly_edge": {
+      "status": "implemented-source-not-deployed",
+      "protocol": "qsol-control-render-edge/1",
+      "source": "deployment/edge.py",
+      "contract": "deployment/edge-contract.json",
+      "documentation": "deployment/README.md",
+      "blueprint": "render.yaml",
+      "direct_public_mutations": false,
+      "public_control_webui": false,
+      "free_plan_durable_audit": false,
+      "source_commits_pinned": true,
+      "allowlisted_operations": [
+        "control.health",
+        "control.capabilities"
+      ],
+      "authority": "none"
     }
   },
   "permanent_nongoals": "ai/permanent-nongoals.json",

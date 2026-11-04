@@ -1,0 +1,99 @@
+{
+  "protocol": "qsol-control-render-edge/1",
+  "schema_version": 1,
+  "role": "source-pinned-authenticated-readonly-inspection",
+  "status": "implemented_source_not_deployed",
+  "public_endpoints": [
+    {
+      "method": "GET",
+      "path": "/healthz",
+      "authentication": false,
+      "claim": "edge-only"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "authentication": false,
+      "claim": "operator UI only"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/agent",
+      "authentication": true,
+      "operations": [
+        "control.health",
+        "control.capabilities"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/snapshot",
+      "authentication": true,
+      "operations": [
+        "edge.snapshot"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/oracle/query",
+      "authentication": true,
+      "operations": [
+        "edge.oracle.query"
+      ]
+    }
+  ],
+  "components": {
+    "control": {
+      "transport": "qsol-control-remote-gateway/1",
+      "binding": "127.0.0.1",
+      "exposes_mutations": false
+    },
+    "nexus": {
+      "source": "pinned-QSOL-NEXUS",
+      "operations": [
+        "system.health",
+        "system.operations"
+      ],
+      "exposes_mutations": false
+    },
+    "fed": {
+      "source": "pinned-QSOL-FED",
+      "capability": "python_sdk_phase6_conformance",
+      "live_federation": false
+    },
+    "oracle": {
+      "source": "pinned-QSOL-ORACLE",
+      "capability": "exact_subject_verified_ledger_query",
+      "exposes_mutations": false
+    }
+  },
+  "security": {
+    "tls": "render-managed-edge",
+    "forwarded_https_required": true,
+    "credential_in_source": false,
+    "token_secret_in_browser": "tab-memory-only",
+    "bearer_config": "sha256-digest-only",
+    "cors": false,
+    "host_allowlist": true,
+    "origin_check": true,
+    "source_pins": "deployment/source-pins.json",
+    "network_destination_override": false,
+    "request_limit": "process-local",
+    "free_audit": "ephemeral",
+    "durable_multiuser": false
+  },
+  "excluded": [
+    "council.run",
+    "worldstore.write",
+    "fed.peer.network",
+    "oracle.ledger.append",
+    "control.file.put",
+    "control.collection.create",
+    "control.replay.execute",
+    "remote.webui",
+    "model.inference",
+    "provider.credential.enrollment"
+  ],
+  "run": "render.yaml",
+  "authority": "none"
+}
